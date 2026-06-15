@@ -13,6 +13,8 @@ from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from ..config import Config, load_config
 from ..lint import lint
@@ -25,6 +27,18 @@ from ..wiki import PageRef, iter_pages, read_optional
 STATIC_DIR = Path(__file__).parent / "static"
 
 ProviderFactory = Callable[[Config], LLMProvider]
+
+
+class _SPAStaticFiles(StaticFiles):
+    """Serve the Vite build. Vite fingerprints JS/CSS/font filenames, so those
+    may be cached freely; only ``index.html`` (unhashed) must always revalidate
+    so a package upgrade picks up the new asset hashes immediately."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        if getattr(response, "path", "").endswith("index.html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
 # Environment variable holding the API key for each provider backend.
 _PROVIDER_KEY_ENV = {
@@ -145,5 +159,7 @@ def create_app(
         issues = lint(config, provider=provider, deep=deep, course=course)
         return [{"level": i.level, "page": i.page, "message": i.message} for i in issues]
 
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+    # check_dir=False so create_app works before the frontend is built (tests,
+    # fresh checkouts); requests simply 404 until `vite build` populates static/.
+    app.mount("/", _SPAStaticFiles(directory=STATIC_DIR, html=True, check_dir=False), name="static")
     return app
