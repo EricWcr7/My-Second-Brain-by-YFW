@@ -82,10 +82,6 @@ def today() -> str:
     return _dt.date.today().isoformat()
 
 
-def _now() -> str:
-    return _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
-
-
 @dataclass
 class PageRef:
     slug: str
@@ -125,16 +121,31 @@ def all_concept_slugs(config: Config) -> set[str]:
     return {ref.slug for ref in iter_pages(config, "concept")}
 
 
-def append_log(config: Config, entry: str) -> None:
+LOG_HEADER = (
+    "# Log\n\n"
+    "Chronological record of wiki operations. Each entry begins with a\n"
+    "`## [YYYY-MM-DD] <op> | <title>` heading so the timeline is greppable\n"
+    "(e.g. `grep '^## \\[' log.md | tail -5`).\n\n"
+)
+
+
+def append_log(config: Config, op: str, title: str, *, detail: str = "") -> None:
+    """Append a greppable operation entry to ``log.md``.
+
+    Writes a ``## [YYYY-MM-DD] <op> | <title>`` heading (so the timeline can be
+    sliced by grepping the ``## [`` prefix), optionally followed by a one-line
+    detail.
+    """
     ensure_dir(config.wiki_dir)
-    line = f"- {_now()} — {entry.strip()}\n"
+    block = f"## [{today()}] {op} | {title.strip()}\n"
+    if detail.strip():
+        block += f"{detail.strip()}\n"
+    block += "\n"
     if config.log_file.exists():
         with open(config.log_file, "a", encoding="utf-8") as f:
-            f.write(line)
+            f.write(block)
     else:
-        config.log_file.write_text(
-            f"# Log\n\nChronological record of wiki operations.\n\n{line}", "utf-8"
-        )
+        config.log_file.write_text(LOG_HEADER + block, "utf-8")
 
 
 def rebuild_index(config: Config) -> None:

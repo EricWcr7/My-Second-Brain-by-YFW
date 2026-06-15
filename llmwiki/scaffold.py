@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .config import Config
 from .store import ensure_dir
-from .wiki import rebuild_index
+from .wiki import LOG_HEADER, rebuild_index
 
 CONFIG_TOML = """\
 # llmwiki configuration. API keys are NOT stored here — set the environment
@@ -128,16 +128,19 @@ type: source
 section: <section path>          # e.g. academic/multivariable-calculus
 kind: <markdown|pdf|docx|pptx|image|web|text>
 path: <relative path under raw/ , or the URL>
+assets: [<relative path under raw/assets/>, ...]   # optional; image sources only
 ingested: <YYYY-MM-DD>
 ```
 
 Body — a structured summary of the source plus a list of the concepts it grounds
-(as `[[wikilinks]]`).
+(as `[[wikilinks]]`). Image sources additionally embed the captured asset with
+`![title](relative/path)` so it is viewable.
 
 ## Maintenance files
 
 - `index.md` — auto-generated navigation catalog (do not edit by hand).
-- `log.md` — append-only operation record.
+- `log.md` — append-only operation record; each entry is a
+  `## [YYYY-MM-DD] <op> | <title>` heading so the timeline is greppable.
 - `overview.md` — narrative orientation across sections (compiler-maintained).
 """
 
@@ -183,9 +186,7 @@ def scaffold_vault(root: Path) -> Config:
             path.write_text(text, "utf-8")
 
     if not config.log_file.exists():
-        config.log_file.write_text(
-            "# Log\n\nChronological record of wiki operations.\n\n", "utf-8"
-        )
+        config.log_file.write_text(LOG_HEADER, "utf-8")
     rebuild_index(config)
 
     # Keep tool state out of version control.

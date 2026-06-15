@@ -12,6 +12,18 @@ def test_extract_wikilinks_handles_aliases_and_headings():
     assert wiki.extract_wikilinks(text) == {"gradient", "chain-rule", "page"}
 
 
+def test_append_log_writes_greppable_entries(vault):
+    wiki.append_log(vault, "ingest", "Chain Rule Notes", detail="concepts: chain-rule")
+    wiki.append_log(vault, "query", "what is the gradient", detail="saved [[q]]")
+
+    text = vault.log_file.read_text("utf-8")
+    headings = [ln for ln in text.splitlines() if ln.startswith("## [")]
+    assert len(headings) == 2  # the seed header (# Log) is not a `## [` line
+    assert "ingest | Chain Rule Notes" in headings[0]
+    assert "query | what is the gradient" in headings[1]
+    assert "concepts: chain-rule" in text
+
+
 def test_rebuild_index_lists_pages(vault):
     from llmwiki.store import write_page
 

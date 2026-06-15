@@ -8,6 +8,7 @@ and index/log updates are deterministic.
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field
 from . import prompts
 from .config import Config
 from .loaders import LoadResult, is_url, load_source
+from .loaders.registry import IMAGE_EXTS
 from .providers.base import LLMProvider
 from .store import (
     ensure_dir,
@@ -101,7 +103,11 @@ def _clean_slug(value: str) -> str:
 
 
 def _resolve_raw(config: Config, spec: str) -> tuple[Path | None, str, str]:
-    """Return (raw_path, ledger_key, raw_ref). Copies external files into raw/."""
+    """Return (raw_path, ledger_key, raw_ref). Copies external files into raw/.
+
+    Image files land under ``raw/assets/`` so they can be embedded and viewed
+    directly; every other source type lands under ``raw/sources/``.
+    """
     if is_url(spec):
         return None, spec, spec
     src = Path(spec).expanduser()
@@ -112,10 +118,11 @@ def _resolve_raw(config: Config, spec: str) -> tuple[Path | None, str, str]:
     if raw_dir in src.parents:
         path = src
     else:
-        ensure_dir(config.sources_dir)
-        dest = config.sources_dir / src.name
+        dest_dir = config.assets_dir if src.suffix.lower() in IMAGE_EXTS else config.sources_dir
+        ensure_dir(dest_dir)
+        dest = dest_dir / src.name
         if dest.exists() and sha256_file(dest) != sha256_file(src):
-            dest = config.sources_dir / f"{src.stem}-{sha256_file(src)[:8]}{src.suffix}"
+            dest = dest_dir / f"{src.stem}-{sha256_file(src)[:8]}{src.suffix}"
         if not dest.exists():
             shutil.copy2(src, dest)
         path = dest.resolve()
@@ -181,7 +188,15 @@ def _write_source_page(
         "path": raw_ref,
         "ingested": today(),
     }
-    write_page(source_path(config, section, source_slug), metadata, body + "\n")
+    page_path = source_path(config, section, source_slug)
+    if loaded.kind == "image":
+        # Embed the captured asset so it is viewable in the wiki, and record it
+        # in frontmatter for provenance. The path is relative to the source page.
+        asset_abs = (config.root / raw_ref).resolve()
+        rel = os.path.relpath(asset_abs, page_path.parent)
+        body = f"![{loaded.title}]({rel})\n\n{body}"
+        metadata["assets"] = [raw_ref]
+    write_page(page_path, metadata, body + "\n")
 
 
 def _write_concept_page(
@@ -296,11 +311,10 @@ def ingest(
     if gen.overview and gen.overview.strip():
         config.overview_file.write_text(gen.overview.strip() + "\n", "utf-8")
 
-    log_entry = gen.log_entry.strip() or (
-        f"Ingested [[{source_slug}|{loaded.title}]] ({section or 'General'}); "
-        f"concepts: {', '.join(touched) or 'none'}"
+    detail = gen.log_entry.strip() or (
+        f"concepts: {', '.join(touched) or 'none'} (section: {section or 'General'})"
     )
-    append_log(config, log_entry)
+    append_log(config, "ingest", loaded.title, detail=detail)
     rebuild_index(config)
 
     set_source_record(
