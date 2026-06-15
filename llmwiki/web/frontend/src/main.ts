@@ -5,7 +5,7 @@ import { filterEl } from "./dom";
 import { state, type Meta } from "./state";
 import { loadPages, renderPageList } from "./sidebar";
 import { initThemeToggle } from "./theme";
-import { initRouter, navigate, applyRoute } from "./router";
+import { initRouter, navigate } from "./router";
 import { renderLandingStats } from "./landing";
 
 // Sidebar nav buttons map to routes. Landing CTAs/cards/logo are plain
@@ -28,13 +28,15 @@ filterEl.addEventListener("input", renderPageList);
 // wikilinks, and lint page refs. All funnel through the router.
 document.addEventListener("click", (e) => {
   const target = e.target as Element;
-  // Scope picker: set the active scope, then re-render the list and the current
-  // view so Ask/Lint reflect the new slice.
+  // Scope picker: the tree is a hierarchy navigator — selecting a node opens that
+  // section's page (General -> the landing; a branch/course -> its hub), which
+  // also sets the scope that Ask/Lint then operate over.
   const scopeNode = target.closest<HTMLAnchorElement>("#pages a[data-scope]");
   if (scopeNode) {
-    state.scope = scopeNode.dataset.scope ?? "";
+    const scope = scopeNode.dataset.scope ?? "";
+    state.scope = scope;
     renderPageList();
-    applyRoute();
+    navigate(scope ? "#/section/" + scope : "#/");
     return;
   }
   const side = target.closest<HTMLAnchorElement>("#pages a[data-slug]");
