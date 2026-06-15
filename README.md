@@ -140,9 +140,25 @@ pip install ".[web]"      # one-time: adds fastapi + uvicorn
 llmwiki serve             # then open the printed localhost URL
 ```
 
-The rendering libraries (KaTeX, markdown-it) are vendored locally, so the UI
-works fully offline. A key is only needed for the Ask panel and Lint's deep
-review; browse/search/structural-lint work without one.
+The rendering libraries (KaTeX, markdown-it) are bundled into the committed
+build, so the UI works fully offline and **no Node is needed to run it**. A key
+is only needed for the Ask panel and Lint's deep review; browse/search/structural
+-lint work without one.
+
+### Developing the web UI
+
+The frontend is a Vite + TypeScript app in `llmwiki/web/frontend/`; its build
+output is committed to `llmwiki/web/static/` (which `serve` hosts). Node is
+required only for development, not for running.
+
+```bash
+make web-install   # one-time: npm install (needs Node 18+)
+make dev           # FastAPI :8000 + Vite :5173 (HMR) — open http://127.0.0.1:5173
+make web-build     # rebuild llmwiki/web/static before committing UI changes
+```
+
+`make dev` proxies `/api` to the backend, so editing `src/*.ts` or
+`src/styles.css` reloads instantly — no reinstall, no hard refresh.
 
 ---
 

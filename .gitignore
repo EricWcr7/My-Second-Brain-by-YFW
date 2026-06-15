@@ -230,3 +230,9 @@ __pycache__/
 .claude/
 CLAUDE.md
 api_keys.txt
+
+# Web frontend (Vite) — source lives in llmwiki/web/frontend, build output is
+# committed to llmwiki/web/static so `pip install` ships ready-to-run assets.
+llmwiki/web/frontend/node_modules/
+llmwiki/web/frontend/.vite/
+.dev-api.pid

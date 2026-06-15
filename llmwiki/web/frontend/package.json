@@ -1,0 +1,24 @@
+{
+  "name": "llmwiki-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Web UI for llmwiki (Eric's Second Brain). Built with Vite; output is committed to ../static.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "katex": "^0.16.11",
+    "markdown-it": "^14.1.0",
+    "markdown-it-texmath": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.7",
+    "@types/markdown-it": "^14.1.2",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.10"
+  }
+}
