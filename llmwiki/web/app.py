@@ -76,12 +76,12 @@ def create_app(
     def meta() -> dict:
         concepts = iter_pages(config, "concept")
         sources = iter_pages(config, "source")
-        courses = sorted({r.course for r in concepts} | {r.course for r in sources})
+        sections = sorted({r.section for r in concepts} | {r.section for r in sources})
         return {
-            "courses": courses,
+            "sections": sections,
             "concept_count": len(concepts),
             "source_count": len(sources),
-            "default_course": config.default_course,
+            "default_section": config.default_section,
             "has_api_key": _has_api_key(config),
             "api_key_env": _api_key_env(config),
         }
@@ -90,7 +90,7 @@ def create_app(
     def pages() -> list[dict]:
         refs = iter_pages(config, "concept") + iter_pages(config, "source")
         return [
-            {"slug": r.slug, "title": r.title, "course": r.course, "type": r.page_type}
+            {"slug": r.slug, "title": r.title, "section": r.section, "type": r.page_type}
             for r in refs
         ]
 
@@ -110,7 +110,7 @@ def create_app(
         return {
             "slug": ref.slug,
             "title": ref.title,
-            "course": ref.course,
+            "section": ref.section,
             "type": ref.page_type,
             "content": doc.content,
         }
@@ -118,15 +118,15 @@ def create_app(
     @app.get("/api/search")
     def search_endpoint(
         q: str = Query(...),
-        course: str | None = None,
+        section: str | None = None,
         top_k: int | None = None,
     ) -> list[dict]:
-        hits = search(config, q, top_k=top_k or config.search_top_k, course=course)
+        hits = search(config, q, top_k=top_k or config.search_top_k, section=section)
         return [
             {
                 "slug": h.ref.slug,
                 "title": h.ref.title,
-                "course": h.ref.course,
+                "section": h.ref.section,
                 "score": round(h.score, 3),
             }
             for h in hits
@@ -135,7 +135,7 @@ def create_app(
     @app.post("/api/query")
     def query_endpoint(
         question: str = Body(..., embed=True),
-        course: str | None = Body(None, embed=True),
+        section: str | None = Body(None, embed=True),
     ) -> dict:
         if not _has_api_key(config):
             env = _api_key_env(config)
@@ -143,11 +143,11 @@ def create_app(
                 status_code=503,
                 detail=f"{env} is not set; set it and restart to ask questions.",
             )
-        result = answer(config, provider_factory(config), question, course=course)
+        result = answer(config, provider_factory(config), question, section=section)
         return {"answer": result.answer, "pages_used": result.pages_used}
 
     @app.get("/api/lint")
-    def lint_endpoint(course: str | None = None, deep: bool = False) -> list[dict]:
+    def lint_endpoint(section: str | None = None, deep: bool = False) -> list[dict]:
         provider = None
         if deep:
             if not _has_api_key(config):
@@ -156,7 +156,7 @@ def create_app(
                     detail=f"{_api_key_env(config)} is not set; deep lint needs it.",
                 )
             provider = provider_factory(config)
-        issues = lint(config, provider=provider, deep=deep, course=course)
+        issues = lint(config, provider=provider, deep=deep, section=section)
         return [{"level": i.level, "page": i.page, "message": i.message} for i in issues]
 
     # check_dir=False so create_app works before the frontend is built (tests,

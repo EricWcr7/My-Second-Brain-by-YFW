@@ -2,10 +2,10 @@
 // so other modules must always read it through this object (not capture it).
 
 export interface Meta {
-  courses: string[];
+  sections: string[];
   concept_count: number;
   source_count: number;
-  default_course?: string;
+  default_section?: string;
   has_api_key: boolean;
   api_key_env: string;
 }
@@ -13,7 +13,7 @@ export interface Meta {
 export interface PageRef {
   slug: string;
   title: string;
-  course: string;
+  section: string;
   type: string;
 }
 
@@ -30,7 +30,7 @@ export interface QueryResult {
 
 export const state = {
   meta: {
-    courses: [],
+    sections: [],
     concept_count: 0,
     source_count: 0,
     has_api_key: false,
@@ -38,4 +38,6 @@ export const state = {
   } as Meta,
   pages: [] as PageRef[],
   slugSet: new Set<string>(),
+  // Current scope driving Ask/Search/Lint. "" = General (whole knowledge base).
+  scope: "",
 };

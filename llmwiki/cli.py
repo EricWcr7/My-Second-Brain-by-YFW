@@ -47,7 +47,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         config,
         provider,
         args.source,
-        course=args.course,
+        section=args.section,
         force_vision=args.vision,
         force=args.force,
     )
@@ -64,7 +64,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 def cmd_query(args: argparse.Namespace) -> int:
     config = load_config()
     provider = get_provider(config)
-    result = answer(config, provider, args.question, course=args.course, save=args.save)
+    result = answer(config, provider, args.question, section=args.section, save=args.save)
     print(result.answer)
     if result.pages_used:
         print(f"\n[pages: {', '.join(result.pages_used)}]", file=sys.stderr)
@@ -76,7 +76,7 @@ def cmd_query(args: argparse.Namespace) -> int:
 def cmd_lint(args: argparse.Namespace) -> int:
     config = load_config()
     provider = get_provider(config) if args.deep else None
-    issues = lint(config, provider=provider, deep=args.deep, course=args.course)
+    issues = lint(config, provider=provider, deep=args.deep, section=args.section)
     if not issues:
         print("No issues found.")
         return 0
@@ -111,19 +111,19 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def cmd_search(args: argparse.Namespace) -> int:
     config = load_config()
-    hits = search(config, args.query, top_k=args.top_k, course=args.course)
+    hits = search(config, args.query, top_k=args.top_k, section=args.section)
     if not hits:
         print("No matches.")
         return 0
     for hit in hits:
-        print(f"{hit.score:6.2f}  [[{hit.ref.slug}]]  {hit.ref.title}  ({hit.ref.course})")
+        print(f"{hit.score:6.2f}  [[{hit.ref.slug}]]  {hit.ref.title}  ({hit.ref.section or 'General'})")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="llmwiki",
-        description="Local-first academic LLM wiki. Run with no command to open the web UI.",
+        description="Local-first LLM wiki / knowledge base. Run with no command to open the web UI.",
     )
     parser.add_argument("--version", action="version", version=f"llmwiki {__version__}")
     # No subcommand opens the web UI; these defaults supply the launch settings.
@@ -137,7 +137,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ing = sub.add_parser("ingest", help="ingest a file path or URL into the wiki")
     p_ing.add_argument("source", help="path to a file or an http(s) URL")
-    p_ing.add_argument("--course", help="course name (default: config default_course)")
+    p_ing.add_argument(
+        "--section",
+        help="section path, e.g. academic/multivariable-calculus "
+        "(default: config default_section)",
+    )
     p_ing.add_argument(
         "--vision", action="store_true", help="force vision transcription for PDFs"
     )
@@ -148,14 +152,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_q = sub.add_parser("query", help="ask a question answered from the wiki")
     p_q.add_argument("question")
-    p_q.add_argument("--course", help="restrict retrieval to a course")
+    p_q.add_argument(
+        "--section", help="restrict retrieval to a section and its subtree"
+    )
     p_q.add_argument(
         "--save", action="store_true", help="save the answer under wiki/queries/"
     )
     p_q.set_defaults(func=cmd_query)
 
     p_l = sub.add_parser("lint", help="check the wiki for structural/quality issues")
-    p_l.add_argument("--course", help="restrict to a course")
+    p_l.add_argument("--section", help="restrict to a section and its subtree")
     p_l.add_argument(
         "--deep", action="store_true", help="also run an LLM contradiction/gap review"
     )
@@ -163,7 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_s = sub.add_parser("search", help="keyword search over concept pages (no LLM)")
     p_s.add_argument("query")
-    p_s.add_argument("--course", help="restrict to a course")
+    p_s.add_argument("--section", help="restrict to a section and its subtree")
     p_s.add_argument("--top-k", type=int, default=10, dest="top_k")
     p_s.set_defaults(func=cmd_search)
 

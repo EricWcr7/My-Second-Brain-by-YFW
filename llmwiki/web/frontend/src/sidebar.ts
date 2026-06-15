@@ -1,6 +1,12 @@
 import { getJSON, escapeHtml } from "./api";
 import { pagesEl, filterEl } from "./dom";
 import { state, type PageRef } from "./state";
+import {
+  sectionContains,
+  sectionLabel,
+  sectionSegments,
+  scopeNodes,
+} from "./sections";
 
 export async function loadPages(): Promise<void> {
   try {
@@ -13,22 +19,42 @@ export async function loadPages(): Promise<void> {
   renderPageList();
 }
 
+// The scope tree: General root + every section (and ancestors). Selecting a node
+// sets the scope that drives the page list and the Ask/Lint operations — so every
+// level offers the same operations over a different slice of the base.
+function renderScopeTree(): string {
+  const nodes = scopeNodes(state.meta.sections);
+  let html = '<div class="scope-tree"><div class="scope-head">Scope</div>';
+  for (const node of nodes) {
+    const depth = sectionSegments(node).length;
+    const count = state.pages.filter((p) => sectionContains(node, p.section)).length;
+    const active = node === state.scope ? " active" : "";
+    html +=
+      `<a class="scope-node${active}" data-scope="${escapeHtml(node)}" ` +
+      `style="padding-left:${10 + depth * 14}px">` +
+      `${escapeHtml(sectionLabel(node))}<span class="scope-count">${count}</span></a>`;
+  }
+  return html + "</div>";
+}
+
 export function renderPageList(): void {
   const q = filterEl.value.trim().toLowerCase();
   const groups: Record<string, PageRef[]> = {};
   for (const p of state.pages) {
+    if (!sectionContains(state.scope, p.section)) continue;
     if (q && !p.title.toLowerCase().includes(q) && !p.slug.includes(q)) continue;
-    (groups[p.course] = groups[p.course] || []).push(p);
+    (groups[p.section] = groups[p.section] || []).push(p);
   }
-  const courses = Object.keys(groups).sort();
-  if (!courses.length) {
-    pagesEl.innerHTML = '<p class="muted">No pages. Ingest sources from the CLI.</p>';
+  let html = renderScopeTree();
+  const sections = Object.keys(groups).sort();
+  if (!sections.length) {
+    html += '<p class="muted">No pages in this scope. Ingest sources from the CLI.</p>';
+    pagesEl.innerHTML = html;
     return;
   }
-  let html = "";
-  for (const course of courses) {
-    html += `<div class="course">${escapeHtml(course)}</div>`;
-    for (const p of groups[course].sort((a, b) => a.title.localeCompare(b.title))) {
+  for (const section of sections) {
+    html += `<div class="section">${escapeHtml(section || "General")}</div>`;
+    for (const p of groups[section].sort((a, b) => a.title.localeCompare(b.title))) {
       html +=
         `<a data-slug="${escapeHtml(p.slug)}">${escapeHtml(p.title)}` +
         `<span class="badge">${p.type === "source" ? "src" : ""}</span></a>`;
@@ -38,6 +64,6 @@ export function renderPageList(): void {
 }
 
 export function highlightSidebar(slug: string | null): void {
-  pagesEl.querySelectorAll<HTMLAnchorElement>("a").forEach((a) =>
+  pagesEl.querySelectorAll<HTMLAnchorElement>("a[data-slug]").forEach((a) =>
     a.classList.toggle("active", a.dataset.slug === slug));
 }

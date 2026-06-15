@@ -28,7 +28,11 @@ class Config:
     # so switching `provider` picks the right model family automatically.
     compile_model: str | None = None
     cheap_model: str | None = None
-    default_course: str = "General"
+    # Section a source lands in when `--section` is omitted. Sections are
+    # `/`-joined path strings (e.g. "academic/multivariable-calculus"); "" is the
+    # General root that sees the whole knowledge base. Filing defaults to the flat
+    # non-academic branch.
+    default_section: str = "non-academic"
     # Retrieval / context budgets.
     search_top_k: int = 8
     context_token_budget: int = 60_000
@@ -107,7 +111,7 @@ _SETTING_KEYS = (
     "provider",
     "compile_model",
     "cheap_model",
-    "default_course",
+    "default_section",
     "search_top_k",
     "context_token_budget",
     "pdf_vision_min_chars_per_page",

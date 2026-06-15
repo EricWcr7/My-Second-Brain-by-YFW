@@ -16,11 +16,11 @@ def test_rebuild_index_lists_pages(vault):
     from llmwiki.store import write_page
 
     write_page(
-        wiki.concept_path(vault, "Calc", "Gradient"),
-        {"title": "Gradient", "type": "concept", "course": "Calc", "sources": ["s1"]},
+        wiki.concept_path(vault, "academic/calc", "Gradient"),
+        {"title": "Gradient", "type": "concept", "section": "academic/calc", "sources": ["s1"]},
         "Body [[divergence]]",
     )
     wiki.rebuild_index(vault)
     index_text = vault.index_file.read_text("utf-8")
-    assert "## Calc" in index_text
+    assert "academic/calc" in index_text
     assert "[[gradient|Gradient]]" in index_text

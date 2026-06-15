@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .config import Config
 from .store import read_page
-from .wiki import PageRef, iter_pages
+from .wiki import PageRef, iter_pages, section_contains
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = {
@@ -35,10 +35,10 @@ class SearchHit:
     score: float
 
 
-def _build_docs(config: Config, page_type: str, course: str | None) -> list[tuple[PageRef, list[str]]]:
+def _build_docs(config: Config, page_type: str, section: str | None) -> list[tuple[PageRef, list[str]]]:
     docs: list[tuple[PageRef, list[str]]] = []
     for ref in iter_pages(config, page_type):
-        if course and ref.course != course:
+        if section and not section_contains(section, ref.section):
             continue
         page = read_page(ref.path)
         if page is None:
@@ -54,10 +54,14 @@ def search(
     *,
     page_type: str = "concept",
     top_k: int | None = None,
-    course: str | None = None,
+    section: str | None = None,
 ) -> list[SearchHit]:
-    """Rank pages of ``page_type`` against ``query`` with BM25."""
-    docs = _build_docs(config, page_type, course)
+    """Rank pages of ``page_type`` against ``query`` with BM25.
+
+    ``section`` scopes the corpus to that section's subtree (see
+    ``wiki.section_contains``); ``None`` searches the whole knowledge base.
+    """
+    docs = _build_docs(config, page_type, section)
     if not docs:
         return []
 

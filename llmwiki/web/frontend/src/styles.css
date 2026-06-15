@@ -288,8 +288,32 @@ html[data-screen="app"] #landing { display: none; }
 #filter::placeholder { color: var(--muted); }
 #filter:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
 
+/* Scope tree ---------------------------------------------------------------- */
+#pages .scope-tree {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--accent-soft);
+}
+#pages .scope-head {
+  margin: 2px 0 6px;
+  padding-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--muted);
+}
+#pages a.scope-node { font-size: 13px; color: var(--muted); }
+#pages a.scope-node.active { color: var(--accent-fg); }
+.scope-count {
+  float: right;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: .7;
+}
+
 /* Page list ----------------------------------------------------------------- */
-#pages .course {
+#pages .section {
   margin: 16px 0 6px;
   padding-left: 8px;
   font-size: 11px;

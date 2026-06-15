@@ -10,7 +10,7 @@ from . import prompts
 from .config import Config
 from .providers.base import LLMProvider
 from .store import read_page
-from .wiki import PageRef, extract_wikilinks, iter_pages, read_optional
+from .wiki import PageRef, extract_wikilinks, iter_pages, read_optional, section_contains
 
 
 @dataclass
@@ -108,13 +108,13 @@ def lint(
     *,
     provider: LLMProvider | None = None,
     deep: bool = False,
-    course: str | None = None,
+    section: str | None = None,
 ) -> list[LintIssue]:
     concepts = iter_pages(config, "concept")
     sources = iter_pages(config, "source")
-    if course:
-        concepts = [r for r in concepts if r.course == course]
-        sources = [r for r in sources if r.course == course]
+    if section:
+        concepts = [r for r in concepts if section_contains(section, r.section)]
+        sources = [r for r in sources if section_contains(section, r.section)]
 
     issues = _deterministic(config, concepts, sources)
     if deep and provider is not None and concepts:
