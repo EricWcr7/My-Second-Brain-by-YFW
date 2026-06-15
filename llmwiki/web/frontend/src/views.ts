@@ -46,7 +46,7 @@ function renderAsk(): void {
     .join("");
   content.innerHTML = `
     <h1>Ask</h1>
-    ${state.meta.has_api_key ? "" : `<p class="notice">Set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code> and restart <code>llmwiki serve</code> to ask questions.</p>`}
+    ${state.meta.has_api_key ? "" : `<p class="notice">Set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code> and restart the server to ask questions.</p>`}
     <form id="ask-form">
       <textarea id="ask-q" placeholder="Ask a question answered from your wiki…" ${dis}></textarea>
       <div class="row">

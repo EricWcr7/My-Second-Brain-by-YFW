@@ -87,11 +87,10 @@ llmwiki query "state the multivariable chain rule and the proof idea"
 llmwiki search "chain rule"                           # keyword search, no LLM, no key
 llmwiki lint                                          # structural checks (offline)
 llmwiki lint --deep                                   # + LLM contradiction/gap review
-llmwiki serve                                         # local web UI with rendered math (see §5)
 ```
 
 Then open the `wiki/` folder in **Obsidian** to read, search, graph, and edit —
-or run `llmwiki serve` for a built-in web UI that renders the math in a browser.
+or just run `llmwiki` (no command) for a browser view that renders the math (see §5).
 
 ---
 
@@ -129,15 +128,15 @@ Quality checks.
 - `--deep` — additionally ask the model to flag contradictions, missing concept
   pages, and stale/unclear claims (uses the API).
 
-### `serve [--host HOST] [--port PORT] [--no-open]`
-Launch the local **web UI** for reading the wiki with **properly rendered math**
-(`$…$` / `$$…$$` via KaTeX), clickable `[[wikilinks]]`, keyword search, an Ask
-panel, and a Lint view. Run it from the vault root; it opens
-`http://127.0.0.1:8000` in your browser.
+### Web UI
+Read the wiki in a browser with **properly rendered math** (`$…$` / `$$…$$` via
+KaTeX), clickable `[[wikilinks]]`, keyword search, an Ask panel, and a Lint view.
+Just run `llmwiki` with no command from the vault root — it starts the UI and
+opens `http://127.0.0.1:8000` in your browser.
 
 ```bash
 pip install ".[web]"      # one-time: adds fastapi + uvicorn
-llmwiki serve             # then open the printed localhost URL
+llmwiki                   # opens the web UI in your browser
 ```
 
 The rendering libraries (KaTeX, markdown-it) are bundled into the committed
@@ -148,8 +147,8 @@ is only needed for the Ask panel and Lint's deep review; browse/search/structura
 ### Developing the web UI
 
 The frontend is a Vite + TypeScript app in `llmwiki/web/frontend/`; its build
-output is committed to `llmwiki/web/static/` (which `serve` hosts). Node is
-required only for development, not for running.
+output is committed to `llmwiki/web/static/` (which the FastAPI app hosts). Node
+is required only for development, not for running.
 
 ```bash
 make web-install   # one-time: npm install (needs Node 18+)

@@ -122,10 +122,14 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="llmwiki", description="Local-first academic LLM wiki."
+        prog="llmwiki",
+        description="Local-first academic LLM wiki. Run with no command to open the web UI.",
     )
     parser.add_argument("--version", action="version", version=f"llmwiki {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True)
+    # No subcommand opens the web UI; these defaults supply the launch settings.
+    parser.set_defaults(func=cmd_serve, host="127.0.0.1", port=8000, no_open=False)
+    # metavar hides the choice list so the internal `serve` alias stays out of --help.
+    sub = parser.add_subparsers(dest="command", metavar="<command>")
 
     p_init = sub.add_parser("init", help="create a vault in the current (or given) directory")
     p_init.add_argument("path", nargs="?", default=".", help="vault directory (default: .)")
@@ -163,12 +167,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_s.add_argument("--top-k", type=int, default=10, dest="top_k")
     p_s.set_defaults(func=cmd_search)
 
-    p_serve = sub.add_parser("serve", help="launch the local web UI (browse/ask/lint with math)")
-    p_serve.add_argument("--host", default="127.0.0.1", help="bind host (default: 127.0.0.1)")
-    p_serve.add_argument("--port", type=int, default=8000, help="bind port (default: 8000)")
-    p_serve.add_argument(
-        "--no-open", action="store_true", help="do not open a browser automatically"
-    )
+    # Hidden alias for the default web-UI launch (no help= keeps it out of --help).
+    p_serve = sub.add_parser("serve")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.add_argument("--no-open", action="store_true")
     p_serve.set_defaults(func=cmd_serve)
 
     return parser
