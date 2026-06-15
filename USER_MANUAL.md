@@ -209,6 +209,9 @@ Open the `wiki/` folder as an Obsidian vault. You get:
 pip install ".[web]"     # one-time
 llmwiki                  # no command → opens http://127.0.0.1:8000
 ```
+Need a different address or no auto-open? Use the explicit form:
+`llmwiki serve --port 8080 --host 0.0.0.0 --no-open`.
+
 Renders math via bundled KaTeX, with a section scope tree, clickable links, a
 search box, an Ask panel, and a Lint view. Works fully offline; a key is needed
 only for Ask and deep Lint. The web UI is a **reader** — it never modifies
@@ -249,7 +252,7 @@ in the config. See [README §9](README.md#9-configuration) for model overrides.
 | ------- | ---- | --------- |
 | `llmwiki init [path]` | no | Create a vault. |
 | `llmwiki ingest <path\|url> [--section P] [--vision] [--force]` | yes | Compile a source into the wiki. |
-| `llmwiki query "<q>" [--section P] [--save] [--format prose\|table\|slides]` | yes | Answer from the wiki, with citations. |
+| `llmwiki query "<q>" [--section P] [--save] [--format\|-f prose\|table\|slides]` | yes | Answer from the wiki, with citations. |
 | `llmwiki search "<kw>" [--section P] [--top-k N]` | no | Fast keyword ranking over concepts. |
 | `llmwiki lint [--section P] [--deep]` | `--deep` only | Structural checks; deep adds an LLM review + growth suggestions. |
 | `llmwiki` (no command) | for Ask/deep-lint | Launch the browser UI. |
