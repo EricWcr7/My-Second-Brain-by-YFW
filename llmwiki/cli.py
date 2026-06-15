@@ -88,7 +88,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     app = create_app(config)
     url = f"http://{args.host}:{args.port}"
-    print(f"llmwiki web UI at {url}  (vault: {config.root})")
+    print(f"Eric's Second Brain (web UI) at {url}  (vault: {config.root})")
     print("press Ctrl+C to stop")
     if not args.no_open:
         import threading
