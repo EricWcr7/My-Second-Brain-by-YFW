@@ -60,7 +60,8 @@ def test_lint_flags_dangling_wikilink(client):
 
 
 def test_query_with_key(client, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    # Default provider is OpenAI, so its key is what enables Ask.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     r = client.post("/api/query", json={"question": "state the chain rule"})
     assert r.status_code == 200
     assert "chain rule" in r.json()["answer"].lower()
@@ -68,7 +69,21 @@ def test_query_with_key(client, monkeypatch):
 
 
 def test_query_without_key_returns_503(client, monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     r = client.post("/api/query", json={"question": "anything"})
     assert r.status_code == 503
-    assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+    assert "OPENAI_API_KEY" in r.json()["detail"]
+
+
+def test_key_check_follows_configured_provider(vault, monkeypatch):
+    # With provider=anthropic, the Anthropic key (not OpenAI) enables Ask.
+    _seed(vault)
+    vault.provider = "anthropic"
+    fake = FakeProvider(answer_text="ok [[chain-rule]]")
+    client = TestClient(create_app(vault, provider_factory=lambda cfg: fake))
+
+    assert client.get("/api/meta").json()["api_key_env"] == "ANTHROPIC_API_KEY"
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    assert client.post("/api/query", json={"question": "anything"}).status_code == 200

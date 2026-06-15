@@ -26,9 +26,21 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 ProviderFactory = Callable[[Config], LLMProvider]
 
+# Environment variable holding the API key for each provider backend.
+_PROVIDER_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+}
 
-def _has_api_key() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+def _api_key_env(config: Config) -> str:
+    """Name of the env var that holds the configured provider's API key."""
+    return _PROVIDER_KEY_ENV.get(str(config.provider).lower(), "OPENAI_API_KEY")
+
+
+def _has_api_key(config: Config) -> bool:
+    return bool(os.environ.get(_api_key_env(config)))
 
 
 def _page_index(config: Config) -> dict[str, PageRef]:
@@ -56,7 +68,8 @@ def create_app(
             "concept_count": len(concepts),
             "source_count": len(sources),
             "default_course": config.default_course,
-            "has_api_key": _has_api_key(),
+            "has_api_key": _has_api_key(config),
+            "api_key_env": _api_key_env(config),
         }
 
     @app.get("/api/pages")
@@ -110,10 +123,11 @@ def create_app(
         question: str = Body(..., embed=True),
         course: str | None = Body(None, embed=True),
     ) -> dict:
-        if not _has_api_key():
+        if not _has_api_key(config):
+            env = _api_key_env(config)
             raise HTTPException(
                 status_code=503,
-                detail="ANTHROPIC_API_KEY is not set; set it and restart to ask questions.",
+                detail=f"{env} is not set; set it and restart to ask questions.",
             )
         result = answer(config, provider_factory(config), question, course=course)
         return {"answer": result.answer, "pages_used": result.pages_used}
@@ -122,10 +136,10 @@ def create_app(
     def lint_endpoint(course: str | None = None, deep: bool = False) -> list[dict]:
         provider = None
         if deep:
-            if not _has_api_key():
+            if not _has_api_key(config):
                 raise HTTPException(
                     status_code=503,
-                    detail="ANTHROPIC_API_KEY is not set; deep lint needs it.",
+                    detail=f"{_api_key_env(config)} is not set; deep lint needs it.",
                 )
             provider = provider_factory(config)
         issues = lint(config, provider=provider, deep=deep, course=course)
