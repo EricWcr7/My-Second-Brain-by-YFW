@@ -123,19 +123,19 @@ def _resolve_raw(config: Config, spec: str) -> tuple[Path | None, str, str]:
     return path, rel, rel
 
 
-def _analysis_user(course: str, loaded: LoadResult, existing_titles: list[str]) -> str:
+def _analysis_user(section: str, loaded: LoadResult, existing_titles: list[str]) -> str:
     existing = "\n".join(f"- {t}" for t in existing_titles) or "(none yet)"
     return (
-        f"Course: {course}\n"
+        f"Section: {section or 'General'}\n"
         f"Source title: {loaded.title}\n"
         f"Source kind: {loaded.kind}\n\n"
-        f"Existing concept titles in this course:\n{existing}\n\n"
+        f"Existing concept titles in this section:\n{existing}\n\n"
         f"--- SOURCE START ---\n{loaded.markdown}\n--- SOURCE END ---\n"
     )
 
 
 def _generation_user(
-    course: str,
+    section: str,
     source_slug: str,
     loaded: LoadResult,
     analysis: SourceAnalysis,
@@ -150,7 +150,7 @@ def _generation_user(
     existing_text = "\n\n".join(existing_blocks) or "(no existing pages to merge)"
     concept_list = "\n".join(f"- {t}" for t in analysis.concept_titles) or "(decide from source)"
     return (
-        f"Course: {course}\n"
+        f"Section: {section or 'General'}\n"
         f"This source's provenance slug: {source_slug}\n"
         f"Source title: {loaded.title} (kind: {loaded.kind})\n\n"
         f"Analysis summary: {analysis.source_summary}\n"
@@ -163,7 +163,7 @@ def _generation_user(
 
 def _write_source_page(
     config: Config,
-    course: str,
+    section: str,
     source_slug: str,
     loaded: LoadResult,
     raw_ref: str,
@@ -176,18 +176,18 @@ def _write_source_page(
     metadata = {
         "title": loaded.title,
         "type": "source",
-        "course": course,
+        "section": section,
         "kind": loaded.kind,
         "path": raw_ref,
         "ingested": today(),
     }
-    write_page(source_path(config, course, source_slug), metadata, body + "\n")
+    write_page(source_path(config, section, source_slug), metadata, body + "\n")
 
 
 def _write_concept_page(
-    config: Config, course: str, source_slug: str, draft: ConceptDraft
+    config: Config, section: str, source_slug: str, draft: ConceptDraft
 ) -> str:
-    path = concept_path(config, course, draft.title)
+    path = concept_path(config, section, draft.title)
     existing = read_page(path)
     sources: set[str] = set()
     if existing:
@@ -200,7 +200,7 @@ def _write_concept_page(
     metadata = {
         "title": draft.title,
         "type": "concept",
-        "course": course,
+        "section": section,
         "tags": list(draft.tags),
         "aliases": list(draft.aliases),
         "sources": sorted(sources),
@@ -218,11 +218,11 @@ def ingest(
     provider: LLMProvider,
     spec: str,
     *,
-    course: str | None = None,
+    section: str | None = None,
     force_vision: bool = False,
     force: bool = False,
 ) -> IngestResult:
-    course = course or config.default_course
+    section = section if section is not None else config.default_section
     warnings: list[str] = []
 
     raw_path, key, raw_ref = _resolve_raw(config, spec)
@@ -261,43 +261,43 @@ def ingest(
     except Exception:  # count_tokens is best-effort
         pass
 
-    existing_titles = [r.title for r in iter_pages(config, "concept") if r.course == course]
+    existing_titles = [r.title for r in iter_pages(config, "concept") if r.section == section]
 
     analysis = provider.parse(
         _system("ingest_analysis.md", config),
-        _analysis_user(course, loaded, existing_titles),
+        _analysis_user(section, loaded, existing_titles),
         SourceAnalysis,
     )
 
     existing_pages: list[tuple[str, str, str]] = []
     for title in analysis.concept_titles:
-        page = read_page(concept_path(config, course, title))
+        page = read_page(concept_path(config, section, title))
         if page:
             existing_pages.append((slugify(title), title, page.content))
 
     index_titles = [
-        f"{r.slug} :: {r.title}" for r in iter_pages(config, "concept") if r.course == course
+        f"{r.slug} :: {r.title}" for r in iter_pages(config, "concept") if r.section == section
     ]
 
     gen = provider.parse(
         _system("ingest_generation.md", config),
         _generation_user(
-            course, source_slug, loaded, analysis, existing_pages, index_titles
+            section, source_slug, loaded, analysis, existing_pages, index_titles
         ),
         GenerationResult,
     )
 
-    _write_source_page(config, course, source_slug, loaded, raw_ref, gen.source_page)
+    _write_source_page(config, section, source_slug, loaded, raw_ref, gen.source_page)
 
     touched: list[str] = []
     for draft in gen.concept_pages:
-        touched.append(_write_concept_page(config, course, source_slug, draft))
+        touched.append(_write_concept_page(config, section, source_slug, draft))
 
     if gen.overview and gen.overview.strip():
         config.overview_file.write_text(gen.overview.strip() + "\n", "utf-8")
 
     log_entry = gen.log_entry.strip() or (
-        f"Ingested [[{source_slug}|{loaded.title}]] ({course}); "
+        f"Ingested [[{source_slug}|{loaded.title}]] ({section or 'General'}); "
         f"concepts: {', '.join(touched) or 'none'}"
     )
     append_log(config, log_entry)
@@ -310,7 +310,7 @@ def ingest(
             "checksum": checksum,
             "kind": loaded.kind,
             "title": loaded.title,
-            "course": course,
+            "section": section,
             "raw_ref": raw_ref,
             "source_slug": source_slug,
             "concept_slugs": touched,

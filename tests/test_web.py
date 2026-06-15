@@ -10,13 +10,13 @@ from tests.fakes import FakeProvider
 
 def _seed(vault):
     write_page(
-        concept_path(vault, "Calc", "Chain Rule"),
-        {"title": "Chain Rule", "type": "concept", "course": "Calc", "sources": ["lecture-1"]},
+        concept_path(vault, "academic/calc", "Chain Rule"),
+        {"title": "Chain Rule", "type": "concept", "section": "academic/calc", "sources": ["lecture-1"]},
         "If $h = f \\circ g$ then $h'(x) = f'(g(x))\\,g'(x)$. See [[gradient]].\n",
     )
     write_page(
-        source_path(vault, "Calc", "lecture-1"),
-        {"title": "Lecture 1", "type": "source", "course": "Calc"},
+        source_path(vault, "academic/calc", "lecture-1"),
+        {"title": "Lecture 1", "type": "source", "section": "academic/calc"},
         "Lecture notes for the chain rule.\n",
     )
 
@@ -48,6 +48,19 @@ def test_search_ranks_the_concept(client):
     hits = client.get("/api/search", params={"q": "chain rule"}).json()
     assert hits[0]["slug"] == "chain-rule"
     assert hits[0]["score"] > 0
+    assert hits[0]["section"] == "academic/calc"
+
+
+def test_meta_reports_sections(client):
+    meta = client.get("/api/meta").json()
+    assert meta["sections"] == ["academic/calc"]
+    assert meta["default_section"] == "non-academic"
+
+
+def test_search_section_scope(client):
+    # The Academic branch sees the course page; a sibling section does not.
+    assert client.get("/api/search", params={"q": "chain rule", "section": "academic"}).json()
+    assert client.get("/api/search", params={"q": "chain rule", "section": "non-academic"}).json() == []
 
 
 def test_home_returns_content(client):

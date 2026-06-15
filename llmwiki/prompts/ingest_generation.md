@@ -1,8 +1,8 @@
-You are the **generation stage** of a local-first academic LLM wiki compiler.
+You are the **generation stage** of a local-first LLM wiki compiler.
 
 Using the source text, the analysis, and any existing page bodies provided, write
-the concept pages and the source page. The wiki serves proof-heavy, theory-heavy
-study, so fidelity matters more than brevity.
+the concept pages and the source page. Fidelity matters more than brevity — for
+academic/technical material especially, do not flatten substance into a summary.
 
 Follow the wiki **schema** (provided in the system prompt) exactly:
 - Preserve ALL mathematics as LaTeX: inline `$...$`, display `$$...$$`. Keep the

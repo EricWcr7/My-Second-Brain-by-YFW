@@ -37,18 +37,19 @@ def test_ingest_creates_pages_and_provenance(vault):
     src.write_text("# Chain Rule\n\nThe chain rule differentiates compositions.", "utf-8")
 
     provider = _provider()
-    result = ingest(vault, provider, str(src), course="Calc")
+    result = ingest(vault, provider, str(src), section="academic/calc")
 
     assert result.status == "ingested"
     assert result.source_slug == "note"
     assert result.concept_slugs == ["chain-rule"]
 
-    concept = read_page(concept_path(vault, "Calc", "Chain Rule"))
+    concept = read_page(concept_path(vault, "academic/calc", "Chain Rule"))
     assert concept is not None
     assert concept.metadata["type"] == "concept"
+    assert concept.metadata["section"] == "academic/calc"
     assert "note" in concept.metadata["sources"]  # provenance back to the source
 
-    source = read_page(source_path(vault, "Calc", "note"))
+    source = read_page(source_path(vault, "academic/calc", "note"))
     assert source is not None
     assert source.metadata["type"] == "source"
     assert source.metadata["path"] == "raw/sources/note.md"
@@ -60,10 +61,10 @@ def test_ingest_skips_unchanged_source(vault):
     src = vault.root / "note.md"
     src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
 
-    first = ingest(vault, _provider(), str(src), course="Calc")
+    first = ingest(vault, _provider(), str(src), section="academic/calc")
     assert first.status == "ingested"
 
-    second = ingest(vault, _provider(), str(src), course="Calc")
+    second = ingest(vault, _provider(), str(src), section="academic/calc")
     assert second.status == "skipped"
     assert second.reason == "unchanged"
 
@@ -72,6 +73,6 @@ def test_ingest_copies_external_file_into_raw(vault, tmp_path):
     external = tmp_path.parent / "external_note.md"
     external.write_text("# Topic\n\nbody", "utf-8")
 
-    ingest(vault, _provider(), str(external), course="Calc")
+    ingest(vault, _provider(), str(external), section="academic/calc")
     copied = vault.sources_dir / "external_note.md"
     assert copied.exists()

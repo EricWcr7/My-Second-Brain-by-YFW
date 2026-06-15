@@ -8,5 +8,5 @@ export function renderLandingStats(): void {
   };
   set("stat-concepts", state.meta.concept_count);
   set("stat-sources", state.meta.source_count);
-  set("stat-courses", state.meta.courses.length);
+  set("stat-sections", state.meta.sections.length);
 }

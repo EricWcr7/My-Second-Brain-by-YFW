@@ -24,8 +24,8 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _build_context(config: Config, question: str, course: str | None, top_k: int):
-    hits = search(config, question, page_type="concept", top_k=top_k, course=course)
+def _build_context(config: Config, question: str, section: str | None, top_k: int):
+    hits = search(config, question, page_type="concept", top_k=top_k, section=section)
     blocks: list[str] = []
     used: list[str] = []
     total = 0
@@ -34,7 +34,7 @@ def _build_context(config: Config, question: str, course: str | None, top_k: int
         if page is None:
             continue
         block = (
-            f"### [[{hit.ref.slug}]] — {hit.ref.title} (course: {hit.ref.course})\n"
+            f"### [[{hit.ref.slug}]] — {hit.ref.title} (section: {hit.ref.section or 'General'})\n"
             f"{page.content}"
         )
         tokens = _estimate_tokens(block)
@@ -51,12 +51,12 @@ def answer(
     provider: LLMProvider,
     question: str,
     *,
-    course: str | None = None,
+    section: str | None = None,
     top_k: int | None = None,
     save: bool = False,
 ) -> QueryResult:
     top_k = top_k or config.search_top_k
-    blocks, used = _build_context(config, question, course, top_k)
+    blocks, used = _build_context(config, question, section, top_k)
     context = "\n\n".join(blocks) or "(no matching pages found)"
 
     system = "\n\n".join(
@@ -79,7 +79,7 @@ def answer(
         metadata = {
             "title": question,
             "type": "query",
-            "course": course or config.default_course,
+            "section": section if section is not None else config.default_section,
             "created": today(),
         }
         write_page(saved, metadata, text.strip() + "\n")

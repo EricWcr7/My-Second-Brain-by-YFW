@@ -1,16 +1,47 @@
 # My-Second-Brain-by-YFW
 
-A local-first **academic LLM Wiki**. `llmwiki` compiles local course materials
+A local-first **LLM Wiki / knowledge base**. `llmwiki` compiles local materials
 (Markdown, PDFs, slides, Word docs, images, web URLs) into a persistent,
-**Obsidian-compatible** Markdown study wiki. Raw sources stay local and remain
-the source of truth; the generated `wiki/` pages are an editable, citation-aware
-study layer for proof-heavy courses.
+**Obsidian-compatible** Markdown wiki organized as a **section hierarchy**. Raw
+sources stay local and remain the source of truth; the generated `wiki/` pages are
+an editable, citation-aware layer over everything you know — academic or not.
 
 - **Concept-centric** — one page per concept (definition, theorems, assumptions,
   notation, formulas, proof ideas, examples) plus one page per source.
+- **Hierarchical scope** — General → Academic / Non-academic → courses. Every
+  level runs the *same* operations; the only difference is how much of the base
+  it can access (see [Hierarchy & scope](#hierarchy--scope)).
 - **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$`/`$$…$$` math.
 - **No vectors / no embeddings / no cloud / single-user** — keyword search + an
   LLM compiler (OpenAI by default; Anthropic/Claude is a config switch away).
+
+---
+
+## Hierarchy & scope
+
+Knowledge lives in a tree of **sections**. A section is a `/`-joined path of
+slug segments (e.g. `academic/multivariable-calculus`); the empty path is the
+**General** root. Pages are foldered by their section under `wiki/concepts/` and
+`wiki/sources/`.
+
+```
+General (root)            → can access the ENTIRE knowledge base
+├── Non-academic (flat)   → only non-academic knowledge
+└── Academic              → all courses' knowledge
+    ├── <course A>        → only course A   (default: own knowledge only)
+    ├── <course B>        → only course B
+    └── …
+```
+
+Every operation (`ingest`, `query`, `search`, `lint`) takes an optional
+`--section` and is scoped by a **prefix rule**: a scope sees a page iff the scope
+is a prefix of the page's section. So General sees everything, `academic` sees all
+courses, and `academic/<course>` sees only itself. To widen a course query, run it
+against a parent section (`--section academic` or no `--section` at all).
+
+`academic` and `non-academic` are conventions seeded by `init`, not hard rules —
+any nesting depth works, so Non-academic can grow subsections later. Add a course
+just by ingesting into it: `--section academic/<new-course>`.
 
 ---
 
@@ -81,9 +112,9 @@ is shown **only once at creation** — if you lost it, create a new one.
 
 ```bash
 llmwiki init                                          # scaffold raw/, wiki/, .llmwiki/
-llmwiki ingest examples/sample_calculus.md --course "Multivariable Calculus"
-llmwiki ingest https://en.wikipedia.org/wiki/Gradient --course "Multivariable Calculus"
-llmwiki query "state the multivariable chain rule and the proof idea"
+llmwiki ingest examples/sample_calculus.md --section academic/multivariable-calculus
+llmwiki ingest https://en.wikipedia.org/wiki/Gradient --section academic/multivariable-calculus
+llmwiki query "state the multivariable chain rule and the proof idea" --section academic
 llmwiki search "chain rule"                           # keyword search, no LLM, no key
 llmwiki lint                                          # structural checks (offline)
 llmwiki lint --deep                                   # + LLM contradiction/gap review
@@ -100,10 +131,11 @@ or just run `llmwiki` (no command) for a browser view that renders the math (see
 Create a vault in the given directory (default: current directory). Scaffolds
 `raw/`, `wiki/` (with seed `purpose.md` / `schema.md`), and `.llmwiki/`.
 
-### `ingest <path|url> [--course NAME] [--vision] [--force]`
+### `ingest <path|url> [--section PATH] [--vision] [--force]`
 Compile one source into the wiki.
-- `--course` — which course the source belongs to (default: `default_course` in
-  config). Sets a frontmatter field **and** a per-course subfolder.
+- `--section` — which section the source belongs to, e.g.
+  `academic/multivariable-calculus` or `non-academic` (default: `default_section`
+  in config). Sets a frontmatter field **and** a nested subfolder.
 - `--vision` — force vision transcription for a PDF (use for scanned or
   math-heavy PDFs where text extraction is poor).
 - `--force` — re-ingest even if the file is unchanged (normally an unchanged
@@ -113,15 +145,16 @@ External files are **copied into `raw/sources/`** so the vault stays
 self-contained. Re-ingesting an edited source merges the new material into the
 existing concept pages.
 
-### `query "<question>" [--course NAME] [--save]`
+### `query "<question>" [--section PATH] [--save]`
 Answer a question using only the wiki, with citations back to the pages used.
-- `--course` — restrict retrieval to one course.
+- `--section` — restrict retrieval to a section and its subtree (omit for the
+  whole knowledge base; see [Hierarchy & scope](#hierarchy--scope)).
 - `--save` — also write the answer to `wiki/queries/`.
 
-### `search "<keywords>" [--course NAME] [--top-k N]`
+### `search "<keywords>" [--section PATH] [--top-k N]`
 Fast keyword (BM25-lite) ranking over concept pages. No LLM, no API key.
 
-### `lint [--course NAME] [--deep]`
+### `lint [--section PATH] [--deep]`
 Quality checks.
 - Always: dangling `[[wikilinks]]`, missing/unresolved `sources:` provenance,
   orphan pages, malformed frontmatter (offline).
@@ -183,7 +216,7 @@ source page and ultimately to the local raw file.
 | Path          | Role                                                              |
 | ------------- | ---------------------------------------------------------------- |
 | `raw/`        | Source of truth — your dropped files (`sources/`, `assets/`).     |
-| `wiki/`       | Generated study layer: `concepts/<course>/`, `sources/<course>/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
+| `wiki/`       | Generated study layer: `concepts/<section>/`, `sources/<section>/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
 | `.llmwiki/`   | Tool state: `config.toml`, `state.json`, normalized cache (gitignored). |
 | `llmwiki/`    | The Python package (the tool itself).                            |
 
@@ -202,7 +235,7 @@ URLs.
 provider = "openai"                 # "openai" (default) or "anthropic"
 # compile_model = "gpt-5.5"         # ingest + answer model (optional; gpt-5.5+)
 # cheap_model = "gpt-5.5"           # reserved for cheap ops (optional override)
-default_course = "General"          # used when --course is omitted
+default_section = "non-academic"    # section used when --section is omitted
 search_top_k = 8                    # pages retrieved per query
 context_token_budget = 60000        # max context tokens for query/lint
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
