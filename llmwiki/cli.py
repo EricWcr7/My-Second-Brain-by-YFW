@@ -15,6 +15,7 @@ from .providers import ProviderError, get_provider
 from .query import answer
 from .scaffold import scaffold_vault
 from .search import search
+from .wiki import append_log
 
 
 _API_KEY_ENV = {
@@ -64,12 +65,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 def cmd_query(args: argparse.Namespace) -> int:
     config = load_config()
     provider = get_provider(config)
-    result = answer(config, provider, args.question, section=args.section, save=args.save)
+    result = answer(
+        config, provider, args.question, section=args.section, save=args.save, fmt=args.format
+    )
     print(result.answer)
     if result.pages_used:
         print(f"\n[pages: {', '.join(result.pages_used)}]", file=sys.stderr)
     if result.saved_path:
         print(f"[saved to {result.saved_path.relative_to(config.root)}]", file=sys.stderr)
+        # Journal saved answers so they show up in the greppable timeline. Plain
+        # (unsaved) queries leave no artifact, so they are not logged.
+        append_log(config, "query", args.question, detail=f"saved [[{result.saved_path.stem}]]")
     return 0
 
 
@@ -77,6 +83,13 @@ def cmd_lint(args: argparse.Namespace) -> int:
     config = load_config()
     provider = get_provider(config) if args.deep else None
     issues = lint(config, provider=provider, deep=args.deep, section=args.section)
+    counts = {"error": 0, "warning": 0, "info": 0}
+    for issue in issues:
+        counts[issue.level] = counts.get(issue.level, 0) + 1
+    detail = f"{counts['error']} error / {counts['warning']} warning / {counts['info']} info"
+    if args.section:
+        detail += f" (section: {args.section})"
+    append_log(config, "lint", "deep" if args.deep else "structural", detail=detail)
     if not issues:
         print("No issues found.")
         return 0
@@ -157,6 +170,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_q.add_argument(
         "--save", action="store_true", help="save the answer under wiki/queries/"
+    )
+    p_q.add_argument(
+        "--format",
+        "-f",
+        choices=["prose", "table", "slides"],
+        default="prose",
+        dest="format",
+        help="answer format: prose (default), a comparison table, or a Marp slide deck",
     )
     p_q.set_defaults(func=cmd_query)
 

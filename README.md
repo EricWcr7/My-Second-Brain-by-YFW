@@ -15,33 +15,30 @@ an editable, citation-aware layer over everything you know — academic or not.
 - **No vectors / no embeddings / no cloud / single-user** — keyword search + an
   LLM compiler (OpenAI by default; Anthropic/Claude is a config switch away).
 
+> 📖 **New here? Start with the [User Manual](USER_MANUAL.md)** — task-based
+> walkthroughs of every use case (ingesting each source type, querying, answer
+> formats, Obsidian, the web UI, and more). This README covers install,
+> configuration, and the command reference.
+
 ---
 
 ## Hierarchy & scope
 
-Knowledge lives in a tree of **sections**. A section is a `/`-joined path of
-slug segments (e.g. `academic/multivariable-calculus`); the empty path is the
-**General** root. Pages are foldered by their section under `wiki/concepts/` and
-`wiki/sources/`.
+Knowledge lives in a tree of **sections** — a `/`-joined path like
+`academic/multivariable-calculus`; the empty path is the **General** root.
 
 ```
 General (root)            → can access the ENTIRE knowledge base
 ├── Non-academic (flat)   → only non-academic knowledge
 └── Academic              → all courses' knowledge
-    ├── <course A>        → only course A   (default: own knowledge only)
-    ├── <course B>        → only course B
-    └── …
+    └── <course>          → only that course (default)
 ```
 
-Every operation (`ingest`, `query`, `search`, `lint`) takes an optional
-`--section` and is scoped by a **prefix rule**: a scope sees a page iff the scope
-is a prefix of the page's section. So General sees everything, `academic` sees all
-courses, and `academic/<course>` sees only itself. To widen a course query, run it
-against a parent section (`--section academic` or no `--section` at all).
-
-`academic` and `non-academic` are conventions seeded by `init`, not hard rules —
-any nesting depth works, so Non-academic can grow subsections later. Add a course
-just by ingesting into it: `--section academic/<new-course>`.
+Every operation takes an optional `--section` and obeys a **prefix rule**: a scope
+sees a page iff the scope is a prefix of the page's section. To widen a course
+query, point it at a parent (`--section academic`, or omit `--section` for
+General). The [User Manual](USER_MANUAL.md#2-core-concepts-you-need-before-starting)
+has the full explanation, examples, and how to add a course.
 
 ---
 
@@ -123,6 +120,9 @@ llmwiki lint --deep                                   # + LLM contradiction/gap 
 Then open the `wiki/` folder in **Obsidian** to read, search, graph, and edit —
 or just run `llmwiki` (no command) for a browser view that renders the math (see §5).
 
+For end-to-end workflows (building a course, ingesting each source type, saving
+answers, Obsidian/Marp/Dataview), see the **[User Manual](USER_MANUAL.md)**.
+
 ---
 
 ## 5. Commands
@@ -145,11 +145,14 @@ External files are **copied into `raw/sources/`** so the vault stays
 self-contained. Re-ingesting an edited source merges the new material into the
 existing concept pages.
 
-### `query "<question>" [--section PATH] [--save]`
+### `query "<question>" [--section PATH] [--save] [--format prose|table|slides]`
 Answer a question using only the wiki, with citations back to the pages used.
 - `--section` — restrict retrieval to a section and its subtree (omit for the
   whole knowledge base; see [Hierarchy & scope](#hierarchy--scope)).
 - `--save` — also write the answer to `wiki/queries/`.
+- `--format` — `prose` (default), a Markdown `table` comparison, or a Marp
+  `slides` deck. All text-only; saved decks get a `marp: true` frontmatter flag
+  so Obsidian's Marp plugin renders them.
 
 ### `search "<keywords>" [--section PATH] [--top-k N]`
 Fast keyword (BM25-lite) ranking over concept pages. No LLM, no API key.
@@ -159,7 +162,9 @@ Quality checks.
 - Always: dangling `[[wikilinks]]`, missing/unresolved `sources:` provenance,
   orphan pages, malformed frontmatter (offline).
 - `--deep` — additionally ask the model to flag contradictions, missing concept
-  pages, and stale/unclear claims (uses the API).
+  pages, and stale/unclear claims, plus growth suggestions: missing
+  cross-references, new questions to investigate, sources to seek, and data gaps
+  a web search could fill (uses the API).
 
 ### Web UI
 Read the wiki in a browser with **properly rendered math** (`$…$` / `$$…$$` via

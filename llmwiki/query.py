@@ -20,6 +20,28 @@ class QueryResult:
     saved_path: Path | None = None
 
 
+_FORMAT_DIRECTIVES = {
+    "table": (
+        "Output format: present the answer as a Markdown **comparison table** "
+        "wherever a table aids clarity (one row per item, columns for the "
+        "dimensions compared). Keep the inline `[[slug]]` citations and the final "
+        "**Sources** list."
+    ),
+    "slides": (
+        "Output format: present the answer as a **Marp**-style slide deck — one "
+        "slide per key point, with slides separated by a line containing only "
+        "`---`. Start with a short title slide. Keep the inline `[[slug]]` "
+        "citations and end with a **Sources** slide. Do not add a YAML "
+        "front-matter block; it is added automatically when the deck is saved."
+    ),
+}
+
+
+def _format_directive(fmt: str) -> str:
+    """Extra system-prompt instruction for a non-prose answer format."""
+    return _FORMAT_DIRECTIVES.get(fmt, "")
+
+
 def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
@@ -54,6 +76,7 @@ def answer(
     section: str | None = None,
     top_k: int | None = None,
     save: bool = False,
+    fmt: str = "prose",
 ) -> QueryResult:
     top_k = top_k or config.search_top_k
     blocks, used = _build_context(config, question, section, top_k)
@@ -63,6 +86,7 @@ def answer(
         p
         for p in (
             prompts.load("answer.md"),
+            _format_directive(fmt),
             read_optional(config.purpose_file),
             read_optional(config.schema_file),
         )
@@ -82,6 +106,8 @@ def answer(
             "section": section if section is not None else config.default_section,
             "created": today(),
         }
+        if fmt == "slides":
+            metadata["marp"] = True  # Obsidian Marp plugin renders the saved deck
         write_page(saved, metadata, text.strip() + "\n")
 
     return QueryResult(answer=text, pages_used=used, saved_path=saved)

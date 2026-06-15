@@ -24,6 +24,10 @@ class LintFindings(BaseModel):
     contradictions: list[str] = Field(default_factory=list)
     missing_concepts: list[str] = Field(default_factory=list)
     stale_or_unclear: list[str] = Field(default_factory=list)
+    missing_cross_references: list[str] = Field(default_factory=list)
+    new_questions: list[str] = Field(default_factory=list)
+    sources_to_seek: list[str] = Field(default_factory=list)
+    data_gaps: list[str] = Field(default_factory=list)
 
 
 def _clean_slug(value: str) -> str:
@@ -100,6 +104,14 @@ def _deep(config: Config, provider: LLMProvider, concepts: list[PageRef]):
         issues.append(LintIssue("info", "(review)", f"missing concept: {item}"))
     for item in findings.stale_or_unclear:
         issues.append(LintIssue("info", "(review)", f"stale/unclear: {item}"))
+    for item in findings.missing_cross_references:
+        issues.append(LintIssue("info", "(review)", f"missing cross-reference: {item}"))
+    for item in findings.new_questions:
+        issues.append(LintIssue("info", "(review)", f"question to investigate: {item}"))
+    for item in findings.sources_to_seek:
+        issues.append(LintIssue("info", "(review)", f"source to seek: {item}"))
+    for item in findings.data_gaps:
+        issues.append(LintIssue("info", "(review)", f"data gap (web search): {item}"))
     return issues
 
 
