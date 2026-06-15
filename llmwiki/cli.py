@@ -76,6 +76,29 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return 1 if any(i.level == "error" for i in issues) else 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    config = load_config()  # fail early if we're not inside a vault
+    try:
+        import uvicorn
+
+        from .web.app import create_app
+    except ImportError:
+        _err("the web UI needs extra packages. Install them with:\n    pip install '.[web]'")
+        return 2
+
+    app = create_app(config)
+    url = f"http://{args.host}:{args.port}"
+    print(f"llmwiki web UI at {url}  (vault: {config.root})")
+    print("press Ctrl+C to stop")
+    if not args.no_open:
+        import threading
+        import webbrowser
+
+        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
 def cmd_search(args: argparse.Namespace) -> int:
     config = load_config()
     hits = search(config, args.query, top_k=args.top_k, course=args.course)
@@ -129,6 +152,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_s.add_argument("--course", help="restrict to a course")
     p_s.add_argument("--top-k", type=int, default=10, dest="top_k")
     p_s.set_defaults(func=cmd_search)
+
+    p_serve = sub.add_parser("serve", help="launch the local web UI (browse/ask/lint with math)")
+    p_serve.add_argument("--host", default="127.0.0.1", help="bind host (default: 127.0.0.1)")
+    p_serve.add_argument("--port", type=int, default=8000, help="bind port (default: 8000)")
+    p_serve.add_argument(
+        "--no-open", action="store_true", help="do not open a browser automatically"
+    )
+    p_serve.set_defaults(func=cmd_serve)
 
     return parser
 
