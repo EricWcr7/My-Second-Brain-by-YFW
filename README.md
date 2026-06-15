@@ -2,59 +2,187 @@
 
 A local-first **academic LLM Wiki**. `llmwiki` compiles local course materials
 (Markdown, PDFs, slides, Word docs, images, web URLs) into a persistent,
-Obsidian-compatible Markdown study wiki. Raw sources stay local and remain the
-source of truth; the generated `wiki/` pages are an editable, citation-aware
+**Obsidian-compatible** Markdown study wiki. Raw sources stay local and remain
+the source of truth; the generated `wiki/` pages are an editable, citation-aware
 study layer for proof-heavy courses.
 
-- **Concept-centric**: one page per concept (definition, theorems, assumptions,
+- **Concept-centric** — one page per concept (definition, theorems, assumptions,
   notation, formulas, proof ideas, examples) plus one page per source.
-- **Obsidian-native**: `[[wikilinks]]`, YAML frontmatter, `$…$`/`$$…$$` math.
-- **No vectors / no cloud / single-user.** Keyword search + an LLM compiler.
+- **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$`/`$$…$$` math.
+- **No vectors / no embeddings / no cloud / single-user** — keyword search + an
+  LLM compiler (Claude by default).
 
-## Install
+---
+
+## 1. Requirements
+
+- Python **3.11+**
+- An **Anthropic API key** (only needed for `ingest`, `query`, and `lint --deep`;
+  `init`, `search`, and plain `lint` work offline)
+
+## 2. Install
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"        # add [dev] for the test suite
+# from the repo root
+python3 -m venv .venv
+source .venv/bin/activate           # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"             # runtime deps + pytest; drop [dev] to skip tests
+```
+
+Hardened variant (forces prebuilt wheels for dependencies, so none run build
+scripts during install):
+
+```bash
+pip install --only-binary :all: -e ".[dev]"
+```
+
+## 3. Set your API key
+
+`llmwiki` reads the key from the **`ANTHROPIC_API_KEY` environment variable** at
+runtime. It is **never** written to the vault or `.llmwiki/config.toml`.
+
+```bash
 export ANTHROPIC_API_KEY=""
 ```
 
-## Quick start
+> `export` lasts only for the current terminal. Open a new window and you must
+> set it again — or run your `llmwiki` commands in the same terminal.
+
+To persist it across terminals, add it to your shell profile:
 
 ```bash
-llmwiki init                                   # scaffold raw/, wiki/, .llmwiki/
+echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.zshrc   # bash: ~/.bashrc
+source ~/.zshrc
+```
+
+Verify it's set (without exposing the whole key):
+
+```bash
+echo ${ANTHROPIC_API_KEY:0:7}      # prints just the first 7 chars
+```
+
+Get or rotate a key at **console.anthropic.com → Settings → API Keys**. A key's
+full value is shown **only once at creation** — if you lost it, create a new one.
+
+## 4. Quick start
+
+```bash
+llmwiki init                                          # scaffold raw/, wiki/, .llmwiki/
 llmwiki ingest examples/sample_calculus.md --course "Multivariable Calculus"
 llmwiki ingest https://en.wikipedia.org/wiki/Gradient --course "Multivariable Calculus"
 llmwiki query "state the multivariable chain rule and the proof idea"
-llmwiki search "chain rule"                     # keyword search, no LLM
-llmwiki lint                                     # structural checks
-llmwiki lint --deep                              # + LLM contradiction/gap review
+llmwiki search "chain rule"                           # keyword search, no LLM, no key
+llmwiki lint                                          # structural checks (offline)
+llmwiki lint --deep                                   # + LLM contradiction/gap review
 ```
 
-Open the resulting `wiki/` folder in Obsidian to read, search, graph, and edit.
+Then open the `wiki/` folder in **Obsidian** to read, search, graph, and edit.
 
-## Layout
+---
 
-| Path            | Role                                                        |
-| --------------- | ---------------------------------------------------------- |
-| `raw/`          | Source of truth — your dropped files (never edited).        |
-| `wiki/`         | Generated study layer: `concepts/`, `sources/`, `index.md`. |
-| `.llmwiki/`     | Tool state: `config.toml`, `state.json`, normalized cache.  |
-| `llmwiki/`      | The Python package (the tool).                              |
+## 5. Commands
 
-## Commands
+### `init [path]`
+Create a vault in the given directory (default: current directory). Scaffolds
+`raw/`, `wiki/` (with seed `purpose.md` / `schema.md`), and `.llmwiki/`.
 
-- `init [path]` — create a vault.
-- `ingest <path|url> [--course] [--vision] [--force]` — compile a source.
-- `query "<question>" [--course] [--save]` — answer from the wiki, with citations.
-- `search "<keywords>" [--course] [--top-k N]` — keyword ranking only.
-- `lint [--course] [--deep]` — find dangling links, missing provenance, etc.
+### `ingest <path|url> [--course NAME] [--vision] [--force]`
+Compile one source into the wiki.
+- `--course` — which course the source belongs to (default: `default_course` in
+  config). Sets a frontmatter field **and** a per-course subfolder.
+- `--vision` — force vision transcription for a PDF (use for scanned or
+  math-heavy PDFs where text extraction is poor).
+- `--force` — re-ingest even if the file is unchanged (normally an unchanged
+  source is skipped via its SHA256 checksum).
 
-## Tests
+External files are **copied into `raw/sources/`** so the vault stays
+self-contained. Re-ingesting an edited source merges the new material into the
+existing concept pages.
+
+### `query "<question>" [--course NAME] [--save]`
+Answer a question using only the wiki, with citations back to the pages used.
+- `--course` — restrict retrieval to one course.
+- `--save` — also write the answer to `wiki/queries/`.
+
+### `search "<keywords>" [--course NAME] [--top-k N]`
+Fast keyword (BM25-lite) ranking over concept pages. No LLM, no API key.
+
+### `lint [--course NAME] [--deep]`
+Quality checks.
+- Always: dangling `[[wikilinks]]`, missing/unresolved `sources:` provenance,
+  orphan pages, malformed frontmatter (offline).
+- `--deep` — additionally ask the model to flag contradictions, missing concept
+  pages, and stale/unclear claims (uses the API).
+
+---
+
+## 6. How it works
+
+Three layers, three operations (raw sources → LLM-compiled wiki → schema):
+
+1. **Ingest** — a loader normalizes the source to Markdown (vision is used only
+   for images and scanned/math PDFs), it's checksummed and cached, then an
+   *analysis* pass decides which concepts it teaches and a *generation* pass
+   writes/merges the concept pages and the source page. `index.md` is regenerated
+   and `log.md` appended — all deterministically.
+2. **Query** — keyword search retrieves candidate pages, a token-budgeted context
+   is assembled, and the model answers with citations to wiki pages (which point
+   back to sources, which point back to raw files).
+3. **Lint** — structural checks plus an optional model review.
+
+Every concept page carries `sources:` provenance, so claims trace back to a
+source page and ultimately to the local raw file.
+
+## 7. Vault layout
+
+| Path          | Role                                                              |
+| ------------- | ---------------------------------------------------------------- |
+| `raw/`        | Source of truth — your dropped files (`sources/`, `assets/`).     |
+| `wiki/`       | Generated study layer: `concepts/<course>/`, `sources/<course>/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
+| `.llmwiki/`   | Tool state: `config.toml`, `state.json`, normalized cache (gitignored). |
+| `llmwiki/`    | The Python package (the tool itself).                            |
+
+## 8. Supported sources
+
+Markdown / plain text, text-based PDFs (PyMuPDF, with a vision fallback for
+scanned/math PDFs), Word `.docx`, PowerPoint `.pptx`, images (vision), and web
+URLs.
+
+## 9. Configuration
+
+`.llmwiki/config.toml` (created by `init`):
+
+```toml
+[settings]
+compile_model = "claude-opus-4-8"   # ingest + answer model
+cheap_model = "claude-haiku-4-5"    # reserved for cheap ops
+default_course = "General"          # used when --course is omitted
+search_top_k = 8                    # pages retrieved per query
+context_token_budget = 60000        # max context tokens for query/lint
+pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
+```
+
+API keys are read from the environment — never put them here.
+
+## 10. Tests
 
 ```bash
-pytest        # unit tests; the LLM is mocked, no API key required
+pytest        # unit tests; the LLM is mocked, so no API key is required
 ```
 
-Configuration lives in `.llmwiki/config.toml` (models, default course, budgets).
-API keys are read from the environment, never stored in the vault.
+## 11. Troubleshooting
+
+- **`ANTHROPIC_API_KEY` not set / auth error** — see §3. Remember `export` is
+  per-terminal.
+- **`llmwiki: command not found` or `ModuleNotFoundError: No module named 'llmwiki'`**
+  after an editable install — some Python builds don't process the editable
+  `.pth`. Run via the module path instead, from the repo root:
+  ```bash
+  PYTHONPATH="$PWD" python -m llmwiki.cli init
+  ```
+  or do a regular (non-editable) install: `pip install .`
+- **`pip` downloads fail with "not enough bytes received"** (flaky network) —
+  add resume + retries:
+  ```bash
+  pip install --retries 20 --resume-retries 20 --timeout 60 -e ".[dev]"
+  ```
