@@ -216,3 +216,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# LLM Wiki
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+.DS_Store
+.llmwiki/cache/
+.llmwiki/runs/
+*.sqlite
+*.db
+.claude/
+CLAUDE.md

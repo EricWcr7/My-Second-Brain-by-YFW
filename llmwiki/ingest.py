@@ -1,0 +1,329 @@
+"""Ingest pipeline: normalize a source, compile it into concept/source pages.
+
+Two LLM passes (per the schema): an analysis pass that decides which concepts the
+source teaches, then a generation pass that writes/merges the pages. File writes
+and index/log updates are deterministic.
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+import shutil
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from pydantic import BaseModel, Field
+
+from . import prompts
+from .config import Config
+from .loaders import LoadResult, is_url, load_source
+from .providers.base import LLMProvider
+from .store import (
+    ensure_dir,
+    get_source_record,
+    load_state,
+    read_page,
+    save_state,
+    set_source_record,
+    sha256_bytes,
+    sha256_file,
+    write_page,
+)
+from .wiki import (
+    append_log,
+    concept_path,
+    iter_pages,
+    read_optional,
+    rebuild_index,
+    slugify,
+    source_path,
+    today,
+)
+
+LARGE_TOKEN_WARN = 200_000
+
+
+# --- structured outputs ------------------------------------------------------
+
+
+class SourceAnalysis(BaseModel):
+    source_title: str
+    source_summary: str
+    concept_titles: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+
+
+class ConceptDraft(BaseModel):
+    title: str
+    tags: list[str] = Field(default_factory=list)
+    aliases: list[str] = Field(default_factory=list)
+    related_source_slugs: list[str] = Field(default_factory=list)
+    body: str
+
+
+class SourcePageDraft(BaseModel):
+    summary: str
+    grounds: list[str] = Field(default_factory=list)
+
+
+class GenerationResult(BaseModel):
+    concept_pages: list[ConceptDraft] = Field(default_factory=list)
+    source_page: SourcePageDraft
+    overview: str | None = None
+    log_entry: str = ""
+
+
+@dataclass
+class IngestResult:
+    status: str  # "ingested" | "skipped"
+    source_key: str
+    source_slug: str | None = None
+    title: str = ""
+    concept_slugs: list[str] = field(default_factory=list)
+    reason: str = ""
+    warnings: list[str] = field(default_factory=list)
+
+
+# --- helpers -----------------------------------------------------------------
+
+
+def _system(instruction_file: str, config: Config) -> str:
+    parts = [
+        prompts.load(instruction_file),
+        read_optional(config.purpose_file),
+        read_optional(config.schema_file),
+    ]
+    return "\n\n".join(p for p in parts if p.strip()).strip()
+
+
+def _clean_slug(value: str) -> str:
+    return value.strip().strip("[]").split("|", 1)[0].split("#", 1)[0].strip()
+
+
+def _resolve_raw(config: Config, spec: str) -> tuple[Path | None, str, str]:
+    """Return (raw_path, ledger_key, raw_ref). Copies external files into raw/."""
+    if is_url(spec):
+        return None, spec, spec
+    src = Path(spec).expanduser()
+    if not src.exists():
+        raise FileNotFoundError(f"No such file: {src}")
+    src = src.resolve()
+    raw_dir = config.raw_dir.resolve()
+    if raw_dir in src.parents:
+        path = src
+    else:
+        ensure_dir(config.sources_dir)
+        dest = config.sources_dir / src.name
+        if dest.exists() and sha256_file(dest) != sha256_file(src):
+            dest = config.sources_dir / f"{src.stem}-{sha256_file(src)[:8]}{src.suffix}"
+        if not dest.exists():
+            shutil.copy2(src, dest)
+        path = dest.resolve()
+    rel = path.relative_to(config.root.resolve()).as_posix()
+    return path, rel, rel
+
+
+def _analysis_user(course: str, loaded: LoadResult, existing_titles: list[str]) -> str:
+    existing = "\n".join(f"- {t}" for t in existing_titles) or "(none yet)"
+    return (
+        f"Course: {course}\n"
+        f"Source title: {loaded.title}\n"
+        f"Source kind: {loaded.kind}\n\n"
+        f"Existing concept titles in this course:\n{existing}\n\n"
+        f"--- SOURCE START ---\n{loaded.markdown}\n--- SOURCE END ---\n"
+    )
+
+
+def _generation_user(
+    course: str,
+    source_slug: str,
+    loaded: LoadResult,
+    analysis: SourceAnalysis,
+    existing_pages: list[tuple[str, str, str]],
+    index_titles: list[str],
+) -> str:
+    idx = "\n".join(f"- {t}" for t in index_titles) or "(none yet)"
+    existing_blocks = [
+        f"### Existing page: {title} (slug: {slug})\n{body}"
+        for slug, title, body in existing_pages
+    ]
+    existing_text = "\n\n".join(existing_blocks) or "(no existing pages to merge)"
+    concept_list = "\n".join(f"- {t}" for t in analysis.concept_titles) or "(decide from source)"
+    return (
+        f"Course: {course}\n"
+        f"This source's provenance slug: {source_slug}\n"
+        f"Source title: {loaded.title} (kind: {loaded.kind})\n\n"
+        f"Analysis summary: {analysis.source_summary}\n"
+        f"Concepts to write/update:\n{concept_list}\n\n"
+        f"Existing concept index (slug :: title) for linking:\n{idx}\n\n"
+        f"Existing page bodies to merge:\n{existing_text}\n\n"
+        f"--- SOURCE START ---\n{loaded.markdown}\n--- SOURCE END ---\n"
+    )
+
+
+def _write_source_page(
+    config: Config,
+    course: str,
+    source_slug: str,
+    loaded: LoadResult,
+    raw_ref: str,
+    draft: SourcePageDraft,
+) -> None:
+    body = draft.summary.strip()
+    grounds = [f"- [[{slugify(t)}|{t}]]" for t in draft.grounds]
+    if grounds:
+        body += "\n\n## Concepts\n\n" + "\n".join(grounds)
+    metadata = {
+        "title": loaded.title,
+        "type": "source",
+        "course": course,
+        "kind": loaded.kind,
+        "path": raw_ref,
+        "ingested": today(),
+    }
+    write_page(source_path(config, course, source_slug), metadata, body + "\n")
+
+
+def _write_concept_page(
+    config: Config, course: str, source_slug: str, draft: ConceptDraft
+) -> str:
+    path = concept_path(config, course, draft.title)
+    existing = read_page(path)
+    sources: set[str] = set()
+    if existing:
+        prev = existing.metadata.get("sources") or []
+        if isinstance(prev, list):
+            sources.update(_clean_slug(str(s)) for s in prev)
+    sources.add(source_slug)
+    sources.update(_clean_slug(s) for s in draft.related_source_slugs if s.strip())
+    sources.discard("")
+    metadata = {
+        "title": draft.title,
+        "type": "concept",
+        "course": course,
+        "tags": list(draft.tags),
+        "aliases": list(draft.aliases),
+        "sources": sorted(sources),
+        "updated": today(),
+    }
+    write_page(path, metadata, draft.body.strip() + "\n")
+    return slugify(draft.title)
+
+
+# --- entry point -------------------------------------------------------------
+
+
+def ingest(
+    config: Config,
+    provider: LLMProvider,
+    spec: str,
+    *,
+    course: str | None = None,
+    force_vision: bool = False,
+    force: bool = False,
+) -> IngestResult:
+    course = course or config.default_course
+    warnings: list[str] = []
+
+    raw_path, key, raw_ref = _resolve_raw(config, spec)
+    load_spec = spec if is_url(spec) else str(raw_path)
+    loaded = load_source(
+        load_spec, config=config, provider=provider, force_vision=force_vision
+    )
+
+    if is_url(spec):
+        checksum = sha256_bytes(loaded.markdown.encode("utf-8"))
+        source_slug = slugify(loaded.title)
+    else:
+        checksum = sha256_file(raw_path)  # type: ignore[arg-type]
+        source_slug = slugify(raw_path.stem)  # type: ignore[union-attr]
+
+    state = load_state(config)
+    rec = get_source_record(state, key)
+    if rec and rec.get("checksum") == checksum and not force:
+        return IngestResult(
+            status="skipped",
+            source_key=key,
+            source_slug=rec.get("source_slug"),
+            title=loaded.title,
+            reason="unchanged",
+        )
+
+    ensure_dir(config.normalized_dir)
+    (config.normalized_dir / f"{checksum}.md").write_text(loaded.markdown, "utf-8")
+
+    try:
+        n_tokens = provider.count_tokens("", loaded.markdown)
+        if n_tokens > LARGE_TOKEN_WARN:
+            warnings.append(
+                f"Source is large (~{n_tokens} tokens); ingest may be slow and costly."
+            )
+    except Exception:  # count_tokens is best-effort
+        pass
+
+    existing_titles = [r.title for r in iter_pages(config, "concept") if r.course == course]
+
+    analysis = provider.parse(
+        _system("ingest_analysis.md", config),
+        _analysis_user(course, loaded, existing_titles),
+        SourceAnalysis,
+    )
+
+    existing_pages: list[tuple[str, str, str]] = []
+    for title in analysis.concept_titles:
+        page = read_page(concept_path(config, course, title))
+        if page:
+            existing_pages.append((slugify(title), title, page.content))
+
+    index_titles = [
+        f"{r.slug} :: {r.title}" for r in iter_pages(config, "concept") if r.course == course
+    ]
+
+    gen = provider.parse(
+        _system("ingest_generation.md", config),
+        _generation_user(
+            course, source_slug, loaded, analysis, existing_pages, index_titles
+        ),
+        GenerationResult,
+    )
+
+    _write_source_page(config, course, source_slug, loaded, raw_ref, gen.source_page)
+
+    touched: list[str] = []
+    for draft in gen.concept_pages:
+        touched.append(_write_concept_page(config, course, source_slug, draft))
+
+    if gen.overview and gen.overview.strip():
+        config.overview_file.write_text(gen.overview.strip() + "\n", "utf-8")
+
+    log_entry = gen.log_entry.strip() or (
+        f"Ingested [[{source_slug}|{loaded.title}]] ({course}); "
+        f"concepts: {', '.join(touched) or 'none'}"
+    )
+    append_log(config, log_entry)
+    rebuild_index(config)
+
+    set_source_record(
+        state,
+        key,
+        {
+            "checksum": checksum,
+            "kind": loaded.kind,
+            "title": loaded.title,
+            "course": course,
+            "raw_ref": raw_ref,
+            "source_slug": source_slug,
+            "concept_slugs": touched,
+            "ingested_at": _dt.datetime.now().isoformat(timespec="seconds"),
+        },
+    )
+    save_state(config, state)
+
+    return IngestResult(
+        status="ingested",
+        source_key=key,
+        source_slug=source_slug,
+        title=loaded.title,
+        concept_slugs=touched,
+        warnings=warnings,
+    )
