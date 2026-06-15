@@ -32,6 +32,12 @@ organize them for understanding, search, and review.
 - Preserve academic substance: **definitions, theorems, assumptions, notation,
   formulas, proof ideas, examples, and source references** — never reduce
   material to shallow summaries.
+- Make sure you **keep all the Theorem/Lemma/Example/Remark codes** when you
+  generate the wiki pages from the ingested textbook. In addition, please put
+  the codes as the starter, like "Theorem 2.1.1: {content}".
+- Please **place section and subsection codes (e.g., Section 2.1,
+  Subsection 2.1.1, etc.) as a tag.** Please keep in mind that
+  your tag must be in the vaid format for Obsidian.
 - Make **relationships between concepts** explicit through `[[wikilinks]]` so
   the wiki reads as a connected map, not a pile of notes.
 - Stay reliable and **citation-aware**: every claim should trace back to a
