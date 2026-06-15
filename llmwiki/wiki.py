@@ -49,6 +49,25 @@ def normalize_section(section: str) -> str:
     return "/".join(slugify(seg) for seg in section_segments(section))
 
 
+def section_dirs(config: Config) -> set[str]:
+    """Normalized section paths that exist as directories under concepts/ or sources/.
+
+    Sections are folders, so a branch/course is real as soon as its directory
+    exists — even before any page is filed there. Listing them (not just pages)
+    lets the seeded ``academic``/``non-academic`` branches and freshly-created
+    courses appear in the UI and persist across restarts.
+    """
+    out: set[str] = set()
+    for base in (config.concepts_dir, config.source_pages_dir):
+        if not base.exists():
+            continue
+        for path in base.rglob("*"):
+            if path.is_dir():
+                out.add(normalize_section("/".join(path.relative_to(base).parts)))
+    out.discard("")
+    return out
+
+
 def section_contains(scope: str, section: str) -> bool:
     """True if ``scope`` can access ``section`` — i.e. scope is a prefix of it.
 

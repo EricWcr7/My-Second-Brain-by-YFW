@@ -53,8 +53,25 @@ def test_search_ranks_the_concept(client):
 
 def test_meta_reports_sections(client):
     meta = client.get("/api/meta").json()
-    assert meta["sections"] == ["academic/calc"]
+    # Sections come from pages *and* directories, so the seeded academic/
+    # non-academic branches show up even before anything is filed in them.
+    assert meta["sections"] == ["academic", "academic/calc", "non-academic"]
     assert meta["default_section"] == "non-academic"
+
+
+def test_create_section_scaffolds_dirs(client, vault):
+    r = client.post("/api/sections", json={"name": "Linear Algebra", "parent": "academic"})
+    assert r.status_code == 200
+    assert r.json()["section"] == "academic/linear-algebra"
+    assert (vault.concepts_dir / "academic" / "linear-algebra").is_dir()
+    assert (vault.source_pages_dir / "academic" / "linear-algebra").is_dir()
+    # The new course is now visible in the section list.
+    assert "academic/linear-algebra" in client.get("/api/meta").json()["sections"]
+
+
+def test_create_section_rejects_duplicate_and_blank(client):
+    assert client.post("/api/sections", json={"name": "Calc", "parent": "academic"}).status_code == 409
+    assert client.post("/api/sections", json={"name": "   ", "parent": "academic"}).status_code == 422
 
 
 def test_search_section_scope(client):

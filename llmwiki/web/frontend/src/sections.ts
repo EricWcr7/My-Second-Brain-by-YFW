@@ -11,10 +11,15 @@ export function sectionContains(scope: string, section: string): boolean {
   return section === scope || section.startsWith(scope + "/");
 }
 
-// Short label for a node: its last segment; "" -> "General".
+// Human-readable label for a node: its last segment, title-cased; "" -> "General".
+// Display only — scope values/links still use the raw slug path.
 export function sectionLabel(section: string): string {
   const segs = sectionSegments(section);
-  return segs.length ? segs[segs.length - 1] : "General";
+  if (!segs.length) return "General";
+  return segs[segs.length - 1]
+    .split("-")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
 }
 
 // Selectable scope nodes for the tree: the General root, every section that has
@@ -26,4 +31,21 @@ export function scopeNodes(sections: string[]): string[] {
     for (let i = 1; i <= segs.length; i++) set.add(segs.slice(0, i).join("/"));
   }
   return [...set].sort();
+}
+
+// Immediate children of `scope` (one segment deeper) across the known sections.
+export function childSections(scope: string, sections: string[]): string[] {
+  const depth = sectionSegments(scope).length;
+  return scopeNodes(sections)
+    .filter((n) => n !== scope && sectionContains(scope, n) && sectionSegments(n).length === depth + 1)
+    .sort();
+}
+
+// The prefix chain from the General root down to `scope`, e.g.
+// "academic/calc" -> ["", "academic", "academic/calc"]. Drives the breadcrumb.
+export function sectionAncestors(scope: string): string[] {
+  const segs = sectionSegments(scope);
+  const chain = [""];
+  for (let i = 1; i <= segs.length; i++) chain.push(segs.slice(0, i).join("/"));
+  return chain;
 }

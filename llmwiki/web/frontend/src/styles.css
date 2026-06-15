@@ -385,7 +385,8 @@ html[data-screen="app"] #landing { display: none; }
   font-family: var(--font-display);
   font-size: 23px;
   font-weight: 700;
-  margin-top: 1.8em;
+  margin-top: 1.6em;
+  margin-bottom: .7em;
   padding-bottom: 6px;
   position: relative;
 }
@@ -398,8 +399,19 @@ html[data-screen="app"] #landing { display: none; }
   opacity: .5;
   border-radius: 2px;
 }
-#content h3 { font-size: 18px; font-weight: 650; margin-top: 1.5em; }
-#content h1:first-child, #content h2:first-child { margin-top: 0; }
+#content h3 { font-size: 18px; font-weight: 650; margin-top: 1.4em; margin-bottom: .4em; }
+#content h1:first-child, #content h2:first-child, #content h3:first-child { margin-top: 0; }
+
+/* Consistent vertical rhythm for the reading body. Headings carry their own
+   spacing above; paragraphs and lists share one bottom margin so the column
+   reads evenly. The column starts and ends flush with the content padding. */
+#content > :first-child { margin-top: 0; }
+#content > :last-child { margin-bottom: 0; }
+#content p { margin: 0 0 1em; }
+#content ul, #content ol { margin: 0 0 1em; padding-left: 1.5em; }
+#content li { margin: .35em 0; }
+#content li > ul, #content li > ol { margin: .35em 0; }
+#content li::marker { color: var(--accent); }
 #content a {
   color: var(--accent-2);
   text-decoration: none;
@@ -446,6 +458,80 @@ html[data-screen="app"] #landing { display: none; }
 #content tbody tr:nth-child(even) td { background: var(--zebra); }
 #content tr:last-child td { border-bottom: 0; }
 #content .katex-display { overflow-x: auto; overflow-y: hidden; padding: 6px 0; }
+
+/* Hierarchy: breadcrumb + section hub --------------------------------------- */
+#content .crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+#content .crumbs .crumb {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 0;
+  transition: color .2s ease;
+}
+#content .crumbs .crumb:hover { color: var(--accent-2); border-bottom: 0; }
+#content .crumbs .crumb-current { color: var(--fg); font-weight: 600; }
+#content .crumbs .crumb-sep { color: var(--muted); opacity: .55; }
+
+/* Eyebrow/meta line under a title (page type, scope note). */
+#content .page-meta { margin: 0 0 1.5em; font-size: 13px; color: var(--muted); }
+#content .page-meta strong { color: var(--fg); }
+
+/* Buttons rendered as anchors inside the reading column (hub operations) keep
+   their button look rather than inheriting the cyan link styling. */
+#content a.btn { color: var(--fg); border-bottom: 0; }
+#content a.btn:hover { color: var(--accent); border-bottom: 0; }
+#content a.btn.btn-primary, #content a.btn.btn-primary:hover { color: var(--accent-fg); }
+
+#content .hub-desc { max-width: 62ch; margin: 0 0 1.6em; color: var(--muted); font-size: 15px; }
+#content .hub-ops { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 2.4em; }
+#content .hub-head-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 0 0 16px;
+}
+#content .hub-head { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+.btn-sm { padding: 7px 14px; font-size: 13px; border-radius: 10px; }
+
+#content .new-section-form {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 18px;
+}
+#content .new-section-form[hidden] { display: none; }
+#content .new-section-form input {
+  flex: 1; min-width: 220px;
+  padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg-elev); color: var(--fg); font: inherit;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+#content .new-section-form input::placeholder { color: var(--muted); }
+#content .new-section-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+
+#content .hub-children {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+#content .hub-card {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 16px 18px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 14px; color: var(--fg); text-decoration: none;
+  box-shadow: var(--shadow);
+  transition: transform .18s ease, border-color .2s ease, box-shadow .2s ease;
+}
+#content .hub-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 14px 32px -12px rgba(124, 92, 255, .45);
+}
+#content .hub-card .hub-card-title { font-family: var(--font-display); font-weight: 650; font-size: 16px; }
+#content .hub-card .hub-card-meta { font-size: 12px; color: var(--muted); }
+#content .hub-empty { margin: 0; }
 
 /* Wikilinks ----------------------------------------------------------------- */
 a.wikilink {
@@ -707,8 +793,15 @@ a.btn {
 }
 .lp-stat-label { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 
+/* Section groups (Branches / General) */
+.lp-section { padding: 30px 0 0; }
+.lp-section-head { margin: 0 0 16px; }
+.lp-section-title { font-family: var(--font-display); font-size: clamp(20px, 3vw, 26px); margin: 0; }
+.lp-section-sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
 /* Feature cards */
-.lp-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; padding: 44px 0; }
+.lp-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.lp-cards-2 { grid-template-columns: repeat(2, 1fr); }
 .lp-card {
   display: flex; flex-direction: column; gap: 10px;
   padding: 24px;
@@ -731,6 +824,8 @@ a.btn {
 .lp-card-icon[data-icon="home"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3 3 10v11h6v-6h6v6h6V10z'/%3E%3C/svg%3E"); }
 .lp-card-icon[data-icon="ask"]  { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 4h16v12H8l-4 4z'/%3E%3C/svg%3E"); }
 .lp-card-icon[data-icon="lint"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6 9 17l-5-5 1.4-1.4L9 14.2 18.6 4.6z'/%3E%3C/svg%3E"); }
+.lp-card-icon[data-icon="academic"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3 1 9l11 6 11-6z'/%3E%3Cpath d='M4 11v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5l-8 4.4z'/%3E%3C/svg%3E"); }
+.lp-card-icon[data-icon="non-academic"] { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 3h12v18l-6-4-6 4z'/%3E%3C/svg%3E"); }
 .lp-card h3 { margin: 4px 0 0; font-family: var(--font-display); font-size: 19px; }
 .lp-card p { margin: 0; flex: 1; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .lp-card-go { font-size: 14px; font-weight: 600; color: var(--accent-2); }
@@ -743,5 +838,5 @@ a.btn {
   #landing { padding: 0 20px 64px; }
   .lp-hero { grid-template-columns: 1fr; padding: 32px 0 40px; }
   .lp-cube { order: -1; min-height: 200px; }
-  .lp-cards { grid-template-columns: 1fr; }
+  .lp-cards, .lp-cards-2 { grid-template-columns: 1fr; }
 }

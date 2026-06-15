@@ -21,8 +21,17 @@ from ..lint import lint
 from ..providers import LLMProvider, get_provider
 from ..query import answer
 from ..search import search
-from ..store import read_page
-from ..wiki import PageRef, iter_pages, read_optional
+from ..store import ensure_dir, read_page
+from ..wiki import (
+    PageRef,
+    append_log,
+    iter_pages,
+    normalize_section,
+    read_optional,
+    section_dirs,
+    section_to_relpath,
+    slugify,
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -76,7 +85,11 @@ def create_app(
     def meta() -> dict:
         concepts = iter_pages(config, "concept")
         sources = iter_pages(config, "source")
-        sections = sorted({r.section for r in concepts} | {r.section for r in sources})
+        sections = sorted(
+            {r.section for r in concepts}
+            | {r.section for r in sources}
+            | section_dirs(config)
+        )
         return {
             "sections": sections,
             "concept_count": len(concepts),
@@ -93,6 +106,31 @@ def create_app(
             {"slug": r.slug, "title": r.title, "section": r.section, "type": r.page_type}
             for r in refs
         ]
+
+    @app.post("/api/sections")
+    def create_section(
+        name: str = Body(..., embed=True),
+        parent: str = Body("", embed=True),
+    ) -> dict:
+        """Scaffold a new child section (e.g. an Academic course) on disk.
+
+        Creates the matching ``concepts/<section>`` and ``sources/<section>``
+        directories, mirroring ``scaffold_vault``. Every path segment is slugified,
+        so traversal is impossible. The UI sends ``parent`` = the current scope.
+        """
+        slug = slugify(name)
+        if not name.strip() or slug == "untitled":
+            raise HTTPException(status_code=422, detail="Provide a name for the new section.")
+        parent_norm = normalize_section(parent)
+        section = normalize_section(f"{parent_norm}/{slug}" if parent_norm else slug)
+        rel = section_to_relpath(section)
+        targets = [config.concepts_dir / rel, config.source_pages_dir / rel]
+        if any(t.exists() for t in targets):
+            raise HTTPException(status_code=409, detail=f"Section '{section}' already exists.")
+        for t in targets:
+            ensure_dir(t)
+        append_log(config, f"created section {section}")
+        return {"section": section, "label": section.split("/")[-1]}
 
     @app.get("/api/home")
     def home() -> dict:

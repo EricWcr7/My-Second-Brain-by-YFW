@@ -65,10 +65,6 @@
         <p class="lp-sub">Compile your courses, PDFs, and notes into one interconnected, searchable
           knowledge base — organized into sections, with rendered math, clickable wikilinks, and an
           AI that answers from your own material.</p>
-        <div class="lp-cta">
-          <a class="btn btn-primary btn-lg" href="#/overview">Browse the wiki</a>
-          <a class="btn btn-lg" href="#/ask">Ask a question</a>
-        </div>
       </div>
       <div class="lp-cube" aria-hidden="true">
         <div class="cube">
@@ -88,31 +84,53 @@
       <div class="lp-stat"><span class="lp-stat-num" id="stat-sections">0</span><span class="lp-stat-label">sections</span></div>
     </section>
 
-    <section class="lp-cards">
-      <a class="lp-card" href="#/overview">
-        <span class="lp-card-icon" data-icon="home"></span>
-        <h3>Overview</h3>
-        <p>A living summary of everything in your wiki, with quick links into every concept and source.</p>
-        <span class="lp-card-go">Browse →</span>
-      </a>
-      <a class="lp-card" href="#/ask">
-        <span class="lp-card-icon" data-icon="ask"></span>
-        <h3>Ask</h3>
-        <p>Ask in plain language, scoped to any section, and get answers grounded in your own material, with citations.</p>
-        <span class="lp-card-go">Ask →</span>
-      </a>
-      <a class="lp-card" href="#/lint">
-        <span class="lp-card-icon" data-icon="lint"></span>
-        <h3>Lint</h3>
-        <p>Catch dangling links, orphan pages, and gaps — with an optional deep AI review of your notes.</p>
-        <span class="lp-card-go">Run checks →</span>
-      </a>
+    <section class="lp-section">
+      <div class="lp-section-head">
+        <h2 class="lp-section-title">Browse by branch</h2>
+        <p class="lp-section-sub">Jump into a part of your knowledge base.</p>
+      </div>
+      <div class="lp-cards lp-cards-2">
+        <a class="lp-card" href="#/section/academic">
+          <span class="lp-card-icon" data-icon="academic"></span>
+          <h3>Academic</h3>
+          <p>All your courses' knowledge. Open a course, ask across every course, or create a new one.</p>
+          <span class="lp-card-go">Open Academic →</span>
+        </a>
+        <a class="lp-card" href="#/section/non-academic">
+          <span class="lp-card-icon" data-icon="non-academic"></span>
+          <h3>Non-Academic</h3>
+          <p>Personal, free-form knowledge — notes and references that don't belong to a course.</p>
+          <span class="lp-card-go">Open Non-Academic →</span>
+        </a>
+      </div>
     </section>
 
-    <footer class="lp-footer">
-      <h2>Ready to study smarter?</h2>
-      <a class="btn btn-primary btn-lg" href="#/overview">Open your wiki</a>
-    </footer>
+    <section class="lp-section">
+      <div class="lp-section-head">
+        <h2 class="lp-section-title">General</h2>
+        <p class="lp-section-sub">Work across your whole knowledge base.</p>
+      </div>
+      <div class="lp-cards">
+        <a class="lp-card" href="#/overview">
+          <span class="lp-card-icon" data-icon="home"></span>
+          <h3>Overview</h3>
+          <p>A living summary of everything in your wiki, with quick links into every concept and source.</p>
+          <span class="lp-card-go">Browse →</span>
+        </a>
+        <a class="lp-card" href="#/ask">
+          <span class="lp-card-icon" data-icon="ask"></span>
+          <h3>Ask</h3>
+          <p>Ask in plain language, scoped to any section, and get answers grounded in your own material, with citations.</p>
+          <span class="lp-card-go">Ask →</span>
+        </a>
+        <a class="lp-card" href="#/lint">
+          <span class="lp-card-icon" data-icon="lint"></span>
+          <h3>Lint</h3>
+          <p>Catch dangling links, orphan pages, and gaps — with an optional deep AI review of your notes.</p>
+          <span class="lp-card-go">Run checks →</span>
+        </a>
+      </div>
+    </section>
   </div>
 
   <!-- ===== App shell ====================================================== -->
