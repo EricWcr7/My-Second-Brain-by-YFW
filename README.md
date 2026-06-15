@@ -196,13 +196,3 @@ pytest        # unit tests; the LLM is mocked, so no API key is required
   ```bash
   pip install --retries 20 --resume-retries 20 --timeout 60 -e ".[dev]"
   ```
-
-## 12. LLM API Key Configuration
-
-### Anthropic
-```bash
-export ANTHROPIC_API_KEY=""
-```
-
-### OpenAI
-

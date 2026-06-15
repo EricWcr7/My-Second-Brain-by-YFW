@@ -229,3 +229,4 @@ __pycache__/
 *.db
 .claude/
 CLAUDE.md
+api_keys.txt
