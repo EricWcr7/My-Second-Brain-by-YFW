@@ -17,6 +17,13 @@ from .scaffold import scaffold_vault
 from .search import search
 
 
+_API_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+}
+
+
 def _err(message: str) -> None:
     print(f"error: {message}", file=sys.stderr)
 
@@ -26,7 +33,10 @@ def cmd_init(args: argparse.Namespace) -> int:
     config = scaffold_vault(root)
     print(f"Initialized llmwiki vault at {config.root}")
     print("  - put sources in raw/sources/ (or pass any path/URL to `llmwiki ingest`)")
-    print("  - set ANTHROPIC_API_KEY in your environment for ingest/query")
+    print(
+        f"  - set {_API_KEY_ENV.get(config.provider, 'OPENAI_API_KEY')} "
+        "in your environment for ingest/query"
+    )
     return 0
 
 

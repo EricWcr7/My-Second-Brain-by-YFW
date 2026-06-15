@@ -2,7 +2,8 @@
 
 A "vault" is the directory that holds ``raw/``, ``wiki/`` and ``.llmwiki/``.
 Settings live in ``.llmwiki/config.toml``; API keys come from the environment
-(``ANTHROPIC_API_KEY``), never from the config file.
+(``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY`` depending on ``provider``), never
+from the config file.
 """
 
 from __future__ import annotations
@@ -21,9 +22,12 @@ class ConfigError(Exception):
 @dataclass
 class Config:
     root: Path
-    # Models (exact IDs, no date suffixes).
-    compile_model: str = "claude-opus-4-8"
-    cheap_model: str = "claude-haiku-4-5"
+    # LLM backend: "openai" (default), or "anthropic"/"claude".
+    provider: str = "openai"
+    # Model IDs (exact, no date suffixes). None → the provider's own default,
+    # so switching `provider` picks the right model family automatically.
+    compile_model: str | None = None
+    cheap_model: str | None = None
     default_course: str = "General"
     # Retrieval / context budgets.
     search_top_k: int = 8
@@ -100,6 +104,7 @@ class Config:
 
 # Keys that map directly onto Config fields when present in config.toml.
 _SETTING_KEYS = (
+    "provider",
     "compile_model",
     "cheap_model",
     "default_course",
