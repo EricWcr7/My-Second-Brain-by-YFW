@@ -28,6 +28,9 @@ def _text_of(message) -> str:
 
 
 class AnthropicProvider(LLMProvider):
+    DEFAULT_COMPILE_MODEL = "claude-opus-4-8"
+    DEFAULT_CHEAP_MODEL = "claude-haiku-4-5"
+
     def __init__(self, config: Config):
         try:
             import anthropic
@@ -36,6 +39,8 @@ class AnthropicProvider(LLMProvider):
                 "The `anthropic` package is required. Install with `pip install anthropic`."
             ) from e
         self.config = config
+        self.compile_model = config.compile_model or self.DEFAULT_COMPILE_MODEL
+        self.cheap_model = config.cheap_model or self.DEFAULT_CHEAP_MODEL
         self._anthropic = anthropic
         try:
             self.client = anthropic.Anthropic()
@@ -51,7 +56,7 @@ class AnthropicProvider(LLMProvider):
     def complete(
         self, system: str, user: str, *, model: str | None = None, max_tokens: int = 16000
     ) -> str:
-        model = model or self.config.compile_model
+        model = model or self.compile_model
         with self.client.messages.stream(
             model=model,
             max_tokens=max_tokens,
@@ -71,7 +76,7 @@ class AnthropicProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 16000,
     ) -> T:
-        model = model or self.config.compile_model
+        model = model or self.compile_model
         response = self.client.messages.parse(
             model=model,
             max_tokens=max_tokens,
@@ -87,7 +92,7 @@ class AnthropicProvider(LLMProvider):
     def transcribe_pdf(self, path: Path) -> str:
         data = base64.standard_b64encode(path.read_bytes()).decode("utf-8")
         with self.client.messages.stream(
-            model=self.config.compile_model,
+            model=self.compile_model,
             max_tokens=16000,
             messages=[
                 {
@@ -113,7 +118,7 @@ class AnthropicProvider(LLMProvider):
         media_type = mimetypes.guess_type(path.name)[0] or "image/png"
         data = base64.standard_b64encode(path.read_bytes()).decode("utf-8")
         with self.client.messages.stream(
-            model=self.config.compile_model,
+            model=self.compile_model,
             max_tokens=8000,
             messages=[
                 {
@@ -136,7 +141,7 @@ class AnthropicProvider(LLMProvider):
         return _text_of(message)
 
     def count_tokens(self, system: str, user: str, *, model: str | None = None) -> int:
-        model = model or self.config.compile_model
+        model = model or self.compile_model
         result = self.client.messages.count_tokens(
             model=model,
             system=system,

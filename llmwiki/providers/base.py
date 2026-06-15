@@ -1,6 +1,6 @@
 """Provider-agnostic LLM interface.
 
-Keeping this thin lets a different backend (e.g. OpenAI) be dropped in later
+Keeping this thin lets the backend (OpenAI or Anthropic) be swapped via config
 without touching the ingest/query/lint pipelines.
 """
 

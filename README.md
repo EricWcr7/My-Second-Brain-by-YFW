@@ -10,15 +10,16 @@ study layer for proof-heavy courses.
   notation, formulas, proof ideas, examples) plus one page per source.
 - **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$`/`$$…$$` math.
 - **No vectors / no embeddings / no cloud / single-user** — keyword search + an
-  LLM compiler (Claude by default).
+  LLM compiler (OpenAI by default; Anthropic/Claude is a config switch away).
 
 ---
 
 ## 1. Requirements
 
 - Python **3.11+**
-- An **Anthropic API key** (only needed for `ingest`, `query`, and `lint --deep`;
-  `init`, `search`, and plain `lint` work offline)
+- An **API key for your chosen provider** — `OPENAI_API_KEY` (default) or
+  `ANTHROPIC_API_KEY`. Only needed for `ingest`, `query`, and `lint --deep`;
+  `init`, `search`, and plain `lint` work offline.
 
 ## 2. Install
 
@@ -45,10 +46,14 @@ pip install --only-binary :all: ".[dev]"
 
 ## 3. Set your API key
 
-`llmwiki` reads the key from the **`ANTHROPIC_API_KEY` environment variable** at
-runtime. It is **never** written to the vault or `.llmwiki/config.toml`.
+`llmwiki` reads the key from an environment variable at runtime — **`OPENAI_API_KEY`**
+for the default OpenAI backend, or **`ANTHROPIC_API_KEY`** if you set
+`provider = "anthropic"`. Keys are **never** written to the vault or
+`.llmwiki/config.toml`.
 
 ```bash
+export OPENAI_API_KEY=sk-...             # default provider; this terminal only
+# or, if provider = "anthropic":
 export ANTHROPIC_API_KEY=""
 ```
 
@@ -58,18 +63,19 @@ export ANTHROPIC_API_KEY=""
 To persist it across terminals, add it to your shell profile:
 
 ```bash
-echo 'export ANTHROPIC_API_KEY=sk-ant-...' >> ~/.zshrc   # bash: ~/.bashrc
+echo 'export OPENAI_API_KEY=sk-...' >> ~/.zshrc   # bash: ~/.bashrc
 source ~/.zshrc
 ```
 
 Verify it's set (without exposing the whole key):
 
 ```bash
-echo ${ANTHROPIC_API_KEY:0:7}      # prints just the first 7 chars
+echo ${OPENAI_API_KEY:0:7}         # prints just the first 7 chars
 ```
 
-Get or rotate a key at **console.anthropic.com → Settings → API Keys**. A key's
-full value is shown **only once at creation** — if you lost it, create a new one.
+Get or rotate keys at **platform.openai.com → API keys** (OpenAI) or
+**console.anthropic.com → Settings → API Keys** (Anthropic). A key's full value
+is shown **only once at creation** — if you lost it, create a new one.
 
 ## 4. Quick start
 
@@ -161,13 +167,21 @@ URLs.
 
 ```toml
 [settings]
-compile_model = "claude-opus-4-8"   # ingest + answer model
-cheap_model = "claude-haiku-4-5"    # reserved for cheap ops
+provider = "openai"                 # "openai" (default) or "anthropic"
+# compile_model = "gpt-5.5"         # ingest + answer model (optional; gpt-5.5+)
+# cheap_model = "gpt-5.5"           # reserved for cheap ops (optional override)
 default_course = "General"          # used when --course is omitted
 search_top_k = 8                    # pages retrieved per query
 context_token_budget = 60000        # max context tokens for query/lint
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
 ```
+
+`provider` selects the backend; both OpenAI and Anthropic support every
+operation (ingest, query, lint, and PDF/image vision). Leave `compile_model` /
+`cheap_model` unset to use the provider's defaults — OpenAI: `gpt-5.5` (a
+**reasoning model run at `xhigh` reasoning effort**); Anthropic: `claude-opus-4-8`
+/ `claude-haiku-4-5`. If you override the OpenAI model, keep it a GPT-5.5+
+reasoning model — `xhigh` effort is only valid on those.
 
 API keys are read from the environment — never put them here.
 
@@ -179,8 +193,14 @@ pytest        # unit tests; the LLM is mocked, so no API key is required
 
 ## 11. Troubleshooting
 
-- **`ANTHROPIC_API_KEY` not set / auth error** — see §3. Remember `export` is
-  per-terminal.
+- **API key not set / auth error** — set `OPENAI_API_KEY` (default) or
+  `ANTHROPIC_API_KEY` (if `provider = "anthropic"`); see §3. Remember `export`
+  is per-terminal.
+- **`model_not_found` / no access to `gpt-5.5`** — your OpenAI account may not
+  have that model yet. Point `compile_model` (and `cheap_model`) at a GPT-5.5+
+  reasoning model you do have in `.llmwiki/config.toml`, e.g. `compile_model =
+  "gpt-5.6"`. Keep it 5.5+ — the `xhigh` reasoning effort llmwiki sends is only
+  valid on those models.
 - **`zsh: command not found: llmwiki`** — your virtualenv isn't active. From the
   repo root run `source .venv/bin/activate`, then retry.
 - **`ModuleNotFoundError: No module named 'llmwiki'`** — you installed in editable

@@ -9,11 +9,16 @@ from .store import ensure_dir
 from .wiki import rebuild_index
 
 CONFIG_TOML = """\
-# llmwiki configuration. API keys are NOT stored here — set ANTHROPIC_API_KEY
-# in your environment.
+# llmwiki configuration. API keys are NOT stored here — set the environment
+# variable for your chosen provider (OPENAI_API_KEY or ANTHROPIC_API_KEY).
 [settings]
-compile_model = "claude-opus-4-8"
-cheap_model = "claude-haiku-4-5"
+# LLM backend: "openai" (default) or "anthropic".
+provider = "openai"
+# Model IDs are optional; leave unset to use the provider's defaults. OpenAI runs
+# a GPT-5.5+ reasoning model at xhigh reasoning effort; Anthropic uses Claude Opus.
+# (OpenAI: gpt-5.5 / gpt-5.5, Anthropic: claude-opus-4-8 / claude-haiku-4-5).
+# compile_model = "gpt-5.5"        # ingest + answer model (must be gpt-5.5+)
+# cheap_model = "gpt-5.5"          # reserved for cheap ops
 default_course = "General"
 search_top_k = 8
 context_token_budget = 60000
