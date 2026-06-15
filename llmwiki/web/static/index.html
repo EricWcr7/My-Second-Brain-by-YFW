@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>llmwiki</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside id="sidebar">
+    <h1 id="brand">llmwiki</h1>
+    <nav id="nav">
+      <button data-view="home" class="active">Overview</button>
+      <button data-view="ask">Ask</button>
+      <button data-view="lint">Lint</button>
+    </nav>
+    <input id="filter" type="search" placeholder="Filter pages…" autocomplete="off">
+    <div id="pages"><p class="muted">Loading…</p></div>
+  </aside>
+
+  <main id="main">
+    <article id="content"><p class="muted">Loading…</p></article>
+  </main>
+
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="vendor/markdown-it.min.js"></script>
+  <script src="vendor/markdown-it-texmath.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

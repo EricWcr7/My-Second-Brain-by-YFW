@@ -81,9 +81,11 @@ llmwiki query "state the multivariable chain rule and the proof idea"
 llmwiki search "chain rule"                           # keyword search, no LLM, no key
 llmwiki lint                                          # structural checks (offline)
 llmwiki lint --deep                                   # + LLM contradiction/gap review
+llmwiki serve                                         # local web UI with rendered math (see §5)
 ```
 
-Then open the `wiki/` folder in **Obsidian** to read, search, graph, and edit.
+Then open the `wiki/` folder in **Obsidian** to read, search, graph, and edit —
+or run `llmwiki serve` for a built-in web UI that renders the math in a browser.
 
 ---
 
@@ -120,6 +122,21 @@ Quality checks.
   orphan pages, malformed frontmatter (offline).
 - `--deep` — additionally ask the model to flag contradictions, missing concept
   pages, and stale/unclear claims (uses the API).
+
+### `serve [--host HOST] [--port PORT] [--no-open]`
+Launch the local **web UI** for reading the wiki with **properly rendered math**
+(`$…$` / `$$…$$` via KaTeX), clickable `[[wikilinks]]`, keyword search, an Ask
+panel, and a Lint view. Run it from the vault root; it opens
+`http://127.0.0.1:8000` in your browser.
+
+```bash
+pip install ".[web]"      # one-time: adds fastapi + uvicorn
+llmwiki serve             # then open the printed localhost URL
+```
+
+The rendering libraries (KaTeX, markdown-it) are vendored locally, so the UI
+works fully offline. A key is only needed for the Ask panel and Lint's deep
+review; browse/search/structural-lint work without one.
 
 ---
 
