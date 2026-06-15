@@ -26,14 +26,21 @@ study layer for proof-heavy courses.
 # from the repo root
 python3 -m venv .venv
 source .venv/bin/activate           # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"             # runtime deps + pytest; drop [dev] to skip tests
+pip install ".[dev]"                # runtime deps + pytest; drop [dev] to skip tests
 ```
+
+> **Use the regular install above, not `pip install -e .` (editable).** Editable
+> installs rely on a `.pth` file that some Python builds — including the
+> python.org macOS framework build — don't load at startup, which produces
+> `ModuleNotFoundError: No module named 'llmwiki'`. A regular install copies the
+> package into the venv so it always imports. If you change the tool's own source
+> later, re-apply it with `pip install --force-reinstall --no-deps .`.
 
 Hardened variant (forces prebuilt wheels for dependencies, so none run build
 scripts during install):
 
 ```bash
-pip install --only-binary :all: -e ".[dev]"
+pip install --only-binary :all: ".[dev]"
 ```
 
 ## 3. Set your API key
@@ -174,13 +181,16 @@ pytest        # unit tests; the LLM is mocked, so no API key is required
 
 - **`ANTHROPIC_API_KEY` not set / auth error** — see §3. Remember `export` is
   per-terminal.
-- **`llmwiki: command not found` or `ModuleNotFoundError: No module named 'llmwiki'`**
-  after an editable install — some Python builds don't process the editable
-  `.pth`. Run via the module path instead, from the repo root:
+- **`zsh: command not found: llmwiki`** — your virtualenv isn't active. From the
+  repo root run `source .venv/bin/activate`, then retry.
+- **`ModuleNotFoundError: No module named 'llmwiki'`** — you installed in editable
+  mode (`-e`) and this Python build didn't load the editable `.pth`. Reinstall as
+  a regular package:
   ```bash
-  PYTHONPATH="$PWD" python -m llmwiki.cli init
+  pip install --force-reinstall --no-deps .
   ```
-  or do a regular (non-editable) install: `pip install .`
+  (One-off alternative without reinstalling: run from the repo root with
+  `PYTHONPATH="$PWD" python -m llmwiki.cli <args>`.)
 - **`pip` downloads fail with "not enough bytes received"** (flaky network) —
   add resume + retries:
   ```bash
