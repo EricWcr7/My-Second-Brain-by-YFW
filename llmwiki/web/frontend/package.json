@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Web UI for llmwiki (Eric's Second Brain). Built with Vite; output is committed to ../static.",
+  "description": "Web UI for llmwiki (My Second Brain). Built with Vite; output is committed to ../static.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

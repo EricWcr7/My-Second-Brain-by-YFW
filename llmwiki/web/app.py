@@ -79,7 +79,7 @@ def create_app(
     provider_factory: ProviderFactory = get_provider,
 ) -> FastAPI:
     config = config or load_config()
-    app = FastAPI(title="Eric's Second Brain", docs_url=None, redoc_url=None)
+    app = FastAPI(title="My Second Brain", docs_url=None, redoc_url=None)
 
     @app.get("/api/meta")
     def meta() -> dict:
@@ -129,7 +129,7 @@ def create_app(
             raise HTTPException(status_code=409, detail=f"Section '{section}' already exists.")
         for t in targets:
             ensure_dir(t)
-        append_log(config, f"created section {section}")
+        append_log(config, "section", section, detail="created via web UI")
         return {"section": section, "label": section.split("/")[-1]}
 
     @app.get("/api/home")

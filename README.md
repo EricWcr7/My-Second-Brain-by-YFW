@@ -145,12 +145,12 @@ External files are **copied into `raw/sources/`** so the vault stays
 self-contained. Re-ingesting an edited source merges the new material into the
 existing concept pages.
 
-### `query "<question>" [--section PATH] [--save] [--format prose|table|slides]`
+### `query "<question>" [--section PATH] [--save] [--format|-f prose|table|slides]`
 Answer a question using only the wiki, with citations back to the pages used.
 - `--section` — restrict retrieval to a section and its subtree (omit for the
   whole knowledge base; see [Hierarchy & scope](#hierarchy--scope)).
 - `--save` — also write the answer to `wiki/queries/`.
-- `--format` — `prose` (default), a Markdown `table` comparison, or a Marp
+- `--format`/`-f` — `prose` (default), a Markdown `table` comparison, or a Marp
   `slides` deck. All text-only; saved decks get a `marp: true` frontmatter flag
   so Obsidian's Marp plugin renders them.
 
@@ -176,6 +176,10 @@ opens `http://127.0.0.1:8000` in your browser.
 pip install ".[web]"      # one-time: adds fastapi + uvicorn
 llmwiki                   # opens the web UI in your browser
 ```
+
+To bind a different address or stop it from auto-opening a browser, use the
+explicit `serve` form: `llmwiki serve --port 8080 --host 0.0.0.0 --no-open`
+(defaults: `127.0.0.1:8000`, browser opens automatically).
 
 The rendering libraries (KaTeX, markdown-it) are bundled into the committed
 build, so the UI works fully offline and **no Node is needed to run it**. A key
@@ -221,7 +225,7 @@ source page and ultimately to the local raw file.
 | Path          | Role                                                              |
 | ------------- | ---------------------------------------------------------------- |
 | `raw/`        | Source of truth — your dropped files (`sources/`, `assets/`).     |
-| `wiki/`       | Generated study layer: `concepts/<section>/`, `sources/<section>/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
+| `wiki/`       | Generated study layer: `concepts/<section>/`, `sources/<section>/`, `queries/` (saved answers), `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
 | `.llmwiki/`   | Tool state: `config.toml`, `state.json`, normalized cache (gitignored). |
 | `llmwiki/`    | The Python package (the tool itself).                            |
 
