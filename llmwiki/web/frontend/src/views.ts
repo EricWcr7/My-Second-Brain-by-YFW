@@ -1,4 +1,4 @@
-import { getJSON, postJSON, escapeHtml } from "./api";
+import { getJSON, postJSON, delJSON, escapeHtml } from "./api";
 import { content } from "./dom";
 import { state, type LintIssue, type PageRef, type QueryResult } from "./state";
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
@@ -9,6 +9,9 @@ import {
   sectionContains,
   sectionLabel,
 } from "./sections";
+
+// The seeded roots the UI relies on — not deletable (mirrors the backend guard).
+const PROTECTED_SECTIONS = new Set(["academic", "non-academic"]);
 
 export function setView(name: string): void {
   document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
@@ -100,10 +103,18 @@ export function renderSection(scope: string): void {
       children
         .map((c) => {
           const n = count(c);
+          const label = sectionLabel(c);
+          const del = PROTECTED_SECTIONS.has(c)
+            ? ""
+            : `<button class="hub-card-del" data-section="${escapeHtml(c)}" ` +
+              `aria-label="Delete ${escapeHtml(label)}" title="Delete">🗑</button>`;
           return (
-            `<a class="hub-card" href="#/section/${c}">` +
-            `<span class="hub-card-title">${escapeHtml(sectionLabel(c))}</span>` +
-            `<span class="hub-card-meta">${n} ${n === 1 ? "page" : "pages"}</span></a>`
+            `<div class="hub-card">` +
+            `<a class="hub-card-link" href="#/section/${c}">` +
+            `<span class="hub-card-title">${escapeHtml(label)}</span>` +
+            `<span class="hub-card-meta">${n} ${n === 1 ? "page" : "pages"}</span></a>` +
+            del +
+            `</div>`
           );
         })
         .join("") +
@@ -147,7 +158,36 @@ export function renderSection(scope: string): void {
     </div>${childrenBlock}`;
 
   if (canCreate) wireCreateForm(scope);
+  wireDeleteButtons(scope);
   animateIn();
+}
+
+// Wire the 🗑 button on each child card: confirm, delete on the server, then drop
+// the section (and its pages/descendants) from local state and re-render the hub.
+function wireDeleteButtons(scope: string): void {
+  document.querySelectorAll<HTMLButtonElement>(".hub-card-del").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const section = btn.dataset.section!;
+      const label = sectionLabel(section);
+      if (!confirm(`Delete "${label}" and all its concept and source files? This cannot be undone.`))
+        return;
+      btn.disabled = true;
+      try {
+        await delJSON("/api/sections/" + section.split("/").map(encodeURIComponent).join("/"));
+        state.meta.sections = state.meta.sections.filter((s) => !sectionContains(section, s));
+        state.pages = state.pages.filter((p) => !sectionContains(section, p.section));
+        renderPageList();
+        renderSection(scope); // re-render this hub without the deleted card
+      } catch (err) {
+        btn.disabled = false;
+        const errBox = document.getElementById("new-section-error");
+        const msg = escapeHtml((err as Error).message);
+        if (errBox) errBox.innerHTML = `<p class="notice">${msg}</p>`;
+        else alert((err as Error).message);
+      }
+    });
+  });
 }
 
 function wireCreateForm(scope: string): void {

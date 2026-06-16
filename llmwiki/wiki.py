@@ -34,6 +34,19 @@ def slugify(text: str) -> str:
     return text.strip("-") or "untitled"
 
 
+def section_slug(text: str) -> str:
+    """Folder/slug for a section segment: case- and Unicode-preserving.
+
+    Keeps CJK and other letters/digits; collapses runs of whitespace/punctuation
+    to hyphens. Unlike :func:`slugify` (used for page filenames and wikilinks),
+    this is NOT lowercased or ASCII-folded, so course codes like ``example-course`` keep
+    their casing and names like ``线性代数`` survive instead of becoming ``untitled``.
+    """
+    text = unicodedata.normalize("NFKC", text).strip()
+    text = re.sub(r"[^\w]+", "-", text, flags=re.UNICODE)  # \w is Unicode-aware
+    return text.strip("-_") or "untitled"
+
+
 def section_segments(section: str) -> list[str]:
     """Split a section path into its non-empty slug segments."""
     return [seg for seg in (section or "").split("/") if seg]
@@ -41,12 +54,12 @@ def section_segments(section: str) -> list[str]:
 
 def section_to_relpath(section: str) -> Path:
     """Turn a section path into a slugified, nested relative directory."""
-    return Path(*[slugify(seg) for seg in section_segments(section)])
+    return Path(*[section_slug(seg) for seg in section_segments(section)])
 
 
 def normalize_section(section: str) -> str:
     """Canonical ``/``-joined form of a section path (slugified segments)."""
-    return "/".join(slugify(seg) for seg in section_segments(section))
+    return "/".join(section_slug(seg) for seg in section_segments(section))
 
 
 def section_dirs(config: Config) -> set[str]:
