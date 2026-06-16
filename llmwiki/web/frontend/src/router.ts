@@ -36,9 +36,9 @@ export function applyRoute(): void {
   else if (route === "/lint") setView("lint");
   else if (route.startsWith("/page/")) loadPage(decodeURIComponent(route.slice("/page/".length)));
   else if (route.startsWith("/section/")) {
-    const path = decodeURIComponent(route.slice("/section/".length));
-    if (path) renderSection(path);
-    else root.setAttribute("data-screen", "landing"); // General == the landing
+    // The empty path ("#/section/") is General's hub; the full-screen landing
+    // still lives at "#/" (the logo / first load).
+    renderSection(decodeURIComponent(route.slice("/section/".length)));
   } else root.setAttribute("data-screen", "landing"); // unknown route -> landing
 }
 

@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, keystore
 from .config import ConfigError, load_config
 from .ingest import ingest
 from .lint import lint
@@ -18,13 +18,6 @@ from .search import search
 from .wiki import append_log
 
 
-_API_KEY_ENV = {
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "claude": "ANTHROPIC_API_KEY",
-}
-
-
 def _err(message: str) -> None:
     print(f"error: {message}", file=sys.stderr)
 
@@ -34,9 +27,10 @@ def cmd_init(args: argparse.Namespace) -> int:
     config = scaffold_vault(root)
     print(f"Initialized llmwiki vault at {config.root}")
     print("  - put sources in raw/sources/ (or pass any path/URL to `llmwiki ingest`)")
+    env = keystore.PROVIDER_ENV.get(config.provider, "OPENAI_API_KEY")
     print(
-        f"  - set {_API_KEY_ENV.get(config.provider, 'OPENAI_API_KEY')} "
-        "in your environment for ingest/query"
+        f"  - set {env} in your environment for ingest/query, "
+        f"or run `llmwiki set-key {config.provider} <key>` to store it"
     )
     return 0
 
@@ -133,6 +127,30 @@ def cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mask(value: str) -> str:
+    """Show enough of a key to recognize it without revealing it."""
+    return value[:3] + "…" + value[-4:] if len(value) > 8 else "•" * len(value)
+
+
+def cmd_set_key(args: argparse.Namespace) -> int:
+    path = keystore.key_file()
+    if args.show:
+        keys = keystore.stored_keys()
+        if not keys:
+            print(f"No keys stored yet in {path}")
+            return 0
+        print(f"Stored in {path}:")
+        for name, value in sorted(keys.items()):
+            print(f"  {name} = {_mask(value)}")
+        return 0
+    if not args.provider or not args.key:
+        _err("usage: llmwiki set-key <openai|anthropic|ENV_VAR> <key>  (or --show)")
+        return 2
+    path = keystore.set_key(args.provider, args.key)
+    print(f"Saved {keystore.resolve_env(args.provider)} to {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="llmwiki",
@@ -194,6 +212,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_s.add_argument("--top-k", type=int, default=10, dest="top_k")
     p_s.set_defaults(func=cmd_search)
 
+    p_key = sub.add_parser(
+        "set-key",
+        help="store an API key in ~/.config/llmwiki/.env so it loads automatically",
+    )
+    p_key.add_argument(
+        "provider", nargs="?", help="openai or anthropic (or a raw env var name)"
+    )
+    p_key.add_argument("key", nargs="?", help="the API key value")
+    p_key.add_argument(
+        "--show", action="store_true", help="list stored keys (masked) and exit"
+    )
+    p_key.set_defaults(func=cmd_set_key)
+
     # Hidden alias for the default web-UI launch (no help= keeps it out of --help).
     p_serve = sub.add_parser("serve")
     p_serve.add_argument("--host", default="127.0.0.1")
@@ -205,6 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    keystore.load_into_env()  # make persisted keys available to every command
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

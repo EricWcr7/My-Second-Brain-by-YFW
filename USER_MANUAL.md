@@ -84,12 +84,15 @@ trustworthy and auditable.
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install ".[dev]"                 # add ".[web]" for the browser UI
-export OPENAI_API_KEY=sk-...         # or ANTHROPIC_API_KEY if provider="anthropic"
+llmwiki set-key openai sk-...        # store the key once (~/.config/llmwiki/.env)
+# or, per-terminal: export OPENAI_API_KEY=sk-...  (ANTHROPIC_API_KEY if provider="anthropic")
 ```
 
 A key is needed only for `ingest`, `query`, and `lint --deep`. `init`, `search`,
-and plain `lint` work offline. Full details (key persistence, hardened install,
-provider switch) are in [README §1–3](README.md#1-requirements).
+and plain `lint` work offline. `set-key` saves the key (file mode `600`) and
+loads it automatically on every run; an exported env var still wins over it. Full
+details (key persistence, hardened install, provider switch) are in
+[README §1–3](README.md#1-requirements).
 
 ---
 

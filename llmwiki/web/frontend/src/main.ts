@@ -29,14 +29,14 @@ filterEl.addEventListener("input", renderPageList);
 document.addEventListener("click", (e) => {
   const target = e.target as Element;
   // Scope picker: the tree is a hierarchy navigator — selecting a node opens that
-  // section's page (General -> the landing; a branch/course -> its hub), which
+  // section's hub (General included; "" -> the General hub at #/section/), which
   // also sets the scope that Ask/Lint then operate over.
   const scopeNode = target.closest<HTMLAnchorElement>("#pages a[data-scope]");
   if (scopeNode) {
     const scope = scopeNode.dataset.scope ?? "";
     state.scope = scope;
     renderPageList();
-    navigate(scope ? "#/section/" + scope : "#/");
+    navigate("#/section/" + scope);
     return;
   }
   const side = target.closest<HTMLAnchorElement>("#pages a[data-slug]");
