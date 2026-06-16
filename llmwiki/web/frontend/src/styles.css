@@ -726,8 +726,10 @@ a.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   text-decoration: none;
 }
+.btn-icon { width: 17px; height: 17px; flex: none; }
 .btn-lg { padding: 13px 24px; font-size: 16px; border-radius: 14px; }
 
 /* Top bar */
@@ -741,37 +743,53 @@ a.btn {
 .lp-brand .brand-mark { width: 28px; height: 28px; }
 .lp-topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 
-/* Hero */
+/* Hero — centered stack: heading, subtitle, then the brain below */
 .lp-hero {
-  display: grid;
-  grid-template-columns: 1.1fr .9fr;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 32px;
-  padding: 56px 0 60px;
+  text-align: center;
+  gap: 8px;
+  padding: 52px 0 56px;
 }
+.lp-hero-text { max-width: 760px; }
 .lp-title {
   font-family: var(--font-display);
-  font-size: clamp(34px, 6vw, 58px);
-  line-height: 1.05;
-  letter-spacing: -1px;
+  font-size: clamp(38px, 7vw, 66px);
+  line-height: 1.04;
+  letter-spacing: -1.5px;
   margin: 0 0 20px;
   background: var(--grad);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.lp-sub { font-size: clamp(15px, 2vw, 18px); color: var(--muted); max-width: 48ch; margin: 0 0 28px; }
+.lp-sub { font-size: clamp(15px, 2vw, 19px); color: var(--muted); max-width: 56ch; margin: 0 auto; }
 .lp-cta { display: flex; gap: 14px; flex-wrap: wrap; }
 
 /* Glowing neural-network brain */
-.lp-brain { position: relative; display: grid; place-items: center; min-height: 280px; }
+.lp-brain { position: relative; display: grid; place-items: center; min-height: 340px; margin-top: 12px; }
 .lp-brain::after {
-  content: ""; position: absolute; width: 240px; height: 240px; border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 55%, transparent), transparent 70%);
-  filter: blur(34px); z-index: -1;
+  content: ""; position: absolute; width: 380px; height: 380px; max-width: 90vw; border-radius: 50%;
+  background: radial-gradient(circle,
+    color-mix(in srgb, var(--accent) 45%, transparent),
+    color-mix(in srgb, var(--accent-2) 22%, transparent) 45%,
+    transparent 72%);
+  filter: blur(46px); z-index: -1;
 }
 .brain {
-  width: clamp(220px, 26vw, 300px); height: auto; overflow: visible;
+  width: clamp(300px, 44vw, 480px); height: auto; overflow: visible;
   animation: brain-float 6s ease-in-out infinite;
+}
+/* faint rotating data halo around the brain */
+.brain-ring {
+  fill: none; stroke: url(#brainGrad); stroke-width: 1; opacity: .22;
+  stroke-dasharray: 3 12; transform-box: fill-box; transform-origin: center;
+  animation: ring-spin 40s linear infinite;
+}
+/* signals firing along the synapses */
+.brain-pulse {
+  fill: #fff;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-2) 90%, transparent));
 }
 #brainGrad .stop-1 { stop-color: var(--accent); }
 #brainGrad .stop-2 { stop-color: var(--accent-2); }
@@ -808,6 +826,7 @@ a.btn {
   50%      { opacity: 1; transform: scale(1.15); }
 }
 @keyframes link-pulse { to { stroke-dashoffset: -32; } }
+@keyframes ring-spin { to { transform: rotate(360deg); } }
 
 /* Stats strip */
 .lp-stats { display: flex; flex-wrap: wrap; gap: 16px; padding: 4px 0 0; }
@@ -866,7 +885,8 @@ a.btn {
 
 @media (max-width: 760px) {
   #landing { padding: 0 20px 64px; }
-  .lp-hero { grid-template-columns: 1fr; padding: 32px 0 40px; }
-  .lp-brain { order: -1; min-height: 200px; }
+  .lp-hero { padding: 32px 0 40px; }
+  .lp-brain { min-height: 260px; }
+  .brain { width: clamp(240px, 78vw, 340px); }
   .lp-cards, .lp-cards-2 { grid-template-columns: 1fr; }
 }
