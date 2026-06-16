@@ -214,8 +214,14 @@ Need a different address or no auto-open? Use the explicit form:
 
 Renders math via bundled KaTeX, with a section scope tree, clickable links, a
 search box, an Ask panel, and a Lint view. Works fully offline; a key is needed
-only for Ask and deep Lint. The web UI is a **reader** — it never modifies
-`log.md` or your pages.
+only for Ask and deep Lint. From any section hub you can also **add a
+course/branch** (the `+ New course` / `+ New section` button) or **delete one**
+(the 🗑 on its card — this removes its `concepts/<section>` and
+`sources/<section>` directories and everything in them, after a confirmation).
+The seeded `academic` / `non-academic` branches are protected and have no delete
+button. Course/branch names keep their exact casing and non-Latin characters
+(e.g. `example-course`, `线性代数`). Both operations are recorded in `log.md`; page
+content is otherwise only changed from the CLI.
 
 ### UC10 — Track what happened, when (the log)
 `wiki/log.md` is an append-only timeline. Each entry is a greppable heading:
@@ -242,7 +248,12 @@ in the config. See [README §9](README.md#9-configuration) for model overrides.
 - **Widen a query** to span more of the base: point it at a parent section, or
   drop `--section` to use General. `--section academic` spans all courses.
 - **Add a course**: just ingest into it — `--section academic/quantum-mechanics`
-  creates the branch on first use.
+  creates the branch on first use. Or create it (empty) from the web UI: open the
+  Academic hub and click **+ New course**. Names keep their casing/non-Latin
+  characters, so `example-course` and `线性代数` are stored verbatim.
+- **Delete a course/branch** from the web UI: click the 🗑 on its hub card to
+  remove its `concepts/` and `sources/` directories (the seeded `academic` /
+  `non-academic` branches can't be deleted).
 
 ---
 

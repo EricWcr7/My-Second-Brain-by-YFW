@@ -8,6 +8,7 @@ The ``provider_factory`` argument lets tests inject a fake provider.
 from __future__ import annotations
 
 import os
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -28,10 +29,14 @@ from ..wiki import (
     iter_pages,
     normalize_section,
     read_optional,
+    rebuild_index,
     section_dirs,
+    section_slug,
     section_to_relpath,
-    slugify,
 )
+
+# Seeded top-level branches the UI relies on — never deletable via the web API.
+_PROTECTED_SECTIONS = {"academic", "non-academic"}
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -115,22 +120,53 @@ def create_app(
         """Scaffold a new child section (e.g. an Academic course) on disk.
 
         Creates the matching ``concepts/<section>`` and ``sources/<section>``
-        directories, mirroring ``scaffold_vault``. Every path segment is slugified,
-        so traversal is impossible. The UI sends ``parent`` = the current scope.
+        directories, mirroring ``scaffold_vault``. Each segment goes through
+        ``section_slug`` (case- and Unicode-preserving), so traversal is impossible
+        while course codes (``example-course``) and non-Latin names keep their form. The
+        UI sends ``parent`` = the current scope.
         """
-        slug = slugify(name)
+        slug = section_slug(name)
         if not name.strip() or slug == "untitled":
             raise HTTPException(status_code=422, detail="Provide a name for the new section.")
         parent_norm = normalize_section(parent)
         section = normalize_section(f"{parent_norm}/{slug}" if parent_norm else slug)
         rel = section_to_relpath(section)
         targets = [config.concepts_dir / rel, config.source_pages_dir / rel]
-        if any(t.exists() for t in targets):
+        # Case-insensitive dup check so behavior matches on case-sensitive (Linux)
+        # and case-insensitive (macOS) filesystems, and "example-course"/"example-course" can't
+        # both exist.
+        existing = {s.lower() for s in section_dirs(config)}
+        if section.lower() in existing or any(t.exists() for t in targets):
             raise HTTPException(status_code=409, detail=f"Section '{section}' already exists.")
         for t in targets:
             ensure_dir(t)
         append_log(config, "section", section, detail="created via web UI")
         return {"section": section, "label": section.split("/")[-1]}
+
+    @app.delete("/api/sections/{section:path}")
+    def delete_section(section: str) -> dict:
+        """Delete a course/branch: remove its ``concepts/<section>`` and
+        ``sources/<section>`` directories (and everything inside them).
+
+        The seeded ``academic``/``non-academic`` roots are protected. The section
+        is resolved case-insensitively against the dirs on disk, so the URL casing
+        need not match exactly.
+        """
+        norm = normalize_section(section)
+        if not norm or norm.lower() in _PROTECTED_SECTIONS:
+            raise HTTPException(status_code=403, detail="This branch cannot be deleted.")
+        match = next(
+            (s for s in section_dirs(config) if s.lower() == norm.lower()), None
+        )
+        if match is None:
+            raise HTTPException(status_code=404, detail=f"Section '{section}' not found.")
+        rel = section_to_relpath(match)
+        for t in (config.concepts_dir / rel, config.source_pages_dir / rel):
+            if t.exists():
+                shutil.rmtree(t)
+        rebuild_index(config)  # drop the deleted pages from index.md / home overview
+        append_log(config, "section", match, detail="deleted via web UI")
+        return {"section": match}
 
     @app.get("/api/home")
     def home() -> dict:

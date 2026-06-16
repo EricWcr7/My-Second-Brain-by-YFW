@@ -7,6 +7,16 @@ def test_slugify():
     assert wiki.slugify("") == "untitled"
 
 
+def test_section_slug_preserves_case_and_unicode():
+    # Case is kept (course codes) and non-Latin names survive — unlike slugify.
+    assert wiki.section_slug("example-course ") == "example-course"
+    assert wiki.section_slug("Linear Algebra") == "Linear-Algebra"
+    assert wiki.section_slug("线性代数") == "线性代数"
+    assert wiki.section_slug("  ") == "untitled"
+    # slugify is unchanged: still lowercased / ASCII-folded.
+    assert wiki.slugify("example-course") == "example-course"
+
+
 def test_extract_wikilinks_handles_aliases_and_headings():
     text = "See [[gradient]] and [[chain-rule|the Chain Rule]] plus [[page#Section]]."
     assert wiki.extract_wikilinks(text) == {"gradient", "chain-rule", "page"}

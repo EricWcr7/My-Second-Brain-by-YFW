@@ -181,6 +181,12 @@ To bind a different address or stop it from auto-opening a browser, use the
 explicit `serve` form: `llmwiki serve --port 8080 --host 0.0.0.0 --no-open`
 (defaults: `127.0.0.1:8000`, browser opens automatically).
 
+From a section hub you can also **add or delete a course/branch**: `+ New course`
+scaffolds its `concepts/` and `sources/` directories, and the 🗑 on a card removes
+them (after a confirmation). Names keep their casing and non-Latin characters
+(`example-course`, `线性代数`); the seeded `academic` / `non-academic` branches are
+protected.
+
 The rendering libraries (KaTeX, markdown-it) are bundled into the committed
 build, so the UI works fully offline and **no Node is needed to run it**. A key
 is only needed for the Ask panel and Lint's deep review; browse/search/structural
