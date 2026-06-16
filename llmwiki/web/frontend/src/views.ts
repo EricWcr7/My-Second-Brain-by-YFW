@@ -37,7 +37,7 @@ function crumbs(scope: string, opts: { leafLink?: boolean } = {}): string {
     const last = i === chain.length - 1;
     const label = escapeHtml(sectionLabel(node));
     if (last && !opts.leafLink) return `<span class="crumb-current">${label}</span>`;
-    const href = node ? "#/section/" + node : "#/";
+    const href = "#/section/" + node; // node "" -> the General hub
     return `<a class="crumb" href="${href}">${label}</a>`;
   });
   return `<nav class="crumbs">${parts.join('<span class="crumb-sep">›</span>')}</nav>`;
@@ -72,6 +72,8 @@ export async function loadPage(slug: string): Promise<void> {
 
 // One-line orientation for a section hub.
 function sectionDescription(scope: string): string {
+  if (!scope)
+    return "Your whole knowledge base — ask or lint across everything, or open a section below to focus.";
   if (scope === "academic")
     return "All your course knowledge. Each course below sees only its own material; ask or lint here to work across every course.";
   if (scope === "non-academic")
@@ -88,13 +90,19 @@ export function renderSection(scope: string): void {
   highlightSidebar(null);
   renderPageList(); // reflect the new scope in the sidebar tree + page list
 
+  const isGeneral = scope === "";
   const isAcademic = scope === "academic";
   // Courses (and anything beneath them) are leaves under Academic — you can add
-  // courses to Academic itself, but not sub-sections inside a course.
-  const canCreate = isAcademic || !sectionContains("academic", scope);
+  // courses to Academic itself, but not sub-sections inside a course. General's
+  // children are the fixed seeded branches, so it offers no create control.
+  const canCreate = !isGeneral && (isAcademic || !sectionContains("academic", scope));
   const createLabel = isAcademic ? "New course" : "New section";
-  const headLabel = isAcademic ? "Courses" : "Sub-sections";
-  const children = childSections(scope, state.meta.sections);
+  const headLabel = isGeneral ? "Sections" : isAcademic ? "Courses" : "Sub-sections";
+  // Always surface the seeded branches under General, even before either exists
+  // on disk (a fresh vault may have only `academic/`).
+  const children = isGeneral
+    ? [...new Set([...PROTECTED_SECTIONS, ...childSections(scope, state.meta.sections)])].sort()
+    : childSections(scope, state.meta.sections);
   const count = (node: string) =>
     state.pages.filter((p) => sectionContains(node, p.section)).length;
 
@@ -230,7 +238,7 @@ function renderAsk(): void {
   content.innerHTML = `
     ${crumbs(state.scope, { leafLink: true })}
     <h1>Ask</h1>
-    ${state.meta.has_api_key ? "" : `<p class="notice">Set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code> and restart the server to ask questions.</p>`}
+    ${state.meta.has_api_key ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ask questions.</p>`}
     <p class="page-meta">Answers are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
     <form id="ask-form">
       <textarea id="ask-q" placeholder="Ask a question answered from your wiki…" ${dis}></textarea>

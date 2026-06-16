@@ -88,7 +88,19 @@ export ANTHROPIC_API_KEY=""
 > `export` lasts only for the current terminal. Open a new window and you must
 > set it again — or run your `llmwiki` commands in the same terminal.
 
-To persist it across terminals, add it to your shell profile:
+**Easiest — store it once with `set-key`.** This saves the key to
+`~/.config/llmwiki/.env` (file mode `600`) and loads it automatically on every
+run, from any terminal and any vault — no `export`, no shell-profile edits:
+
+```bash
+llmwiki set-key openai sk-...          # or: llmwiki set-key anthropic sk-ant-...
+llmwiki set-key --show                 # list stored keys (masked)
+```
+
+An `OPENAI_API_KEY` already exported in your environment still takes precedence
+over the stored file, so a temporary `export` can override it when you need to.
+
+Alternatively, add the `export` to your shell profile:
 
 ```bash
 echo 'export OPENAI_API_KEY=sk-...' >> ~/.zshrc   # bash: ~/.bashrc
@@ -165,6 +177,12 @@ Quality checks.
   pages, and stale/unclear claims, plus growth suggestions: missing
   cross-references, new questions to investigate, sources to seek, and data gaps
   a web search could fill (uses the API).
+
+### `set-key <openai|anthropic|ENV_VAR> <key>` / `set-key --show`
+Store an API key in `~/.config/llmwiki/.env` (file mode `600`) so it loads
+automatically on every run — no per-terminal `export`. Accepts a provider name
+(`openai`/`anthropic`) or a raw env-var name. `--show` lists stored keys, masked.
+A matching env var already exported in your shell still takes precedence. See §3.
 
 ### Web UI
 Read the wiki in a browser with **properly rendered math** (`$…$` / `$$…$$` via
@@ -273,9 +291,10 @@ pytest        # unit tests; the LLM is mocked, so no API key is required
 
 ## 11. Troubleshooting
 
-- **API key not set / auth error** — set `OPENAI_API_KEY` (default) or
-  `ANTHROPIC_API_KEY` (if `provider = "anthropic"`); see §3. Remember `export`
-  is per-terminal.
+- **API key not set / auth error** — store it once with `llmwiki set-key openai
+  sk-...` (or `ANTHROPIC_API_KEY` if `provider = "anthropic"`); see §3. A plain
+  `export` works too but is per-terminal. Check what's stored with
+  `llmwiki set-key --show`.
 - **`model_not_found` / no access to `gpt-5.5`** — your OpenAI account may not
   have that model yet. Point `compile_model` (and `cheap_model`) at a GPT-5.5+
   reasoning model you do have in `.llmwiki/config.toml`, e.g. `compile_model =
