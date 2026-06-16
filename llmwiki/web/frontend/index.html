@@ -72,10 +72,90 @@
           material.</p>
       </div>
       <div class="lp-brain" aria-hidden="true">
-        <!-- Three.js mounts a 3D neural-network brain here (src/brain.ts).
-             The fallback glow shows when WebGL is unavailable or motion is reduced. -->
-        <div class="brain-canvas" id="brain-canvas"></div>
-        <div class="brain-fallback"></div>
+        <svg class="brain" viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="brainGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop class="stop-1" offset="0"/>
+              <stop class="stop-2" offset="1"/>
+            </linearGradient>
+          </defs>
+
+          <!-- slow-rotating data halos -->
+          <circle class="brain-ring" cx="160" cy="120" r="116"/>
+          <circle class="brain-ring brain-ring-2" cx="160" cy="120" r="98"/>
+
+          <!-- cerebral silhouette + central fissure -->
+          <path class="brain-outline" d="M160 50C176 42 198 46 208 60C224 48 246 56 250 76C268 82 272 102 260 116C276 128 274 150 256 160C260 180 242 192 220 190C206 200 184 200 170 190C167 188 163 188 160 190C157 188 153 188 150 190C136 200 114 200 100 190C78 192 60 180 64 160C46 150 44 128 60 116C48 102 52 82 70 76C74 56 96 48 112 60C122 46 144 42 160 50Z"/>
+          <path class="brain-fissure" d="M160 56C167 82 153 100 160 122C167 144 153 162 160 188"/>
+
+          <!-- synaptic mesh: layered, deep-net-style connections -->
+          <g class="brain-links">
+            <line x1="80" y1="95" x2="115" y2="80"/>
+            <line x1="80" y1="95" x2="113" y2="110"/>
+            <line x1="78" y1="125" x2="113" y2="110"/>
+            <line x1="78" y1="125" x2="117" y2="140"/>
+            <line x1="82" y1="155" x2="117" y2="140"/>
+            <line x1="82" y1="155" x2="115" y2="168"/>
+            <line x1="115" y1="80" x2="150" y2="72"/>
+            <line x1="115" y1="80" x2="148" y2="102"/>
+            <line x1="113" y1="110" x2="148" y2="102"/>
+            <line x1="113" y1="110" x2="160" y2="118"/>
+            <line x1="117" y1="140" x2="160" y2="118"/>
+            <line x1="117" y1="140" x2="152" y2="132"/>
+            <line x1="115" y1="168" x2="150" y2="162"/>
+            <line x1="115" y1="168" x2="152" y2="132"/>
+            <line x1="150" y1="72" x2="190" y2="78"/>
+            <line x1="148" y1="102" x2="190" y2="78"/>
+            <line x1="148" y1="102" x2="188" y2="108"/>
+            <line x1="160" y1="118" x2="188" y2="108"/>
+            <line x1="160" y1="118" x2="192" y2="138"/>
+            <line x1="152" y1="132" x2="192" y2="138"/>
+            <line x1="150" y1="162" x2="190" y2="166"/>
+            <line x1="152" y1="132" x2="190" y2="166"/>
+            <line x1="190" y1="78" x2="225" y2="92"/>
+            <line x1="188" y1="108" x2="225" y2="92"/>
+            <line x1="188" y1="108" x2="223" y2="124"/>
+            <line x1="192" y1="138" x2="223" y2="124"/>
+            <line x1="192" y1="138" x2="227" y2="154"/>
+            <line x1="190" y1="166" x2="227" y2="154"/>
+            <line x1="150" y1="72" x2="160" y2="118"/>
+            <line x1="160" y1="118" x2="150" y2="162"/>
+            <line x1="148" y1="102" x2="150" y2="162"/>
+          </g>
+
+          <!-- neurons -->
+          <g class="brain-nodes">
+            <circle class="brain-node" cx="80" cy="95" r="3.5"/>
+            <circle class="brain-node" cx="78" cy="125" r="4"/>
+            <circle class="brain-node" cx="82" cy="155" r="3.5"/>
+            <circle class="brain-node" cx="115" cy="80" r="4"/>
+            <circle class="brain-node" cx="113" cy="110" r="4.5"/>
+            <circle class="brain-node" cx="117" cy="140" r="4"/>
+            <circle class="brain-node" cx="115" cy="168" r="3.5"/>
+            <circle class="brain-node" cx="150" cy="72" r="4"/>
+            <circle class="brain-node" cx="148" cy="102" r="4.5"/>
+            <circle class="brain-node brain-node--hub" cx="160" cy="118" r="5.5"/>
+            <circle class="brain-node" cx="152" cy="132" r="4.5"/>
+            <circle class="brain-node" cx="150" cy="162" r="4"/>
+            <circle class="brain-node" cx="190" cy="78" r="4"/>
+            <circle class="brain-node" cx="188" cy="108" r="4.5"/>
+            <circle class="brain-node" cx="192" cy="138" r="4"/>
+            <circle class="brain-node" cx="190" cy="166" r="3.5"/>
+            <circle class="brain-node" cx="225" cy="92" r="3.5"/>
+            <circle class="brain-node" cx="223" cy="124" r="4"/>
+            <circle class="brain-node" cx="227" cy="154" r="3.5"/>
+          </g>
+
+          <!-- signals firing across the network (CSS motion-path; paused under reduced-motion) -->
+          <circle class="brain-pulse" r="2.6" style="offset-path: path('M80 125 L115 110 L150 102 L190 108 L225 124'); animation: signal-travel 2.8s linear 0s infinite;"/>
+          <circle class="brain-pulse brain-pulse--violet" r="2.4" style="offset-path: path('M82 155 L117 140 L152 132 L192 138 L227 154'); animation: signal-travel 3.4s linear -1s infinite;"/>
+          <circle class="brain-pulse brain-pulse--hot" r="2.8" style="offset-path: path('M150 72 L148 102 L160 118 L152 132 L150 162'); animation: signal-travel 2.4s linear -1.8s infinite;"/>
+          <circle class="brain-pulse" r="2.6" style="offset-path: path('M225 92 L188 108 L160 118 L113 110 L80 95'); animation: signal-travel 3.8s linear -0.6s infinite;"/>
+          <circle class="brain-pulse brain-pulse--violet" r="2.4" style="offset-path: path('M80 95 L115 80 L150 72 L190 78 L225 92'); animation: signal-travel 3.1s linear -2.4s infinite;"/>
+          <circle class="brain-pulse" r="2.6" style="offset-path: path('M227 154 L190 166 L150 162 L115 168 L82 155'); animation: signal-travel 4.2s linear -3.3s infinite;"/>
+          <circle class="brain-pulse brain-pulse--violet" r="2.4" style="offset-path: path('M80 95 L113 110 L160 118 L192 138 L227 154'); animation: signal-travel 3.6s linear -1.4s infinite;"/>
+          <circle class="brain-pulse brain-pulse--hot" r="2.8" style="offset-path: path('M227 154 L192 138 L160 118 L148 102 L150 72'); animation: signal-travel 2.7s linear -2.1s infinite;"/>
+        </svg>
       </div>
     </section>
 

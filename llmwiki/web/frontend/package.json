@@ -13,13 +13,11 @@
   "dependencies": {
     "katex": "^0.16.11",
     "markdown-it": "^14.1.0",
-    "markdown-it-texmath": "^1.0.0",
-    "three": "^0.184.0"
+    "markdown-it-texmath": "^1.0.0"
   },
   "devDependencies": {
     "@types/katex": "^0.16.7",
     "@types/markdown-it": "^14.1.2",
-    "@types/three": "^0.184.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.10"
   }

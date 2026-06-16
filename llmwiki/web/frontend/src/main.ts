@@ -19,15 +19,6 @@ const viewHash: Record<string, string> = {
 
 initThemeToggle();
 
-// The 3D brain (and Three.js) is a heavy, landing-only chunk — load it lazily
-// so it never blocks the main bundle. On failure, reveal the CSS fallback glow.
-const brainMount = document.getElementById("brain-canvas");
-if (brainMount) {
-  import("./brain")
-    .then(({ initBrain }) => initBrain(brainMount))
-    .catch(() => brainMount.parentElement?.classList.add("brain-failed"));
-}
-
 document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
   b.addEventListener("click", () => navigate(viewHash[b.dataset.view!] ?? "#/overview")));
 
