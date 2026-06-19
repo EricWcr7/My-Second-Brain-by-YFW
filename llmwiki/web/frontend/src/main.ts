@@ -15,6 +15,7 @@ const viewHash: Record<string, string> = {
   home: "#/overview",
   ask: "#/ask",
   lint: "#/lint",
+  ingest: "#/ingest",
 };
 
 initThemeToggle();

@@ -4,6 +4,7 @@
 //   #/overview       -> app, Overview view
 //   #/ask            -> app, Ask view
 //   #/lint           -> app, Lint view
+//   #/ingest         -> app, Ingest view
 //   #/page/<slug>    -> app, that page
 //   #/section/<path> -> app, that section's hub (branch/course page)
 import { setView, loadPage, renderSection } from "./views";
@@ -34,6 +35,7 @@ export function applyRoute(): void {
   if (route === "/overview") setView("home");
   else if (route === "/ask") setView("ask");
   else if (route === "/lint") setView("lint");
+  else if (route === "/ingest") setView("ingest");
   else if (route.startsWith("/page/")) loadPage(decodeURIComponent(route.slice("/page/".length)));
   else if (route.startsWith("/section/")) {
     // The empty path ("#/section/") is General's hub; the full-screen landing

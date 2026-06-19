@@ -9,17 +9,21 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
 from ..config import Config, load_config
+from ..ingest import ingest
 from ..lint import lint
-from ..providers import LLMProvider, get_provider
+from ..loaders import LoaderError, load_source
+from ..loaders.registry import IMAGE_EXTS, TEXT_EXTS
+from ..providers import LLMProvider, ProviderError, get_provider
 from ..query import answer
 from ..search import search
 from ..store import ensure_dir, read_page
@@ -37,6 +41,10 @@ from ..wiki import (
 
 # Seeded top-level branches the UI relies on — never deletable via the web API.
 _PROTECTED_SECTIONS = {"academic", "non-academic"}
+
+# Every extension the loaders can ingest — the single source of truth the web UI
+# uses for its upload `accept` filter (mirrors loaders.registry's dispatch).
+SUPPORTED_EXTS = sorted(TEXT_EXTS | {".pdf", ".docx", ".pptx"} | IMAGE_EXTS)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -102,6 +110,7 @@ def create_app(
             "default_section": config.default_section,
             "has_api_key": _has_api_key(config),
             "api_key_env": _api_key_env(config),
+            "supported_exts": SUPPORTED_EXTS,
         }
 
     @app.get("/api/pages")
@@ -206,10 +215,60 @@ def create_app(
             for h in hits
         ]
 
+    @app.post("/api/ingest")
+    async def ingest_endpoint(
+        file: UploadFile | None = File(None),
+        url: str | None = Form(None),
+        section: str | None = Form(None),
+    ) -> dict:
+        """Ingest one uploaded file or URL into ``section`` (the UI's current scope).
+
+        Mirrors ``llmwiki ingest``: the source is normalized, compiled into
+        concept/source pages, and copied into ``raw/``. The UI always sends an
+        explicit scope, so a missing/empty ``section`` means the General root
+        (``""``) — never the configured default. The UI sends one request per
+        selected file, all carrying the same scope.
+        """
+        if not _has_api_key(config):
+            env = _api_key_env(config)
+            raise HTTPException(
+                status_code=503,
+                detail=f"{env} is not set; set it and restart to ingest sources.",
+            )
+        spec_url = (url or "").strip()
+        has_file = file is not None and bool(file.filename)
+        if not spec_url and not has_file:
+            raise HTTPException(status_code=422, detail="Provide a file or a URL to ingest.")
+        # The General scope is "" — and empty multipart fields don't always survive
+        # the wire — so collapse a missing/empty section to the root explicitly.
+        target_section = section or ""
+        provider = provider_factory(config)
+        try:
+            if spec_url:
+                result = ingest(config, provider, spec_url, section=target_section)
+            else:
+                data = await file.read()  # type: ignore[union-attr]
+                with tempfile.TemporaryDirectory() as td:
+                    tmp = Path(td) / Path(file.filename).name  # type: ignore[union-attr]
+                    tmp.write_bytes(data)
+                    result = ingest(config, provider, str(tmp), section=target_section)
+        except (LoaderError, ProviderError, ValueError, FileNotFoundError) as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        return {
+            "status": result.status,
+            "title": result.title,
+            "source_slug": result.source_slug,
+            "concept_slugs": result.concept_slugs,
+            "reason": result.reason,
+            "warnings": result.warnings,
+            "section": target_section,
+        }
+
     @app.post("/api/query")
-    def query_endpoint(
-        question: str = Body(..., embed=True),
-        section: str | None = Body(None, embed=True),
+    async def query_endpoint(
+        question: str = Form(...),
+        section: str | None = Form(None),
+        files: list[UploadFile] = File(default=[]),
     ) -> dict:
         if not _has_api_key(config):
             env = _api_key_env(config)
@@ -217,7 +276,25 @@ def create_app(
                 status_code=503,
                 detail=f"{env} is not set; set it and restart to ask questions.",
             )
-        result = answer(config, provider_factory(config), question, section=section)
+        provider = provider_factory(config)
+        # Uploaded files are transient context for this one answer — loaded to
+        # Markdown and handed to the model, never written to the wiki.
+        attachments: list[tuple[str, str]] = []
+        for f in files:
+            if not f.filename:
+                continue
+            data = await f.read()
+            with tempfile.TemporaryDirectory() as td:
+                tmp = Path(td) / Path(f.filename).name
+                tmp.write_bytes(data)
+                try:
+                    loaded = load_source(str(tmp), config=config, provider=provider)
+                except LoaderError as e:
+                    raise HTTPException(status_code=400, detail=str(e)) from e
+            attachments.append((f.filename, loaded.markdown))
+        result = answer(
+            config, provider, question, section=section, attachments=attachments or None
+        )
         return {"answer": result.answer, "pages_used": result.pages_used}
 
     @app.get("/api/lint")

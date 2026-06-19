@@ -8,6 +8,7 @@ export interface Meta {
   default_section?: string;
   has_api_key: boolean;
   api_key_env: string;
+  supported_exts?: string[];
 }
 
 export interface PageRef {
@@ -26,6 +27,16 @@ export interface LintIssue {
 export interface QueryResult {
   answer: string;
   pages_used: string[];
+}
+
+export interface IngestResult {
+  status: string; // "ingested" | "skipped"
+  title: string;
+  source_slug: string | null;
+  concept_slugs: string[];
+  reason: string;
+  warnings: string[];
+  section: string;
 }
 
 export const state = {

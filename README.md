@@ -186,9 +186,9 @@ A matching env var already exported in your shell still takes precedence. See §
 
 ### Web UI
 Read the wiki in a browser with **properly rendered math** (`$…$` / `$$…$$` via
-KaTeX), clickable `[[wikilinks]]`, keyword search, an Ask panel, and a Lint view.
-Just run `llmwiki` with no command from the vault root — it starts the UI and
-opens `http://127.0.0.1:8000` in your browser.
+KaTeX), clickable `[[wikilinks]]`, keyword search, an Ask panel, an Ingest panel,
+and a Lint view. Just run `llmwiki` with no command from the vault root — it
+starts the UI and opens `http://127.0.0.1:8000` in your browser.
 
 ```bash
 pip install ".[web]"      # one-time: adds fastapi + uvicorn
@@ -198,6 +198,15 @@ llmwiki                   # opens the web UI in your browser
 To bind a different address or stop it from auto-opening a browser, use the
 explicit `serve` form: `llmwiki serve --port 8080 --host 0.0.0.0 --no-open`
 (defaults: `127.0.0.1:8000`, browser opens automatically).
+
+**Ingest from the browser**: the Ingest panel (sidebar, the General card, and
+every section hub) uploads one or more files — Markdown/text, PDF, Word,
+PowerPoint, or images — or a URL, and compiles them into the wiki exactly like
+`llmwiki ingest`. Sources land in whatever scope you're in: the General scope
+files into the root, `academic` into `academic/`, a course into that course.
+The **Ask** panel also takes file attachments — they're read and used as extra
+context for that one answer **without** being saved to the wiki. Both need an
+API key (the pipeline calls the model).
 
 From a section hub you can also **add or delete a course/branch**: `+ New course`
 scaffolds its `concepts/` and `sources/` directories, and the 🗑 on a card removes
@@ -277,9 +286,9 @@ pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via visio
 `provider` selects the backend; both OpenAI and Anthropic support every
 operation (ingest, query, lint, and PDF/image vision). Leave `compile_model` /
 `cheap_model` unset to use the provider's defaults — OpenAI: `gpt-5.5` (a
-**reasoning model run at `xhigh` reasoning effort**); Anthropic: `claude-opus-4-8`
+**reasoning model run at `high` reasoning effort**); Anthropic: `claude-opus-4-8`
 / `claude-haiku-4-5`. If you override the OpenAI model, keep it a GPT-5.5+
-reasoning model — `xhigh` effort is only valid on those.
+reasoning model — `high` effort is only valid on those.
 
 API keys are read from the environment — never put them here.
 
@@ -298,7 +307,7 @@ pytest        # unit tests; the LLM is mocked, so no API key is required
 - **`model_not_found` / no access to `gpt-5.5`** — your OpenAI account may not
   have that model yet. Point `compile_model` (and `cheap_model`) at a GPT-5.5+
   reasoning model you do have in `.llmwiki/config.toml`, e.g. `compile_model =
-  "gpt-5.6"`. Keep it 5.5+ — the `xhigh` reasoning effort llmwiki sends is only
+  "gpt-5.6"`. Keep it 5.5+ — the `high` reasoning effort llmwiki sends is only
   valid on those models.
 - **`zsh: command not found: llmwiki`** — your virtualenv isn't active. From the
   repo root run `source .venv/bin/activate`, then retry.

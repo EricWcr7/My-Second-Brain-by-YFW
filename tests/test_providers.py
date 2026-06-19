@@ -57,7 +57,7 @@ def test_openai_defaults_to_gpt55(monkeypatch):
     assert provider.cheap_model == "gpt-5.5"
 
 
-def test_openai_requests_use_xhigh_reasoning(monkeypatch):
+def test_openai_requests_use_high_reasoning(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     pytest.importorskip("openai")
     provider = op.OpenAIProvider(Config(root=Path("/tmp")))
@@ -76,5 +76,5 @@ def test_openai_requests_use_xhigh_reasoning(monkeypatch):
     provider.complete("system", "user")
 
     assert captured["model"] == "gpt-5.5"
-    assert captured["reasoning"] == {"effort": "xhigh"}
-    assert op.REASONING_EFFORT == "xhigh"
+    assert captured["reasoning"] == {"effort": "high"}
+    assert op.REASONING_EFFORT == "high"

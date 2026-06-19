@@ -48,7 +48,7 @@ export function renderPageList(): void {
   let html = renderScopeTree();
   const sections = Object.keys(groups).sort();
   if (!sections.length) {
-    html += '<p class="muted">No pages in this scope. Ingest sources from the CLI.</p>';
+    html += '<p class="muted">No pages in this scope yet. Use the Ingest view to add sources.</p>';
     pagesEl.innerHTML = html;
     return;
   }
