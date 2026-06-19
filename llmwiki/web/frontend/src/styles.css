@@ -1027,6 +1027,8 @@ a.btn {
 /* Section groups — an index of catalog entries */
 .lp-section { padding: 48px 0 0; }
 .lp-section-head { margin: 0 0 6px; }
+.lp-section-head--with-action { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.lp-section-action { align-self: flex-end; white-space: nowrap; }
 .lp-section-title {
   font-family: var(--font-display);
   font-size: clamp(22px, 3vw, 30px);
