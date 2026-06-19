@@ -55,9 +55,12 @@ export function renderPageList(): void {
   for (const section of sections) {
     html += `<div class="section">${escapeHtml(section || "General")}</div>`;
     for (const p of groups[section].sort((a, b) => a.title.localeCompare(b.title))) {
+      // Distinguish non-concept pages (source, query, overview, schema) with a
+      // small mono type tag; concept pages — the common case — stay untagged.
+      const tag = p.type && p.type !== "concept" ? p.type : "";
       html +=
-        `<a data-slug="${escapeHtml(p.slug)}">${escapeHtml(p.title)}` +
-        `<span class="badge">${p.type === "source" ? "src" : ""}</span></a>`;
+        `<a data-slug="${escapeHtml(p.slug)}"><span class="page-title">${escapeHtml(p.title)}</span>` +
+        `<span class="badge">${escapeHtml(tag)}</span></a>`;
     }
   }
   pagesEl.innerHTML = html;

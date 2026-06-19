@@ -27,6 +27,15 @@ function scopeLabel(): string {
   return state.scope || "General — whole knowledge base";
 }
 
+// Provider behind the Ask answer, inferred from the configured key env var.
+// Honest (reflects what's set up) without fabricating a specific model name.
+function providerLabel(): string {
+  const env = state.meta.api_key_env || "";
+  if (/anthropic/i.test(env)) return "Anthropic";
+  if (/openai/i.test(env)) return "OpenAI";
+  return "";
+}
+
 // Hierarchy breadcrumb (General › Academic › …). Each ancestor links to its page
 // — "" is General (the landing), any other node is its `#/section/<path>` hub.
 // `leafLink` keeps the last crumb clickable (used when the leaf isn't the section
@@ -62,8 +71,8 @@ export async function loadPage(slug: string): Promise<void> {
     const p = await getJSON<PageRef & { content: string }>("/api/page/" + encodeURIComponent(slug));
     const head =
       crumbs(p.section, { leafLink: true }) +
-      `<h1>${escapeHtml(p.title)}</h1>` +
-      `<p class="page-meta">${escapeHtml(p.type)}</p>`;
+      `<p class="eyebrow">${escapeHtml(p.type)}</p>` +
+      `<h1>${escapeHtml(p.title)}</h1>`;
     mount(head + renderMarkdown(p.content));
   } catch (err) {
     mount(`<p class="notice">Could not load “${escapeHtml(slug)}”: ${escapeHtml((err as Error).message)}</p>`);
@@ -157,6 +166,7 @@ export function renderSection(scope: string): void {
 
   content.innerHTML = `
     ${crumbs(scope)}
+    <p class="eyebrow">${isGeneral ? "Knowledge base" : "Section"}</p>
     <h1>${escapeHtml(sectionLabel(scope))}</h1>
     <p class="hub-desc">${escapeHtml(sectionDescription(scope))}</p>
     <div class="hub-ops">
@@ -233,21 +243,42 @@ function wireCreateForm(scope: string): void {
   });
 }
 
+// Example prompts shown as the Ask empty state — clicking one seeds the box.
+const ASK_EXAMPLES = [
+  "Summarize the key ideas across this section.",
+  "How do these concepts connect to each other?",
+  "What's a concrete example of this in practice?",
+];
+
 function renderAsk(): void {
   const dis = state.meta.has_api_key ? "" : "disabled";
+  const examples = state.meta.has_api_key
+    ? `<div class="ask-examples"><div class="ask-examples-head">Try asking</div>` +
+      ASK_EXAMPLES.map(
+        (q) => `<button type="button" class="ask-example" data-example="${escapeHtml(q)}">${escapeHtml(q)}</button>`,
+      ).join("") +
+      `</div>`
+    : "";
   content.innerHTML = `
     ${crumbs(state.scope, { leafLink: true })}
+    <p class="eyebrow eyebrow-ai">Ask · grounded in your wiki</p>
     <h1>Ask</h1>
     ${state.meta.has_api_key ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ask questions.</p>`}
     <p class="page-meta">Answers are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
     <form id="ask-form">
       <textarea id="ask-q" placeholder="Ask a question answered from your wiki…" ${dis}></textarea>
       <div class="row">
-        <button type="submit" class="btn btn-primary" ${dis}>Ask</button>
+        <button type="submit" class="btn btn-primary" ${dis}>Ask the model</button>
       </div>
     </form>
-    <div id="answer"></div>`;
+    <div id="answer">${examples}</div>`;
   document.getElementById("ask-form")!.addEventListener("submit", onAsk);
+  document.querySelectorAll<HTMLButtonElement>(".ask-example").forEach((b) =>
+    b.addEventListener("click", () => {
+      const ta = document.getElementById("ask-q") as HTMLTextAreaElement;
+      ta.value = b.dataset.example || "";
+      ta.focus();
+    }));
   animateIn();
 }
 
@@ -257,20 +288,26 @@ async function onAsk(e: Event): Promise<void> {
   if (!q) return;
   const section = state.scope || null;
   const answerEl = document.getElementById("answer")!;
-  answerEl.innerHTML = '<p><span class="spinner"></span> Thinking… (the model can take a while)</p>';
+  answerEl.classList.remove("revealing");
+  answerEl.innerHTML = '<p class="ask-status"><span class="caret"></span>Consulting your wiki…</p>';
   try {
     const res = await postJSON<QueryResult>("/api/query", { question: q, section });
-    let html = renderMarkdown(res.answer);
+    let html = `<div class="answer-body">${renderMarkdown(res.answer)}</div>`;
     if (res.pages_used && res.pages_used.length) {
-      const links = res.pages_used
-        .map((s) => `<a class="wikilink" data-slug="${escapeHtml(s)}">${escapeHtml(s)}</a>`)
-        .join(", ");
-      html += `<div class="pages-used">Pages used: ${links}</div>`;
+      // Numbered footnote-style references back to the pages the answer drew on.
+      const items = res.pages_used
+        .map((s) => `<li><a class="wikilink" data-slug="${escapeHtml(s)}">${escapeHtml(s)}</a></li>`)
+        .join("");
+      html += `<div class="answer-refs"><span class="eyebrow">References</span><ol class="ref-list">${items}</ol></div>`;
     }
+    const prov = providerLabel();
+    html += `<p class="answer-by">Answered from your wiki${prov ? " · " + escapeHtml(prov) : ""}</p>`;
     answerEl.innerHTML = html;
-    // decorate both rendered (wiki:) links and the manual pages-used links
+    answerEl.classList.add("revealing"); // staggered "generated" reveal
+    // decorate both rendered (wiki:) links and the reference links
     decorateWikilinks(answerEl);
   } catch (err) {
+    answerEl.classList.remove("revealing");
     answerEl.innerHTML = `<p class="notice">${escapeHtml((err as Error).message)}</p>`;
   }
 }
@@ -279,13 +316,14 @@ function renderLint(): void {
   const deepDis = state.meta.has_api_key ? "" : "disabled";
   content.innerHTML = `
     ${crumbs(state.scope, { leafLink: true })}
+    <p class="eyebrow">Editorial review</p>
     <h1>Lint</h1>
     <p class="page-meta">Checks are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
     <div class="row">
       <button id="lint-run" class="btn btn-primary">Run checks</button>
       <label><input type="checkbox" id="lint-deep" ${deepDis}> deep review (uses API)</label>
     </div>
-    <div id="lint-results" style="margin-top:20px"></div>`;
+    <div id="lint-results"></div>`;
   document.getElementById("lint-run")!.addEventListener("click", runLint);
   animateIn();
 }
@@ -293,12 +331,12 @@ function renderLint(): void {
 async function runLint(): Promise<void> {
   const deep = (document.getElementById("lint-deep") as HTMLInputElement).checked;
   const out = document.getElementById("lint-results")!;
-  out.innerHTML = '<p><span class="spinner"></span> Running…</p>';
+  out.innerHTML = '<p class="ask-status"><span class="caret"></span>Reviewing…</p>';
   const scopeParam = state.scope ? "&section=" + encodeURIComponent(state.scope) : "";
   try {
     const issues = await getJSON<LintIssue[]>("/api/lint?deep=" + (deep ? "true" : "false") + scopeParam);
     if (!issues.length) {
-      out.innerHTML = '<p class="muted">No issues found. ✓</p>';
+      out.innerHTML = '<p class="lint-clean">✓ Clean — no errata in this scope.</p>';
       return;
     }
     out.innerHTML = issues
