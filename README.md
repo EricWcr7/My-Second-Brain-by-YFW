@@ -1,24 +1,87 @@
 # My-Second-Brain-by-YFW
 
-A local-first **LLM Wiki / knowledge base**. `llmwiki` compiles local materials
-(Markdown, PDFs, slides, Word docs, images, web URLs) into a persistent,
-**Obsidian-compatible** Markdown wiki organized as a **section hierarchy**. Raw
-sources stay local and remain the source of truth; the generated `wiki/` pages are
-an editable, citation-aware layer over everything you know — academic or not.
+A local-first **LLM Wiki web app**. Drop in your materials — Markdown, PDFs,
+slides, Word docs, images, or web URLs — and an LLM compiles them into a
+persistent, interlinked, **Obsidian-compatible** Markdown wiki that you browse,
+search, and ask questions of, **all in your browser, all on your machine**.
 
-- **Concept-centric** — one page per concept (definition, theorems, assumptions,
-  notation, formulas, proof ideas, examples) plus one page per source.
-- **Hierarchical scope** — General → Academic / Non-academic → courses. Every
-  level runs the *same* operations; the only difference is how much of the base
-  it can access (see [Hierarchy & scope](#hierarchy--scope)).
-- **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$`/`$$…$$` math.
-- **No vectors / no embeddings / no cloud / single-user** — keyword search + an
-  LLM compiler (OpenAI by default; Anthropic/Claude is a config switch away).
+- **Concept-centric** — one page per concept (definition, theorems, notation,
+  formulas, proof ideas, examples) plus one page per source.
+- **Hierarchical scope** — General → Academic / Non-academic → courses; every
+  scope runs the same operations over its slice (see [Hierarchy & scope](#hierarchy--scope)).
+- **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$` / `$$…$$` math.
+- **Local-first** — no cloud, single-user, your files stay on disk. Keyword search
+  + an LLM compiler (OpenAI by default; Anthropic/Claude is a one-line config switch).
 
 > 📖 **New here? Start with the [User Manual](USER_MANUAL.md)** — task-based
-> walkthroughs of every use case (ingesting each source type, querying, answer
-> formats, Obsidian, the web UI, and more). This README covers install,
-> configuration, and the command reference.
+> walkthroughs of every workflow in the app (ingesting each source type, asking,
+> searching, linting, managing courses, Obsidian).
+
+---
+
+## Run the app
+
+You need **Python 3.11+** and an **API key** for your provider (`OPENAI_API_KEY`
+by default, or `ANTHROPIC_API_KEY`). From the repo root:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install ".[web]"                # installs the app (FastAPI + the runtime)
+llmwiki set-key openai sk-...        # store your key once (~/.config/llmwiki/.env, mode 600)
+llmwiki init                         # create a vault here (raw/, wiki/, .llmwiki/)
+llmwiki                              # launch → opens http://127.0.0.1:8000
+```
+
+That's the whole setup — after this, **everything happens in the browser.** To
+bind a different address or skip auto-opening: `llmwiki serve --port 8080 --host
+0.0.0.0 --no-open`.
+
+<details>
+<summary>Install notes (editable installs, offline wheels, key persistence)</summary>
+
+- **Don't use `pip install -e .` (editable).** Some Python builds — including the
+  python.org macOS framework build — don't load the editable `.pth`, giving
+  `ModuleNotFoundError: No module named 'llmwiki'`. A regular install copies the
+  package in so it always imports. After changing the tool's own source, re-apply
+  with `pip install --force-reinstall --no-deps .`.
+- **Hardened install** (prebuilt wheels only, no build scripts):
+  `pip install --only-binary :all: ".[web]"`.
+- **API key:** `set-key` saves it to `~/.config/llmwiki/.env` and loads it on every
+  run. A `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` exported in your shell still wins
+  over the stored file. `llmwiki set-key --show` lists stored keys (masked). Get or
+  rotate keys at platform.openai.com → API keys, or console.anthropic.com →
+  Settings → API Keys.
+- A key is only needed for **Ask**, **Ingest**, and **deep Lint**. Browsing,
+  keyword search, and structural lint work offline.
+
+</details>
+
+---
+
+## Using the app
+
+Everything below happens in the browser, scoped to whatever section you've selected
+in the sidebar (General sees everything; a course sees only itself).
+
+- **Browse** — the sidebar shows your section tree; pages render with proper math
+  (KaTeX) and clickable `[[wikilinks]]`.
+- **Ingest** — the Ingest panel (sidebar, the General card, and each section hub)
+  takes one or more **uploaded files** (Markdown/text, PDF, Word, PowerPoint,
+  images) **or a URL**, and compiles them into the wiki at your current scope.
+- **Ask** — ask a question answered only from the wiki, with citations back to the
+  pages used. You can attach files as **one-off context** for a single answer;
+  attachments are never written to the wiki.
+- **Search** — instant keyword ranking over concept pages (no key needed).
+- **Lint** — structural checks, plus an optional **deep** LLM review that flags
+  contradictions and suggests what to read next.
+- **Courses & sections** — from a section hub, **+ New course** scaffolds a branch
+  and **🗑** deletes one (the seeded `academic` / `non-academic` branches are
+  protected). Names keep their exact casing and non-Latin characters
+  (`example-course`, `线性代数`).
+
+Prefer Obsidian for reading? Open the `wiki/` folder as a vault — you get the graph
+view, backlinks, Marp decks, and Dataview tables for free, since the pages already
+carry the right frontmatter. Full workflows are in the **[User Manual](USER_MANUAL.md)**.
 
 ---
 
@@ -34,293 +97,90 @@ General (root)            → can access the ENTIRE knowledge base
     └── <course>          → only that course (default)
 ```
 
-Every operation takes an optional `--section` and obeys a **prefix rule**: a scope
-sees a page iff the scope is a prefix of the page's section. To widen a course
-query, point it at a parent (`--section academic`, or omit `--section` for
-General). The [User Manual](USER_MANUAL.md#2-core-concepts-you-need-before-starting)
-has the full explanation, examples, and how to add a course.
+Access follows one **prefix rule**: a scope sees a page iff the scope is a prefix
+of the page's section. Pick a scope in the sidebar; to widen, pick a parent
+(Academic, or General for everything). Scope *is* access — there's no separate
+sharing mechanism.
 
 ---
 
-## 1. Requirements
+## How it works
 
-- Python **3.11+**
-- An **API key for your chosen provider** — `OPENAI_API_KEY` (default) or
-  `ANTHROPIC_API_KEY`. Only needed for `ingest`, `query`, and `lint --deep`;
-  `init`, `search`, and plain `lint` work offline.
+Three layers (raw sources → LLM-compiled wiki → schema), three operations:
 
-## 2. Install
-
-```bash
-# from the repo root
-python3 -m venv .venv
-source .venv/bin/activate           # Windows: .venv\Scripts\activate
-pip install ".[dev]"                # runtime deps + pytest; drop [dev] to skip tests
-```
-
-> **Use the regular install above, not `pip install -e .` (editable).** Editable
-> installs rely on a `.pth` file that some Python builds — including the
-> python.org macOS framework build — don't load at startup, which produces
-> `ModuleNotFoundError: No module named 'llmwiki'`. A regular install copies the
-> package into the venv so it always imports. If you change the tool's own source
-> later, re-apply it with `pip install --force-reinstall --no-deps .`.
-
-Hardened variant (forces prebuilt wheels for dependencies, so none run build
-scripts during install):
-
-```bash
-pip install --only-binary :all: ".[dev]"
-```
-
-## 3. Set your API key
-
-`llmwiki` reads the key from an environment variable at runtime — **`OPENAI_API_KEY`**
-for the default OpenAI backend, or **`ANTHROPIC_API_KEY`** if you set
-`provider = "anthropic"`. Keys are **never** written to the vault or
-`.llmwiki/config.toml`.
-
-```bash
-export OPENAI_API_KEY=sk-...             # default provider; this terminal only
-# or, if provider = "anthropic":
-export ANTHROPIC_API_KEY=""
-```
-
-> `export` lasts only for the current terminal. Open a new window and you must
-> set it again — or run your `llmwiki` commands in the same terminal.
-
-**Easiest — store it once with `set-key`.** This saves the key to
-`~/.config/llmwiki/.env` (file mode `600`) and loads it automatically on every
-run, from any terminal and any vault — no `export`, no shell-profile edits:
-
-```bash
-llmwiki set-key openai sk-...          # or: llmwiki set-key anthropic sk-ant-...
-llmwiki set-key --show                 # list stored keys (masked)
-```
-
-An `OPENAI_API_KEY` already exported in your environment still takes precedence
-over the stored file, so a temporary `export` can override it when you need to.
-
-Alternatively, add the `export` to your shell profile:
-
-```bash
-echo 'export OPENAI_API_KEY=sk-...' >> ~/.zshrc   # bash: ~/.bashrc
-source ~/.zshrc
-```
-
-Verify it's set (without exposing the whole key):
-
-```bash
-echo ${OPENAI_API_KEY:0:7}         # prints just the first 7 chars
-```
-
-Get or rotate keys at **platform.openai.com → API keys** (OpenAI) or
-**console.anthropic.com → Settings → API Keys** (Anthropic). A key's full value
-is shown **only once at creation** — if you lost it, create a new one.
-
-## 4. Quick start
-
-```bash
-llmwiki init                                          # scaffold raw/, wiki/, .llmwiki/
-llmwiki ingest examples/sample_calculus.md --section academic/multivariable-calculus
-llmwiki ingest https://en.wikipedia.org/wiki/Gradient --section academic/multivariable-calculus
-llmwiki query "state the multivariable chain rule and the proof idea" --section academic
-llmwiki search "chain rule"                           # keyword search, no LLM, no key
-llmwiki lint                                          # structural checks (offline)
-llmwiki lint --deep                                   # + LLM contradiction/gap review
-```
-
-Then open the `wiki/` folder in **Obsidian** to read, search, graph, and edit —
-or just run `llmwiki` (no command) for a browser view that renders the math (see §5).
-
-For end-to-end workflows (building a course, ingesting each source type, saving
-answers, Obsidian/Marp/Dataview), see the **[User Manual](USER_MANUAL.md)**.
-
----
-
-## 5. Commands
-
-### `init [path]`
-Create a vault in the given directory (default: current directory). Scaffolds
-`raw/`, `wiki/` (with seed `purpose.md` / `schema.md`), and `.llmwiki/`.
-
-### `ingest <path|url> [--section PATH] [--vision] [--force]`
-Compile one source into the wiki.
-- `--section` — which section the source belongs to, e.g.
-  `academic/multivariable-calculus` or `non-academic` (default: `default_section`
-  in config). Sets a frontmatter field **and** a nested subfolder.
-- `--vision` — force vision transcription for a PDF (use for scanned or
-  math-heavy PDFs where text extraction is poor).
-- `--force` — re-ingest even if the file is unchanged (normally an unchanged
-  source is skipped via its SHA256 checksum).
-
-External files are **copied into `raw/sources/`** so the vault stays
-self-contained. Re-ingesting an edited source merges the new material into the
-existing concept pages.
-
-### `query "<question>" [--section PATH] [--save] [--format|-f prose|table|slides]`
-Answer a question using only the wiki, with citations back to the pages used.
-- `--section` — restrict retrieval to a section and its subtree (omit for the
-  whole knowledge base; see [Hierarchy & scope](#hierarchy--scope)).
-- `--save` — also write the answer to `wiki/queries/`.
-- `--format`/`-f` — `prose` (default), a Markdown `table` comparison, or a Marp
-  `slides` deck. All text-only; saved decks get a `marp: true` frontmatter flag
-  so Obsidian's Marp plugin renders them.
-
-### `search "<keywords>" [--section PATH] [--top-k N]`
-Fast keyword (BM25-lite) ranking over concept pages. No LLM, no API key.
-
-### `lint [--section PATH] [--deep]`
-Quality checks.
-- Always: dangling `[[wikilinks]]`, missing/unresolved `sources:` provenance,
-  orphan pages, malformed frontmatter (offline).
-- `--deep` — additionally ask the model to flag contradictions, missing concept
-  pages, and stale/unclear claims, plus growth suggestions: missing
-  cross-references, new questions to investigate, sources to seek, and data gaps
-  a web search could fill (uses the API).
-
-### `set-key <openai|anthropic|ENV_VAR> <key>` / `set-key --show`
-Store an API key in `~/.config/llmwiki/.env` (file mode `600`) so it loads
-automatically on every run — no per-terminal `export`. Accepts a provider name
-(`openai`/`anthropic`) or a raw env-var name. `--show` lists stored keys, masked.
-A matching env var already exported in your shell still takes precedence. See §3.
-
-### Web UI
-Read the wiki in a browser with **properly rendered math** (`$…$` / `$$…$$` via
-KaTeX), clickable `[[wikilinks]]`, keyword search, an Ask panel, an Ingest panel,
-and a Lint view. Just run `llmwiki` with no command from the vault root — it
-starts the UI and opens `http://127.0.0.1:8000` in your browser.
-
-```bash
-pip install ".[web]"      # one-time: adds fastapi + uvicorn
-llmwiki                   # opens the web UI in your browser
-```
-
-To bind a different address or stop it from auto-opening a browser, use the
-explicit `serve` form: `llmwiki serve --port 8080 --host 0.0.0.0 --no-open`
-(defaults: `127.0.0.1:8000`, browser opens automatically).
-
-**Ingest from the browser**: the Ingest panel (sidebar, the General card, and
-every section hub) uploads one or more files — Markdown/text, PDF, Word,
-PowerPoint, or images — or a URL, and compiles them into the wiki exactly like
-`llmwiki ingest`. Sources land in whatever scope you're in: the General scope
-files into the root, `academic` into `academic/`, a course into that course.
-The **Ask** panel also takes file attachments — they're read and used as extra
-context for that one answer **without** being saved to the wiki. Both need an
-API key (the pipeline calls the model).
-
-From a section hub you can also **add or delete a course/branch**: `+ New course`
-scaffolds its `concepts/` and `sources/` directories, and the 🗑 on a card removes
-them (after a confirmation). Names keep their casing and non-Latin characters
-(`example-course`, `线性代数`); the seeded `academic` / `non-academic` branches are
-protected.
-
-The rendering libraries (KaTeX, markdown-it) are bundled into the committed
-build, so the UI works fully offline and **no Node is needed to run it**. A key
-is only needed for the Ask panel and Lint's deep review; browse/search/structural
--lint work without one.
-
-### Developing the web UI
-
-The frontend is a Vite + TypeScript app in `llmwiki/web/frontend/`; its build
-output is committed to `llmwiki/web/static/` (which the FastAPI app hosts). Node
-is required only for development, not for running.
-
-```bash
-make web-install   # one-time: npm install (needs Node 18+)
-make dev           # FastAPI :8000 + Vite :5173 (HMR) — open http://127.0.0.1:5173
-make web-build     # rebuild llmwiki/web/static before committing UI changes
-```
-
-`make dev` proxies `/api` to the backend, so editing `src/*.ts` or
-`src/styles.css` reloads instantly — no reinstall, no hard refresh.
-
----
-
-## 6. How it works
-
-Three layers, three operations (raw sources → LLM-compiled wiki → schema):
-
-1. **Ingest** — a loader normalizes the source to Markdown (vision is used only
-   for images and scanned/math PDFs), it's checksummed and cached, then an
-   *analysis* pass decides which concepts it teaches and a *generation* pass
-   writes/merges the concept pages and the source page. `index.md` is regenerated
-   and `log.md` appended — all deterministically.
-2. **Query** — keyword search retrieves candidate pages, a token-budgeted context
-   is assembled, and the model answers with citations to wiki pages (which point
-   back to sources, which point back to raw files).
+1. **Ingest** — a loader normalizes the source to Markdown (vision for images and
+   scanned/math PDFs), it's checksummed and cached, then an *analysis* pass decides
+   which concepts it teaches and a *generation* pass writes/merges the concept
+   pages and the source page. `index.md` is regenerated and `log.md` appended,
+   deterministically.
+2. **Ask** — keyword search retrieves candidate pages, a token-budgeted context is
+   assembled, and the model answers with citations to wiki pages (which point back
+   to sources, which point back to your raw files).
 3. **Lint** — structural checks plus an optional model review.
 
-Every concept page carries `sources:` provenance, so claims trace back to a
-source page and ultimately to the local raw file.
+Every concept page carries `sources:` provenance, so claims trace back to a source
+page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
+**compiled once and kept current**, so answers compound over time.
 
-## 7. Vault layout
+## Vault layout
 
-| Path          | Role                                                              |
-| ------------- | ---------------------------------------------------------------- |
-| `raw/`        | Source of truth — your dropped files (`sources/`, `assets/`).     |
-| `wiki/`       | Generated study layer: `concepts/<section>/`, `sources/<section>/`, `queries/` (saved answers), `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
-| `.llmwiki/`   | Tool state: `config.toml`, `state.json`, normalized cache (gitignored). |
-| `llmwiki/`    | The Python package (the tool itself).                            |
+| Path | Role |
+| ---- | ---- |
+| `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
+| `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
+| `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache (gitignored). |
+| `llmwiki/` | The Python package (the app itself). |
 
-## 8. Supported sources
+## Supported sources
 
-Markdown / plain text, text-based PDFs (PyMuPDF, with a vision fallback for
-scanned/math PDFs), Word `.docx`, PowerPoint `.pptx`, images (vision), and web
-URLs.
+Markdown / plain text, text PDFs (PyMuPDF, with a vision fallback for scanned/math
+PDFs), Word `.docx`, PowerPoint `.pptx`, images (vision), and web URLs.
 
-## 9. Configuration
+## Configuration
 
-`.llmwiki/config.toml` (created by `init`):
+`.llmwiki/config.toml` (created on init):
 
 ```toml
 [settings]
 provider = "openai"                 # "openai" (default) or "anthropic"
-# compile_model = "gpt-5.5"         # ingest + answer model (optional; gpt-5.5+)
-# cheap_model = "gpt-5.5"           # reserved for cheap ops (optional override)
-default_section = "non-academic"    # section used when --section is omitted
-search_top_k = 8                    # pages retrieved per query
-context_token_budget = 60000        # max context tokens for query/lint
+# compile_model = "gpt-5.5"         # ingest + answer model (optional; GPT-5.5+)
+# cheap_model = "gpt-5.5"           # reserved for cheap ops (optional)
+default_section = "non-academic"    # default scope when none is given
+search_top_k = 8                    # pages retrieved per question
+context_token_budget = 60000        # max context tokens for Ask/Lint
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
 ```
 
-`provider` selects the backend; both OpenAI and Anthropic support every
-operation (ingest, query, lint, and PDF/image vision). Leave `compile_model` /
-`cheap_model` unset to use the provider's defaults — OpenAI: `gpt-5.5` (a
-**reasoning model run at `high` reasoning effort**); Anthropic: `claude-opus-4-8`
-/ `claude-haiku-4-5`. If you override the OpenAI model, keep it a GPT-5.5+
-reasoning model — `high` effort is only valid on those.
+Both OpenAI and Anthropic support every operation. Leave the models unset to use
+the defaults — OpenAI `gpt-5.5` (a reasoning model run at `high` reasoning effort);
+Anthropic `claude-opus-4-8` / `claude-haiku-4-5`. If you override the OpenAI model,
+keep it GPT-5.5+ (`high` effort is only valid there). **API keys are read from the
+environment — never put them here.**
 
-API keys are read from the environment — never put them here.
+## Developing the web UI
 
-## 10. Tests
+The frontend is a Vite + TypeScript app in `llmwiki/web/frontend/`; its build output
+is committed to `llmwiki/web/static/` (which FastAPI hosts). Node is needed only for
+development, not for running.
 
 ```bash
-pytest        # unit tests; the LLM is mocked, so no API key is required
+pip install ".[dev]"   # adds pytest; run: pytest  (the LLM is mocked, no key needed)
+make web-install       # one-time: npm install (Node 18+)
+make dev               # FastAPI :8000 + Vite :5173 (HMR) — open http://127.0.0.1:5173
+make web-build         # rebuild llmwiki/web/static before committing UI changes
 ```
 
-## 11. Troubleshooting
+## Troubleshooting
 
-- **API key not set / auth error** — store it once with `llmwiki set-key openai
-  sk-...` (or `ANTHROPIC_API_KEY` if `provider = "anthropic"`); see §3. A plain
-  `export` works too but is per-terminal. Check what's stored with
-  `llmwiki set-key --show`.
-- **`model_not_found` / no access to `gpt-5.5`** — your OpenAI account may not
-  have that model yet. Point `compile_model` (and `cheap_model`) at a GPT-5.5+
-  reasoning model you do have in `.llmwiki/config.toml`, e.g. `compile_model =
-  "gpt-5.6"`. Keep it 5.5+ — the `high` reasoning effort llmwiki sends is only
-  valid on those models.
-- **`zsh: command not found: llmwiki`** — your virtualenv isn't active. From the
-  repo root run `source .venv/bin/activate`, then retry.
-- **`ModuleNotFoundError: No module named 'llmwiki'`** — you installed in editable
-  mode (`-e`) and this Python build didn't load the editable `.pth`. Reinstall as
-  a regular package:
-  ```bash
-  pip install --force-reinstall --no-deps .
-  ```
-  (One-off alternative without reinstalling: run from the repo root with
-  `PYTHONPATH="$PWD" python -m llmwiki.cli <args>`.)
-- **`pip` downloads fail with "not enough bytes received"** (flaky network) —
-  add resume + retries:
-  ```bash
-  pip install --retries 20 --resume-retries 20 --timeout 60 -e ".[dev]"
-  ```
+- **App says the API key isn't set** — store it with `llmwiki set-key openai sk-...`
+  (or `anthropic`), then relaunch. Check with `llmwiki set-key --show`.
+- **`model_not_found` / no access to `gpt-5.5`** — point `compile_model` (and
+  `cheap_model`) in `.llmwiki/config.toml` at a GPT-5.5+ reasoning model you do have
+  (e.g. `gpt-5.6`). Keep it 5.5+ — the `high` reasoning effort needs it.
+- **`command not found: llmwiki`** — your virtualenv isn't active; run
+  `source .venv/bin/activate`.
+- **`ModuleNotFoundError: No module named 'llmwiki'`** — you installed editable
+  (`-e`); reinstall as a regular package: `pip install --force-reinstall --no-deps .`
+  (or run with `PYTHONPATH="$PWD" python -m llmwiki.cli`).
+- **`pip` downloads fail ("not enough bytes received")** — add
+  `--retries 20 --resume-retries 20 --timeout 60`.
