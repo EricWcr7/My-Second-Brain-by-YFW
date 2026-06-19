@@ -1,8 +1,15 @@
-import { getJSON, postJSON, delJSON, escapeHtml } from "./api";
+import { getJSON, postJSON, postForm, delJSON, escapeHtml } from "./api";
 import { content } from "./dom";
-import { state, type LintIssue, type PageRef, type QueryResult } from "./state";
+import {
+  state,
+  type IngestResult,
+  type LintIssue,
+  type Meta,
+  type PageRef,
+  type QueryResult,
+} from "./state";
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
-import { highlightSidebar, renderPageList } from "./sidebar";
+import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
 import {
   childSections,
   sectionAncestors,
@@ -20,11 +27,17 @@ export function setView(name: string): void {
   if (name === "home") renderHome();
   else if (name === "ask") renderAsk();
   else if (name === "lint") renderLint();
+  else if (name === "ingest") renderIngest();
 }
 
 // Human-readable label for the current scope (drives Ask/Lint copy).
 function scopeLabel(): string {
   return state.scope || "General — whole knowledge base";
+}
+
+// `accept` filter for file inputs, from the extensions the backend can ingest.
+function acceptAttr(): string {
+  return (state.meta.supported_exts || []).join(",");
 }
 
 // Provider behind the Ask answer, inferred from the configured key env var.
@@ -56,7 +69,7 @@ async function renderHome(): Promise<void> {
   mount('<p class="muted">Loading…</p>');
   try {
     const d = await getJSON<{ content: string }>("/api/home");
-    mount(renderMarkdown(d.content || "_No overview yet. Ingest a source from the CLI._"));
+    mount(renderMarkdown(d.content || "_No overview yet. Add a source from the Ingest view._"));
   } catch (err) {
     mount(`<p class="notice">${escapeHtml((err as Error).message)}</p>`);
   }
@@ -173,6 +186,7 @@ export function renderSection(scope: string): void {
       <a class="btn" href="#/overview">Browse overview</a>
       <a class="btn" href="#/ask">Ask</a>
       <a class="btn" href="#/lint">Lint</a>
+      <a class="btn" href="#/ingest">Ingest</a>
     </div>${childrenBlock}`;
 
   if (canCreate) wireCreateForm(scope);
@@ -267,7 +281,11 @@ function renderAsk(): void {
     <p class="page-meta">Answers are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
     <form id="ask-form">
       <textarea id="ask-q" placeholder="Ask a question answered from your wiki…" ${dis}></textarea>
-      <div class="row">
+      <div class="row ask-row">
+        <label class="file-field">
+          <span class="file-field-label">Attach files (optional)</span>
+          <input id="ask-files" type="file" multiple accept="${escapeHtml(acceptAttr())}" ${dis}>
+        </label>
         <button type="submit" class="btn btn-primary" ${dis}>Ask the model</button>
       </div>
     </form>
@@ -286,12 +304,18 @@ async function onAsk(e: Event): Promise<void> {
   e.preventDefault();
   const q = (document.getElementById("ask-q") as HTMLTextAreaElement).value.trim();
   if (!q) return;
-  const section = state.scope || null;
+  const filesEl = document.getElementById("ask-files") as HTMLInputElement | null;
+  const files = filesEl?.files ? Array.from(filesEl.files) : [];
   const answerEl = document.getElementById("answer")!;
   answerEl.classList.remove("revealing");
-  answerEl.innerHTML = '<p class="ask-status"><span class="caret"></span>Consulting your wiki…</p>';
+  const msg = files.length ? "Reading your files and consulting your wiki…" : "Consulting your wiki…";
+  answerEl.innerHTML = `<p class="ask-status"><span class="caret"></span>${msg}</p>`;
   try {
-    const res = await postJSON<QueryResult>("/api/query", { question: q, section });
+    const fd = new FormData();
+    fd.append("question", q);
+    if (state.scope) fd.append("section", state.scope);
+    for (const f of files) fd.append("files", f);
+    const res = await postForm<QueryResult>("/api/query", fd);
     let html = `<div class="answer-body">${renderMarkdown(res.answer)}</div>`;
     if (res.pages_used && res.pages_used.length) {
       // Numbered footnote-style references back to the pages the answer drew on.
@@ -309,6 +333,109 @@ async function onAsk(e: Event): Promise<void> {
   } catch (err) {
     answerEl.classList.remove("revealing");
     answerEl.innerHTML = `<p class="notice">${escapeHtml((err as Error).message)}</p>`;
+  }
+}
+
+// Ingest view: upload files (or a URL) and compile them into the wiki. Like Ask
+// and Lint it is scoped to `state.scope`, so every section hub reaches the same
+// view and sources land in the branch you're in (General root if scope is "").
+function renderIngest(): void {
+  const ok = state.meta.has_api_key;
+  const dis = ok ? "" : "disabled";
+  content.innerHTML = `
+    ${crumbs(state.scope, { leafLink: true })}
+    <p class="eyebrow eyebrow-ai">Ingest · compile into your wiki</p>
+    <h1>Ingest</h1>
+    ${ok ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ingest sources.</p>`}
+    <p class="page-meta">New sources are added to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
+    <form id="ingest-form">
+      <label class="file-field">
+        <span class="file-field-label">Choose files</span>
+        <input id="ingest-files" type="file" multiple accept="${escapeHtml(acceptAttr())}" ${dis}>
+      </label>
+      <div class="ingest-or">or paste a URL</div>
+      <input id="ingest-url" type="url" placeholder="https://…" autocomplete="off" ${dis}>
+      <div class="row">
+        <button type="submit" class="btn btn-primary" ${dis}>Ingest</button>
+      </div>
+    </form>
+    <div id="ingest-results"></div>`;
+  document.getElementById("ingest-form")!.addEventListener("submit", onIngest);
+  animateIn();
+}
+
+async function onIngest(e: Event): Promise<void> {
+  e.preventDefault();
+  const filesEl = document.getElementById("ingest-files") as HTMLInputElement;
+  const urlEl = document.getElementById("ingest-url") as HTMLInputElement;
+  const out = document.getElementById("ingest-results")!;
+  const files = filesEl.files ? Array.from(filesEl.files) : [];
+  const url = urlEl.value.trim();
+  // Every item carries the current scope, so a General ingest files into the
+  // General root, an Academic ingest into academic/, a course into that course.
+  const section = state.scope;
+  const items: { label: string; fd: FormData }[] = [];
+  for (const f of files) {
+    const fd = new FormData();
+    fd.append("file", f);
+    fd.append("section", section);
+    items.push({ label: f.name, fd });
+  }
+  if (url) {
+    const fd = new FormData();
+    fd.append("url", url);
+    fd.append("section", section);
+    items.push({ label: url, fd });
+  }
+  if (!items.length) {
+    out.innerHTML = `<p class="notice">Choose at least one file or paste a URL.</p>`;
+    return;
+  }
+  const btn = (e.target as HTMLFormElement).querySelector("button[type=submit]") as HTMLButtonElement;
+  btn.disabled = true;
+  // One row per item; filled in as each request completes (sequential — ingest
+  // is slow and a parallel burst could overwhelm the model/server).
+  out.innerHTML =
+    `<div class="ingest-list">` +
+    items
+      .map(
+        (it, i) =>
+          `<div class="ingest-item" id="ingest-item-${i}">` +
+          `<span class="ingest-item-status">⏳</span> ${escapeHtml(it.label)}</div>`,
+      )
+      .join("") +
+    `</div>`;
+  let anyOk = false;
+  for (let i = 0; i < items.length; i++) {
+    const row = document.getElementById(`ingest-item-${i}`)!;
+    try {
+      const res = await postForm<IngestResult>("/api/ingest", items[i].fd);
+      anyOk = true;
+      const n = res.concept_slugs.length;
+      const detail =
+        res.status === "skipped"
+          ? "skipped (unchanged)"
+          : `${n} concept${n === 1 ? "" : "s"}`;
+      row.innerHTML =
+        `<span class="ingest-item-status ok">✓</span> ` +
+        `${escapeHtml(res.title || items[i].label)} — ${escapeHtml(detail)}`;
+    } catch (err) {
+      row.innerHTML =
+        `<span class="ingest-item-status err">✗</span> ` +
+        `${escapeHtml(items[i].label)} — ${escapeHtml((err as Error).message)}`;
+    }
+  }
+  btn.disabled = false;
+  if (anyOk) {
+    // New pages exist now — refresh counts and the sidebar so they show up.
+    try {
+      state.meta = await getJSON<Meta>("/api/meta");
+    } catch {
+      /* keep current meta */
+    }
+    await loadPages();
+    filesEl.value = "";
+    urlEl.value = "";
   }
 }
 

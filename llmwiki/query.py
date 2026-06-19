@@ -77,6 +77,7 @@ def answer(
     top_k: int | None = None,
     save: bool = False,
     fmt: str = "prose",
+    attachments: list[tuple[str, str]] | None = None,
 ) -> QueryResult:
     top_k = top_k or config.search_top_k
     blocks, used = _build_context(config, question, section, top_k)
@@ -93,6 +94,14 @@ def answer(
         if p.strip()
     ).strip()
     user = f"Question: {question}\n\nWiki pages:\n\n{context}"
+
+    # Attachments are transient context supplied with the question (e.g. an
+    # uploaded file in the web UI). They are not wiki pages, so they aren't cited.
+    if attachments:
+        attached = "\n\n".join(
+            f"--- ATTACHED FILE: {name} ---\n{md}" for name, md in attachments
+        )
+        user += f"\n\nAttached files (additional context):\n\n{attached}"
 
     text = provider.complete(system, user)
 

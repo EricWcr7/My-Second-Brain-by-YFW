@@ -4,7 +4,7 @@ Uses the official ``openai`` SDK and its Responses API. The API key is read from
 the environment (``OPENAI_API_KEY``). This is the default backend; switch to
 Claude by setting ``provider = "anthropic"`` in ``.llmwiki/config.toml``.
 
-Every operation runs on a GPT-5.5+ reasoning model at ``xhigh`` reasoning effort.
+Every operation runs on a GPT-5.5+ reasoning model at ``high`` reasoning effort.
 """
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ from pathlib import Path
 from ..config import Config
 from .base import LLMProvider, ProviderError, T
 
-# Reasoning effort applied to every call. xhigh is supported on gpt-5.5+.
-REASONING_EFFORT = "xhigh"
+# Reasoning effort applied to every call. high is supported on gpt-5.5+.
+REASONING_EFFORT = "high"
 # Reasoning tokens count toward ``max_output_tokens``; reserve headroom on top of
-# the caller's output budget so xhigh reasoning can't starve the visible answer.
+# the caller's output budget so high reasoning can't starve the visible answer.
 REASONING_TOKEN_RESERVE = 25_000
 
 TRANSCRIBE_INSTRUCTION = (

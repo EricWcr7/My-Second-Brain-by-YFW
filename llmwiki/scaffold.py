@@ -15,7 +15,7 @@ CONFIG_TOML = """\
 # LLM backend: "openai" (default) or "anthropic".
 provider = "openai"
 # Model IDs are optional; leave unset to use the provider's defaults. OpenAI runs
-# a GPT-5.5+ reasoning model at xhigh reasoning effort; Anthropic uses Claude Opus.
+# a GPT-5.5+ reasoning model at high reasoning effort; Anthropic uses Claude Opus.
 # (OpenAI: gpt-5.5 / gpt-5.5, Anthropic: claude-opus-4-8 / claude-haiku-4-5).
 # compile_model = "gpt-5.5"        # ingest + answer model (must be gpt-5.5+)
 # cheap_model = "gpt-5.5"          # reserved for cheap ops

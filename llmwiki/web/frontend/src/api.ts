@@ -16,6 +16,14 @@ export async function postJSON<T = unknown>(url: string, body: unknown): Promise
   return r.json();
 }
 
+// Multipart POST for file uploads (ingest, Ask attachments). No Content-Type
+// header: the browser sets multipart/form-data with the right boundary.
+export async function postForm<T = unknown>(url: string, body: FormData): Promise<T> {
+  const r = await fetch(url, { method: "POST", body });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "HTTP " + r.status);
+  return r.json();
+}
+
 export async function delJSON<T = unknown>(url: string): Promise<T> {
   const r = await fetch(url, { method: "DELETE" });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "HTTP " + r.status);

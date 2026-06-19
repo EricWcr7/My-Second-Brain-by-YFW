@@ -1,8 +1,14 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from llmwiki.store import write_page
-from llmwiki.web.app import create_app
+from llmwiki.ingest import (
+    ConceptDraft,
+    GenerationResult,
+    SourceAnalysis,
+    SourcePageDraft,
+)
+from llmwiki.store import read_page, write_page
+from llmwiki.web.app import SUPPORTED_EXTS, create_app
 from llmwiki.wiki import concept_path, source_path
 
 from tests.fakes import FakeProvider
@@ -130,7 +136,8 @@ def test_lint_flags_dangling_wikilink(client):
 def test_query_with_key(client, monkeypatch):
     # Default provider is OpenAI, so its key is what enables Ask.
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    r = client.post("/api/query", json={"question": "state the chain rule"})
+    # /api/query is multipart now (it can carry file attachments), so send form data.
+    r = client.post("/api/query", data={"question": "state the chain rule"})
     assert r.status_code == 200
     assert "chain rule" in r.json()["answer"].lower()
     assert "chain-rule" in r.json()["pages_used"] or r.json()["pages_used"] == []
@@ -138,7 +145,7 @@ def test_query_with_key(client, monkeypatch):
 
 def test_query_without_key_returns_503(client, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    r = client.post("/api/query", json={"question": "anything"})
+    r = client.post("/api/query", data={"question": "anything"})
     assert r.status_code == 503
     assert "OPENAI_API_KEY" in r.json()["detail"]
 
@@ -154,4 +161,103 @@ def test_key_check_follows_configured_provider(vault, monkeypatch):
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    assert client.post("/api/query", json={"question": "anything"}).status_code == 200
+    assert client.post("/api/query", data={"question": "anything"}).status_code == 200
+
+
+# --- ingest endpoint + Ask attachments --------------------------------------
+
+
+def _ingest_provider() -> FakeProvider:
+    """A fake wired with the analysis + generation passes ingest() needs."""
+    analysis = SourceAnalysis(
+        source_title="Chain Rule Notes",
+        source_summary="Notes on the chain rule.",
+        concept_titles=["Chain Rule"],
+    )
+    generation = GenerationResult(
+        concept_pages=[ConceptDraft(title="Chain Rule", body="If $h=f\\circ g$ then $h'=f'(g)g'$.")],
+        source_page=SourcePageDraft(summary="A short note.", grounds=["Chain Rule"]),
+        log_entry="Ingested chain rule notes.",
+    )
+    return FakeProvider(analysis=analysis, generation=generation)
+
+
+@pytest.fixture
+def ingest_client(vault):
+    _seed(vault)
+    return TestClient(create_app(vault, provider_factory=lambda cfg: _ingest_provider()))
+
+
+def test_meta_includes_supported_exts(client):
+    exts = client.get("/api/meta").json()["supported_exts"]
+    assert exts == SUPPORTED_EXTS
+    assert ".pdf" in exts and ".md" in exts and ".png" in exts  # the UI's accept filter
+
+
+def test_ingest_file_creates_pages_in_scope(ingest_client, vault, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    r = ingest_client.post(
+        "/api/ingest",
+        data={"section": "academic/calc"},
+        files={"file": ("note.md", b"# Chain Rule\n\nThe chain rule.", "text/markdown")},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "ingested"
+    assert body["section"] == "academic/calc"
+    assert body["concept_slugs"] == ["chain-rule"]
+    # Pages were written under the requested scope, and the file copied into raw/.
+    assert read_page(concept_path(vault, "academic/calc", "Chain Rule")) is not None
+    assert read_page(source_path(vault, "academic/calc", "note")) is not None
+    assert (vault.sources_dir / "note.md").exists()
+
+
+def test_ingest_general_scope_files_into_root(ingest_client, vault, monkeypatch):
+    # The General scope is the root: a missing/empty section files into "", never
+    # the configured default_section.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    r = ingest_client.post(
+        "/api/ingest",
+        files={"file": ("root-note.md", b"# Chain Rule\n\nbody", "text/markdown")},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["section"] == ""
+    assert read_page(source_path(vault, "", "root-note")) is not None
+
+
+def test_ingest_requires_api_key(client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    r = client.post(
+        "/api/ingest",
+        data={"section": "academic/calc"},
+        files={"file": ("note.md", b"# x", "text/markdown")},
+    )
+    assert r.status_code == 503
+    assert "OPENAI_API_KEY" in r.json()["detail"]
+
+
+def test_ingest_requires_file_or_url(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    assert client.post("/api/ingest", data={"section": "academic/calc"}).status_code == 422
+
+
+def test_query_attachment_reaches_provider(vault, monkeypatch):
+    # An uploaded file in Ask becomes transient context in the model prompt.
+    _seed(vault)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    captured: dict = {}
+
+    class _Recording(FakeProvider):
+        def complete(self, system, user, *, model=None, max_tokens=16000):
+            captured["user"] = user
+            return super().complete(system, user, model=model, max_tokens=max_tokens)
+
+    fake = _Recording(answer_text="Answer drawing on the attachment.")
+    app_client = TestClient(create_app(vault, provider_factory=lambda cfg: fake))
+    r = app_client.post(
+        "/api/query",
+        data={"question": "summarize the attachment"},
+        files={"files": ("ctx.md", b"UNIQUE_ATTACHMENT_MARKER in the file", "text/markdown")},
+    )
+    assert r.status_code == 200, r.text
+    assert "UNIQUE_ATTACHMENT_MARKER" in captured["user"]

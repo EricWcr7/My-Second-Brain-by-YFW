@@ -216,15 +216,26 @@ Need a different address or no auto-open? Use the explicit form:
 `llmwiki serve --port 8080 --host 0.0.0.0 --no-open`.
 
 Renders math via bundled KaTeX, with a section scope tree, clickable links, a
-search box, an Ask panel, and a Lint view. Works fully offline; a key is needed
-only for Ask and deep Lint. From any section hub you can also **add a
-course/branch** (the `+ New course` / `+ New section` button) or **delete one**
-(the 🗑 on its card — this removes its `concepts/<section>` and
-`sources/<section>` directories and everything in them, after a confirmation).
-The seeded `academic` / `non-academic` branches are protected and have no delete
-button. Course/branch names keep their exact casing and non-Latin characters
-(e.g. `example-course`, `线性代数`). Both operations are recorded in `log.md`; page
-content is otherwise only changed from the CLI.
+search box, an Ask panel, an Ingest panel, and a Lint view. Works fully offline;
+a key is needed for Ask, Ingest, and deep Lint.
+
+**Ingest in the browser** — the Ingest panel (in the sidebar nav, the General
+card on the landing page, and every section hub) accepts one or more uploaded
+files (Markdown/text, PDF, Word, PowerPoint, images) **or** a URL and compiles
+them into the wiki, just like `llmwiki ingest`. Each source lands in the scope
+you're in: the General scope files into the root, `academic` into `academic/`, a
+course into that course's directory. Multiple files are processed one at a time
+with a ✓/✗ per file. **Ask attachments** — the Ask panel also takes file
+uploads; their contents are read and used as extra context for that single
+answer and are **not** written to the wiki.
+
+From any section hub you can also **add a course/branch** (the `+ New course` /
+`+ New section` button) or **delete one** (the 🗑 on its card — this removes its
+`concepts/<section>` and `sources/<section>` directories and everything in them,
+after a confirmation). The seeded `academic` / `non-academic` branches are
+protected and have no delete button. Course/branch names keep their exact casing
+and non-Latin characters (e.g. `example-course`, `线性代数`). Ingest and the
+section operations are recorded in `log.md`.
 
 ### UC10 — Track what happened, when (the log)
 `wiki/log.md` is an append-only timeline. Each entry is a greppable heading:
