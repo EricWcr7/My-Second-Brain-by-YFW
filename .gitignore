@@ -236,3 +236,6 @@ api_keys.txt
 llmwiki/web/frontend/node_modules/
 llmwiki/web/frontend/.vite/
 .dev-api.pid
+
+# Obsidian vault config (auto-generated app/UI state; settings sync via Obsidian Sync)
+wiki/.obsidian/
