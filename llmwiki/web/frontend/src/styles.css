@@ -1074,7 +1074,7 @@ select, .btn {
   font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; tab-size: 2;
 }
 .cust-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
-.cust-card-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.cust-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
 .cust-card-msg { font-family: var(--font-mono); font-size: 12px; }
 .cust-card-msg .cust-err { color: var(--err); }
 
