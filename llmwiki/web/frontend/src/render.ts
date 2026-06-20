@@ -29,11 +29,14 @@ export function renderMarkdown(text: string): string {
 }
 
 // Turn rendered `wiki:` links into clickable wikilinks; flag dangling targets.
+// They route through the single `data-nav` dispatcher (see main.ts), which gives
+// feedback when a target page doesn't exist rather than failing silently.
 export function decorateWikilinks(root: ParentNode = content): void {
   root.querySelectorAll<HTMLAnchorElement>('a[href^="wiki:"]').forEach((a) => {
     const slug = decodeURIComponent(a.getAttribute("href")!.slice(5));
     a.classList.add("wikilink");
     a.dataset.slug = slug;
+    a.dataset.nav = "page:" + slug;
     if (!state.slugSet.has(slug)) a.classList.add("dangling");
   });
 }
