@@ -30,7 +30,7 @@ function renderScopeTree(): string {
     const count = state.pages.filter((p) => sectionContains(node, p.section)).length;
     const active = node === state.scope ? " active" : "";
     html +=
-      `<a class="scope-node${active}" data-scope="${escapeHtml(node)}" ` +
+      `<a class="scope-node${active}" href="#/section/${node}" ` +
       `style="padding-left:${10 + depth * 14}px">` +
       `${escapeHtml(sectionLabel(node))}<span class="scope-count">${count}</span></a>`;
   }
@@ -59,7 +59,8 @@ export function renderPageList(): void {
       // small mono type tag; concept pages — the common case — stay untagged.
       const tag = p.type && p.type !== "concept" ? p.type : "";
       html +=
-        `<a data-slug="${escapeHtml(p.slug)}"><span class="page-title">${escapeHtml(p.title)}</span>` +
+        `<a data-slug="${escapeHtml(p.slug)}" href="#/page/${encodeURIComponent(p.slug)}">` +
+        `<span class="page-title">${escapeHtml(p.title)}</span>` +
         `<span class="badge">${escapeHtml(tag)}</span></a>`;
     }
   }

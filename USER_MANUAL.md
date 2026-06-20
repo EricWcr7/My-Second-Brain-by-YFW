@@ -51,11 +51,26 @@ General (root)            → sees the ENTIRE knowledge base
     └── academic/<course> → only that course
 ```
 
-The sidebar lets you select a scope, and it obeys one **prefix rule**: a scope sees
-a page iff the scope is a prefix of the page's section. General sees everything;
-`academic` sees every course; a course sees only itself. To **widen**, pick a
-parent scope. Scope *is* access — there's no separate "share" mechanism.
-`academic` / `non-academic` are just seeded conventions; any depth works.
+Select a scope in the sidebar tree (or open a section's hub), and it obeys one
+**prefix rule**: a scope sees a page iff the scope is a prefix of the page's
+section. General sees everything; `academic` sees every course; a course sees only
+itself. To **widen**, pick a parent scope. Scope *is* access — there's no separate
+"share" mechanism. `academic` / `non-academic` are just seeded conventions; any
+depth works.
+
+### Getting around
+A persistent **top bar** is your constant frame of reference on every view:
+- the **logo** (left) returns to the home page;
+- the **breadcrumb** shows where you are (e.g. *General › Academic › Ask*), and each
+  step is clickable to jump up the tree;
+- the **scope chip** (right) shows the section your operations run over, with **✕**
+  to reset to General — so the scope behind Ask / Lint / Ingest is always visible.
+
+Navigation is uniform: sidebar pages, breadcrumb steps, in-page `[[wikilinks]]`, and
+Lint references all click through the same way. A link to a page that isn't in your
+wiki shows a brief notice instead of silently doing nothing. On a phone the sidebar
+collapses into a **☰ menu** in the top bar; it slides in over the content and closes
+when you pick something, tap away, or press Esc.
 
 ### Page types (all under `wiki/`, all LLM-owned)
 | Page | Purpose |
@@ -93,8 +108,8 @@ provider switch) are in the [README](README.md#run-the-app).
 
 ## 4. Workflows
 
-Each is a realistic task done **in the app**, scoped to the section you've selected
-in the sidebar.
+Each is a realistic task done **in the app**, scoped to the section shown in the
+top-bar scope chip (set it from the sidebar tree or a section hub).
 
 ### W1 — Start a knowledge base
 Run `llmwiki init` in an empty folder, then launch the app. You get an empty vault

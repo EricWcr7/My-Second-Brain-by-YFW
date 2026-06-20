@@ -60,11 +60,19 @@ bind a different address or skip auto-opening: `llmwiki serve --port 8080 --host
 
 ## Using the app
 
-Everything below happens in the browser, scoped to whatever section you've selected
-in the sidebar (General sees everything; a course sees only itself).
+Everything below happens in the browser. A **persistent top bar** keeps you
+oriented on every view: the logo returns to the home page, a live **breadcrumb**
+shows where you are, and a **scope chip** shows the section your operations run
+over (General sees everything; a course sees only itself) with a one-click **✕ to
+reset to General**. Set the scope by picking a node in the sidebar tree or opening
+a section's hub — the chip and breadcrumb update to match. On narrow screens the
+sidebar collapses into a **☰ menu** in the top bar.
 
-- **Browse** — the sidebar shows your section tree; pages render with proper math
-  (KaTeX) and clickable `[[wikilinks]]`.
+- **Browse** — the sidebar shows your section tree and pages; the top-bar
+  breadcrumb tracks where you are. Pages render with proper math (KaTeX) and
+  clickable `[[wikilinks]]`. Every page/section link behaves the same way —
+  sidebar, breadcrumb, wikilinks, and Lint references all navigate consistently,
+  and a link to a page that isn't in your wiki tells you instead of doing nothing.
 - **Ingest** — the Ingest panel (sidebar, the General card, and each section hub)
   takes one or more **uploaded files** (Markdown/text, PDF, Word, PowerPoint,
   images) **or a URL**, and compiles them into the wiki at your current scope.

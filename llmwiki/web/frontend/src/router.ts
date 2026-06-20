@@ -10,13 +10,24 @@
 import { setView, loadPage, renderSection } from "./views";
 import { state } from "./state";
 import { renderPageList } from "./sidebar";
+import { toast } from "./toast";
+import { closeDrawer } from "./drawer";
 
 export function navigate(hash: string): void {
   if (location.hash === hash) applyRoute(); // same hash won't fire hashchange
   else location.hash = hash;
 }
 
+// Navigate to a page if it exists, else tell the user. Used by the in-content
+// wikilinks and lint references, which can point at pages not in the wiki — so a
+// click on a dangling/missing target gives feedback instead of failing silently.
+export function goToPage(slug: string): void {
+  if (state.slugSet.has(slug)) navigate("#/page/" + slug);
+  else toast(`No page “${slug}” in your wiki yet.`);
+}
+
 export function applyRoute(): void {
+  closeDrawer(); // any navigation dismisses the mobile sidebar drawer
   const route = location.hash.replace(/^#/, "");
   const root = document.documentElement;
 

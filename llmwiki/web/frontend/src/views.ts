@@ -1,5 +1,5 @@
 import { getJSON, postJSON, postForm, delJSON, escapeHtml } from "./api";
-import { content } from "./dom";
+import { content, filterEl } from "./dom";
 import {
   state,
   type IngestResult,
@@ -10,6 +10,8 @@ import {
 } from "./state";
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
 import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
+import { setBreadcrumb, setScopedBreadcrumb } from "./topbar";
+import { renderLandingStats } from "./landing";
 import {
   childSections,
   sectionAncestors,
@@ -49,23 +51,8 @@ function providerLabel(): string {
   return "";
 }
 
-// Hierarchy breadcrumb (General › Academic › …). Each ancestor links to its page
-// — "" is General (the landing), any other node is its `#/section/<path>` hub.
-// `leafLink` keeps the last crumb clickable (used when the leaf isn't the section
-// itself, e.g. on a page or Ask/Lint); the hub renders its own leaf as current.
-function crumbs(scope: string, opts: { leafLink?: boolean } = {}): string {
-  const chain = sectionAncestors(scope);
-  const parts = chain.map((node, i) => {
-    const last = i === chain.length - 1;
-    const label = escapeHtml(sectionLabel(node));
-    if (last && !opts.leafLink) return `<span class="crumb-current">${label}</span>`;
-    const href = "#/section/" + node; // node "" -> the General hub
-    return `<a class="crumb" href="${href}">${label}</a>`;
-  });
-  return `<nav class="crumbs">${parts.join('<span class="crumb-sep">›</span>')}</nav>`;
-}
-
 async function renderHome(): Promise<void> {
+  setScopedBreadcrumb(state.scope, "Overview");
   mount('<p class="muted">Loading…</p>');
   try {
     const d = await getJSON<{ content: string }>("/api/home");
@@ -82,8 +69,8 @@ export async function loadPage(slug: string): Promise<void> {
   mount('<p class="muted">Loading…</p>');
   try {
     const p = await getJSON<PageRef & { content: string }>("/api/page/" + encodeURIComponent(slug));
+    setBreadcrumb(sectionAncestors(p.section), p.title);
     const head =
-      crumbs(p.section, { leafLink: true }) +
       `<p class="eyebrow">${escapeHtml(p.type)}</p>` +
       `<h1>${escapeHtml(p.title)}</h1>`;
     mount(head + renderMarkdown(p.content));
@@ -109,8 +96,10 @@ export function renderSection(scope: string): void {
   document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
     b.classList.remove("active"));
   state.scope = scope;
+  filterEl.value = ""; // a fresh scope starts with an unfiltered page list
   highlightSidebar(null);
   renderPageList(); // reflect the new scope in the sidebar tree + page list
+  setBreadcrumb(sectionAncestors(scope)); // last node = the current section
 
   const isGeneral = scope === "";
   const isAcademic = scope === "academic";
@@ -178,7 +167,6 @@ export function renderSection(scope: string): void {
   }
 
   content.innerHTML = `
-    ${crumbs(scope)}
     <p class="eyebrow">${isGeneral ? "Knowledge base" : "Section"}</p>
     <h1>${escapeHtml(sectionLabel(scope))}</h1>
     <p class="hub-desc">${escapeHtml(sectionDescription(scope))}</p>
@@ -265,6 +253,7 @@ const ASK_EXAMPLES = [
 ];
 
 function renderAsk(): void {
+  setScopedBreadcrumb(state.scope, "Ask");
   const dis = state.meta.has_api_key ? "" : "disabled";
   const examples = state.meta.has_api_key
     ? `<div class="ask-examples"><div class="ask-examples-head">Try asking</div>` +
@@ -274,7 +263,6 @@ function renderAsk(): void {
       `</div>`
     : "";
   content.innerHTML = `
-    ${crumbs(state.scope, { leafLink: true })}
     <p class="eyebrow eyebrow-ai">Ask · grounded in your wiki</p>
     <h1>Ask</h1>
     ${state.meta.has_api_key ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ask questions.</p>`}
@@ -326,7 +314,7 @@ async function onAsk(e: Event): Promise<void> {
     if (res.pages_used && res.pages_used.length) {
       // Numbered footnote-style references back to the pages the answer drew on.
       const items = res.pages_used
-        .map((s) => `<li><a class="wikilink" data-slug="${escapeHtml(s)}">${escapeHtml(s)}</a></li>`)
+        .map((s) => `<li><a class="wikilink" data-nav="page:${escapeHtml(s)}">${escapeHtml(s)}</a></li>`)
         .join("");
       html += `<div class="answer-refs"><span class="eyebrow">References</span><ol class="ref-list">${items}</ol></div>`;
     }
@@ -346,10 +334,10 @@ async function onAsk(e: Event): Promise<void> {
 // and Lint it is scoped to `state.scope`, so every section hub reaches the same
 // view and sources land in the branch you're in (General root if scope is "").
 function renderIngest(): void {
+  setScopedBreadcrumb(state.scope, "Ingest");
   const ok = state.meta.has_api_key;
   const dis = ok ? "" : "disabled";
   content.innerHTML = `
-    ${crumbs(state.scope, { leafLink: true })}
     <p class="eyebrow eyebrow-ai">Ingest · compile into your wiki</p>
     <h1>Ingest</h1>
     ${ok ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ingest sources.</p>`}
@@ -440,15 +428,16 @@ async function onIngest(e: Event): Promise<void> {
       /* keep current meta */
     }
     await loadPages();
+    renderLandingStats(); // keep the landing counts live after an ingest
     filesEl.value = "";
     urlEl.value = "";
   }
 }
 
 function renderLint(): void {
+  setScopedBreadcrumb(state.scope, "Lint");
   const deepDis = state.meta.has_api_key ? "" : "disabled";
   content.innerHTML = `
-    ${crumbs(state.scope, { leafLink: true })}
     <p class="eyebrow">Editorial review</p>
     <h1>Lint</h1>
     <p class="page-meta">Checks are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
@@ -476,7 +465,7 @@ async function runLint(): Promise<void> {
       .map(
         (i) =>
           `<div class="lint-issue"><span class="lint-level ${escapeHtml(i.level)}">${escapeHtml(i.level)}</span>` +
-          `<span><span class="lint-page" data-slug="${escapeHtml(i.page)}">${escapeHtml(i.page)}</span> — ${escapeHtml(i.message)}</span></div>`,
+          `<span><a class="lint-page" data-nav="page:${escapeHtml(i.page)}">${escapeHtml(i.page)}</a> — ${escapeHtml(i.message)}</span></div>`,
       )
       .join("");
   } catch (err) {
