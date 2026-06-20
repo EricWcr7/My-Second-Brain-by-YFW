@@ -7,7 +7,7 @@
 //   #/ingest         -> app, Ingest view
 //   #/page/<slug>    -> app, that page
 //   #/section/<path> -> app, that section's hub (branch/course page)
-import { setView, loadPage, renderSection } from "./views";
+import { setView, loadPage, renderSection, renderCustomize } from "./views";
 import { state } from "./state";
 import { renderPageList } from "./sidebar";
 import { toast } from "./toast";
@@ -48,7 +48,10 @@ export function applyRoute(): void {
   else if (route === "/lint") setView("lint");
   else if (route === "/ingest") setView("ingest");
   else if (route.startsWith("/page/")) loadPage(decodeURIComponent(route.slice("/page/".length)));
-  else if (route.startsWith("/section/")) {
+  else if (route === "/customize" || route.startsWith("/customize/")) {
+    // Per-branch LLM customization. "#/customize/" (empty path) = General root.
+    renderCustomize(decodeURIComponent(route.replace(/^\/customize\/?/, "")));
+  } else if (route.startsWith("/section/")) {
     // The empty path ("#/section/") is General's hub; the full-screen landing
     // still lives at "#/" (the logo / first load).
     renderSection(decodeURIComponent(route.slice("/section/".length)));

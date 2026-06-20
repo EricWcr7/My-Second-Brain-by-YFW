@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import prompts
+from . import overrides
 from .config import Config
 from .providers.base import LLMProvider
 from .search import search
 from .store import read_page, write_page
-from .wiki import all_concept_slugs, extract_wikilinks, iter_pages, read_optional, slugify, today
+from .wiki import all_concept_slugs, extract_wikilinks, iter_pages, slugify, today
 
 
 @dataclass
@@ -90,10 +90,10 @@ def answer(
     system = "\n\n".join(
         p
         for p in (
-            prompts.load("answer.md"),
+            overrides.effective(config, section, "answer"),
             _format_directive(fmt),
-            read_optional(config.purpose_file),
-            read_optional(config.schema_file),
+            overrides.effective(config, section, "purpose"),
+            overrides.effective(config, section, "schema"),
         )
         if p.strip()
     ).strip()

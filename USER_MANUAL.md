@@ -123,14 +123,16 @@ the **Ingest** panel to upload lecture PDFs/slides one at a time. Each ingest
 writes/merges concept pages, writes the source page, refreshes `overview.md`,
 regenerates `index.md`, and logs the operation. Re-ingesting an edited file
 **merges** new material rather than duplicating it. Then switch to **Ask** to study:
-*"state the chain rule and its proof idea."* For proof-heavy courses the schema
-preserves definitions, theorem codes, notation, and LaTeX faithfully.
+*"state the chain rule and its proof idea."* Proof-heavy courses (like the seeded
+`example-course`) carry their own **Customize** override that preserves definitions,
+theorem/lemma codes, notation, proof ideas, and LaTeX faithfully — see **W12**;
+other branches use the general default.
 
 ### W3 — Personal / free-form knowledge (non-academic)
 Select **Non-academic** (or General) and ingest articles, notes, or URLs via the
 Ingest panel. Then ask, e.g. *"what have I read about habit formation?"*
-Non-academic pages stay citation-aware and wikilinked without the strict academic
-schema.
+Non-academic pages use the general schema — citation-aware and wikilinked, without
+course-specific structure.
 
 ### W4 — Ingest any supported source type
 The Ingest panel accepts a **URL** or one-or-more **uploaded files**:
@@ -202,6 +204,27 @@ max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in
 the config. See [README → Configuration](README.md#configuration) for model overrides.
+
+### W12 — Customize a branch's LLM instructions
+Every section hub has a **Customize** view (also reachable at `#/customize/<section>`).
+It exposes the LLM instruction set *for that branch*: the prompt for each operation
+— **ingest analysis**, **ingest generation**, **answer**, **lint** — plus the branch's
+**purpose** and **schema**. Each card shows the text currently in effect with an
+**Override / Inherited** badge:
+
+- **Save** writes an override for this branch (the badge flips to *Override*).
+- **Reset to general** drops the override so the branch inherits the **general
+  default** again.
+- **Also apply each Save to** lists the other branches still on the general default
+  — check any to apply the same change to several branches at once (leave all
+  unchecked to change only this branch).
+
+A branch with no override inherits the general default; there is no walking up parent
+sections. This is how a proof-heavy course keeps its math rules while the rest of the
+wiki stays general — the seeded `example-course` ships with override prompts/purpose/schema
+that preserve definitions, theorem/lemma codes, notation, proof ideas, and LaTeX.
+Create another proof course and you can apply the same from this view. Customizing
+**General** edits the shared default every uncustomized branch inherits.
 
 ---
 

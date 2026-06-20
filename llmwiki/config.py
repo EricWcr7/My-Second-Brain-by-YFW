@@ -90,6 +90,18 @@ class Config:
         return self.state_dir / "config.toml"
 
     @property
+    def section_overrides_dir(self) -> Path:
+        # Per-section overrides of the LLM instruction set (one file per
+        # component, mirroring the section path). See ``overrides.py``.
+        return self.state_dir / "sections"
+
+    @property
+    def prompt_overrides_dir(self) -> Path:
+        # Editable general-baseline operation prompts; shadow the packaged
+        # defaults in ``prompts/`` when present.
+        return self.state_dir / "prompts"
+
+    @property
     def purpose_file(self) -> Path:
         return self.wiki_dir / "purpose.md"
 
