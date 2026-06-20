@@ -292,10 +292,19 @@ def create_app(
                 except LoaderError as e:
                     raise HTTPException(status_code=400, detail=str(e)) from e
             attachments.append((f.filename, loaded.markdown))
-        result = answer(
-            config, provider, question, section=section, attachments=attachments or None
-        )
-        return {"answer": result.answer, "pages_used": result.pages_used}
+        try:
+            result = answer(
+                config, provider, question, section=section, attachments=attachments or None
+            )
+        except ProviderError as e:
+            # The model call failed (timeout, rate limit, API error). Surface it as
+            # a clean 503 instead of a 500 traceback so the Ask view can show it.
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        return {
+            "answer": result.answer,
+            "pages_used": result.pages_used,
+            "ungrounded": result.ungrounded,
+        }
 
     @app.get("/api/lint")
     def lint_endpoint(section: str | None = None, deep: bool = False) -> list[dict]:
@@ -307,7 +316,10 @@ def create_app(
                     detail=f"{_api_key_env(config)} is not set; deep lint needs it.",
                 )
             provider = provider_factory(config)
-        issues = lint(config, provider=provider, deep=deep, section=section)
+        try:
+            issues = lint(config, provider=provider, deep=deep, section=section)
+        except ProviderError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
         return [{"level": i.level, "page": i.page, "message": i.message} for i in issues]
 
     # check_dir=False so create_app works before the frontend is built (tests,

@@ -65,6 +65,12 @@ def cmd_query(args: argparse.Namespace) -> int:
     print(result.answer)
     if result.pages_used:
         print(f"\n[pages: {', '.join(result.pages_used)}]", file=sys.stderr)
+    if result.ungrounded:
+        print(
+            f"[warning: cited {len(result.ungrounded)} page(s) not in the wiki: "
+            f"{', '.join(result.ungrounded)}]",
+            file=sys.stderr,
+        )
     if result.saved_path:
         print(f"[saved to {result.saved_path.relative_to(config.root)}]", file=sys.stderr)
         # Journal saved answers so they show up in the greppable timeline. Plain

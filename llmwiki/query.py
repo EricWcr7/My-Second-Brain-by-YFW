@@ -10,13 +10,17 @@ from .config import Config
 from .providers.base import LLMProvider
 from .search import search
 from .store import read_page, write_page
-from .wiki import read_optional, slugify, today
+from .wiki import all_concept_slugs, extract_wikilinks, iter_pages, read_optional, slugify, today
 
 
 @dataclass
 class QueryResult:
     answer: str
     pages_used: list[str] = field(default_factory=list)
+    # Slugs the answer cited with `[[slug]]` that match no wiki page — i.e. the
+    # model invented a citation. The grounding check surfaces these so a reader
+    # (web Ask / CLI) can distrust them instead of taking provenance on faith.
+    ungrounded: list[str] = field(default_factory=list)
     saved_path: Path | None = None
 
 
@@ -80,7 +84,7 @@ def answer(
     attachments: list[tuple[str, str]] | None = None,
 ) -> QueryResult:
     top_k = top_k or config.search_top_k
-    blocks, used = _build_context(config, question, section, top_k)
+    blocks, _retrieved = _build_context(config, question, section, top_k)
     context = "\n\n".join(blocks) or "(no matching pages found)"
 
     system = "\n\n".join(
@@ -105,6 +109,16 @@ def answer(
 
     text = provider.complete(system, user)
 
+    # Grounding check: every `[[slug]]` the answer cites must resolve to a real
+    # wiki page. Citations that don't (the model invented them) are reported as
+    # `ungrounded`; the ones that do become the answer's pages_used. This is the
+    # programmatic enforcement of the wiki's provenance contract — the model is
+    # *told* not to invent citations (answer.md), and here we verify it.
+    existing = all_concept_slugs(config) | {ref.slug for ref in iter_pages(config, "source")}
+    cited = extract_wikilinks(text)
+    pages_used = sorted(s for s in cited if s in existing)
+    ungrounded = sorted(s for s in cited if s not in existing)
+
     saved: Path | None = None
     if save:
         slug = slugify(question)[:60] or "query"
@@ -119,4 +133,6 @@ def answer(
             metadata["marp"] = True  # Obsidian Marp plugin renders the saved deck
         write_page(saved, metadata, text.strip() + "\n")
 
-    return QueryResult(answer=text, pages_used=used, saved_path=saved)
+    return QueryResult(
+        answer=text, pages_used=pages_used, ungrounded=ungrounded, saved_path=saved
+    )

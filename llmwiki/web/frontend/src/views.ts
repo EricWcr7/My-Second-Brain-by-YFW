@@ -317,6 +317,12 @@ async function onAsk(e: Event): Promise<void> {
     for (const f of files) fd.append("files", f);
     const res = await postForm<QueryResult>("/api/query", fd);
     let html = `<div class="answer-body">${renderMarkdown(res.answer)}</div>`;
+    if (res.ungrounded && res.ungrounded.length) {
+      // Grounding check: the answer cited pages that don't exist in the wiki, so
+      // those claims aren't backed by provenance. Surface it rather than hide it.
+      const names = res.ungrounded.map((s) => `<code>${escapeHtml(s)}</code>`).join(", ");
+      html += `<p class="notice">⚠ This answer cited ${res.ungrounded.length} page(s) not in your wiki: ${names}. Treat those claims with caution — they aren't grounded in a source.</p>`;
+    }
     if (res.pages_used && res.pages_used.length) {
       // Numbered footnote-style references back to the pages the answer drew on.
       const items = res.pages_used

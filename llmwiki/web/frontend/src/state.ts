@@ -27,6 +27,8 @@ export interface LintIssue {
 export interface QueryResult {
   answer: string;
   pages_used: string[];
+  // Slugs the answer cited that match no wiki page (the model invented them).
+  ungrounded?: string[];
 }
 
 export interface IngestResult {

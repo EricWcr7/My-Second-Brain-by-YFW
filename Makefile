@@ -1,6 +1,6 @@
 FRONTEND := llmwiki/web/frontend
 
-.PHONY: web-install web-build dev test
+.PHONY: web-install web-build dev test eval
 
 ## Install web UI dev dependencies (run once; needs Node + npm).
 web-install:
@@ -20,3 +20,7 @@ dev:
 ## Run the Python test suite.
 test:
 	pytest
+
+## Run the LLM evals (faked model, no API key) — e.g. the citation-grounding eval.
+eval:
+	pytest tests/eval -q

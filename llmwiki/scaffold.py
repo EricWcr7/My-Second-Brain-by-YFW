@@ -26,6 +26,10 @@ default_section = "non-academic"
 search_top_k = 8
 context_token_budget = 60000
 pdf_vision_min_chars_per_page = 100
+# Provider call resilience: seconds before a request times out, and how many
+# times the SDK retries transient failures (rate limits, dropped connections).
+request_timeout = 60.0
+max_retries = 2
 """
 
 PURPOSE_MD = """\
