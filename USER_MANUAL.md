@@ -138,6 +138,10 @@ used. Attach files to give the model **one-off context** for a single answer —
 attachments are *not* written to the wiki. A good answer is itself knowledge: file
 it back into the wiki so explorations accumulate instead of vanishing.
 
+The app **checks the citations**: if an answer references a page that doesn't exist
+in your wiki, it shows a caution note listing those pages — that claim isn't backed
+by a source, so treat it skeptically. Grounded answers cite only real pages.
+
 ### W6 — Fast keyword search
 The search box does BM25-lite ranking over concept pages — instant and free (no
 key). Use it to locate pages before asking a full question, or when you don't need
@@ -178,6 +182,8 @@ provider = "anthropic"              # or "openai" (default)
 default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+request_timeout = 60.0              # seconds before a provider call times out
+max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in
 the config. See [README → Configuration](README.md#configuration) for model overrides.

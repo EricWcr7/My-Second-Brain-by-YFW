@@ -39,6 +39,10 @@ class Config:
     # If PyMuPDF text extraction yields fewer chars per page than this, the PDF
     # is treated as scanned/image-heavy and transcribed with a vision model.
     pdf_vision_min_chars_per_page: int = 100
+    # Per-request resilience for provider calls: how long to wait before a call
+    # times out (seconds) and how many times the SDK retries transient failures.
+    request_timeout: float = 60.0
+    max_retries: int = 2
     extra: dict = field(default_factory=dict)
 
     @property
@@ -115,6 +119,8 @@ _SETTING_KEYS = (
     "search_top_k",
     "context_token_budget",
     "pdf_vision_min_chars_per_page",
+    "request_timeout",
+    "max_retries",
 )
 
 

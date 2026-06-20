@@ -70,7 +70,8 @@ in the sidebar (General sees everything; a course sees only itself).
   images) **or a URL**, and compiles them into the wiki at your current scope.
 - **Ask** — ask a question answered only from the wiki, with citations back to the
   pages used. You can attach files as **one-off context** for a single answer;
-  attachments are never written to the wiki.
+  attachments are never written to the wiki. If an answer cites a page that isn't in
+  your wiki, the app flags it so you can distrust that claim (provenance you can see).
 - **Search** — instant keyword ranking over concept pages (no key needed).
 - **Lint** — structural checks, plus an optional **deep** LLM review that flags
   contradictions and suggests what to read next.
@@ -149,6 +150,8 @@ default_section = "non-academic"    # default scope when none is given
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
+request_timeout = 60.0              # seconds before a provider call times out
+max_retries = 2                     # retries for transient provider failures
 ```
 
 Both OpenAI and Anthropic support every operation. Leave the models unset to use

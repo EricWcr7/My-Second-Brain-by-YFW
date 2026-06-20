@@ -78,3 +78,73 @@ def test_openai_requests_use_high_reasoning(monkeypatch):
     assert captured["model"] == "gpt-5.5"
     assert captured["reasoning"] == {"effort": "high"}
     assert op.REASONING_EFFORT == "high"
+
+
+def test_openai_client_uses_config_timeout_and_retries(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    pytest.importorskip("openai")
+    provider = op.OpenAIProvider(Config(root=Path("/tmp"), request_timeout=12.0, max_retries=5))
+    # Resilience knobs flow from config into the SDK client.
+    assert provider.client.max_retries == 5
+
+
+def test_openai_records_usage(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    pytest.importorskip("openai")
+    provider = op.OpenAIProvider(Config(root=Path("/tmp")))
+
+    class _Usage:
+        input_tokens = 11
+        output_tokens = 7
+
+    class _Resp:
+        output_text = "ok"
+        usage = _Usage()
+
+    class _Responses:
+        def create(self, **kwargs):
+            return _Resp()
+
+    provider.client = type("_Client", (), {"responses": _Responses()})()
+    assert provider.complete("system", "user") == "ok"
+    assert provider.last_usage.input_tokens == 11
+    assert provider.last_usage.output_tokens == 7
+
+
+def test_openai_normalizes_sdk_errors(monkeypatch):
+    import openai
+
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    pytest.importorskip("openai")
+    provider = op.OpenAIProvider(Config(root=Path("/tmp")))
+
+    class _Responses:
+        def create(self, **kwargs):
+            raise openai.OpenAIError("rate limited")
+
+    provider.client = type("_Client", (), {"responses": _Responses()})()
+    with pytest.raises(ProviderError, match="OpenAI complete failed"):
+        provider.complete("system", "user")
+
+
+def test_anthropic_client_uses_config_retries(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp"), max_retries=5))
+    assert provider.client.max_retries == 5
+
+
+def test_anthropic_normalizes_count_tokens_errors(monkeypatch):
+    import anthropic
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp")))
+
+    class _Messages:
+        def count_tokens(self, **kwargs):
+            raise anthropic.AnthropicError("boom")
+
+    provider.client = type("_Client", (), {"messages": _Messages()})()
+    with pytest.raises(ProviderError, match="Anthropic count_tokens failed"):
+        provider.count_tokens("system", "user")

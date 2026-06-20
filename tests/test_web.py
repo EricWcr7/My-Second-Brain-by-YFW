@@ -143,6 +143,34 @@ def test_query_with_key(client, monkeypatch):
     assert "chain-rule" in r.json()["pages_used"] or r.json()["pages_used"] == []
 
 
+def test_query_surfaces_ungrounded_citations(vault, monkeypatch):
+    # The /api/query contract exposes invented citations so the Ask view can warn.
+    _seed(vault)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    fake = FakeProvider(answer_text="As shown in [[chain-rule]] and [[ghost-page]].")
+    c = TestClient(create_app(vault, provider_factory=lambda cfg: fake))
+    body = c.post("/api/query", data={"question": "anything"}).json()
+    assert body["ungrounded"] == ["ghost-page"]
+    assert "chain-rule" in body["pages_used"]
+
+
+def test_query_provider_error_returns_503(vault, monkeypatch):
+    # A model failure mid-answer must render as a clean 503, not a 500 traceback.
+    from llmwiki.providers import ProviderError
+
+    _seed(vault)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class _Boom(FakeProvider):
+        def complete(self, *a, **k):
+            raise ProviderError("model exploded")
+
+    c = TestClient(create_app(vault, provider_factory=lambda cfg: _Boom()))
+    r = c.post("/api/query", data={"question": "anything"})
+    assert r.status_code == 503
+    assert "model exploded" in r.json()["detail"]
+
+
 def test_query_without_key_returns_503(client, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     r = client.post("/api/query", data={"question": "anything"})
