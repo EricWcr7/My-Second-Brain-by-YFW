@@ -562,6 +562,8 @@ function customizeCard(comp: { key: string; label: string; help: string }, st: {
       <textarea class="cust-editor" data-key="${comp.key}" spellcheck="false" rows="9">${escapeHtml(st.effective)}</textarea>
       <div class="cust-card-actions">
         <button type="button" class="btn btn-primary btn-sm cust-save" data-key="${comp.key}">Save</button>
+        <button type="button" class="btn btn-sm cust-undo" data-key="${comp.key}" disabled>Undo</button>
+        <button type="button" class="btn btn-sm cust-copy" data-key="${comp.key}">Copy</button>
         ${reset}
         <span class="cust-card-msg" data-key="${comp.key}"></span>
       </div>
@@ -596,6 +598,45 @@ function wireCustomize(section: string, detail: SectionOverrides): void {
     const el = document.querySelector(`.cust-card-msg[data-key="${key}"]`);
     if (el) el.innerHTML = text ? `<span class="${cls}">${escapeHtml(text)}</span>` : "";
   };
+
+  // Last-saved text per component — what "Undo current changes" reverts to (the
+  // text loaded into the editor, refreshed on every successful Save/Reset). This
+  // is unsaved-edit undo, distinct from "Reset to general" (which drops the
+  // override entirely).
+  const editor = (key: string) =>
+    document.querySelector<HTMLTextAreaElement>(`textarea.cust-editor[data-key="${key}"]`)!;
+  const saved: Record<string, string> = {};
+  CUST_COMPONENTS.forEach((c) => (saved[c.key] = detail.components[c.key].effective));
+  const refreshUndo = (key: string) => {
+    const btn = document.querySelector<HTMLButtonElement>(`.cust-undo[data-key="${key}"]`);
+    if (btn) btn.disabled = editor(key).value === saved[key];
+  };
+
+  // Enable Undo only while an editor has unsaved changes.
+  document.querySelectorAll<HTMLTextAreaElement>("textarea.cust-editor").forEach((ta) =>
+    ta.addEventListener("input", () => refreshUndo(ta.dataset.key!)),
+  );
+
+  document.querySelectorAll<HTMLButtonElement>(".cust-undo").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key!;
+      editor(key).value = saved[key];
+      refreshUndo(key);
+      toast("Reverted unsaved changes");
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>(".cust-copy").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key!;
+      try {
+        await navigator.clipboard.writeText(editor(key).value);
+        toast("Copied to clipboard");
+      } catch {
+        setMsg(key, "Couldn't copy — clipboard blocked.", "cust-err");
+      }
+    });
+  });
   const markStatus = (key: string, overridden: boolean) => {
     const card = document.querySelector(`.cust-card[data-key="${key}"]`);
     const badge = card?.querySelector(".cust-badge");
@@ -617,6 +658,8 @@ function wireCustomize(section: string, detail: SectionOverrides): void {
       try {
         await postJSON("/api/overrides", { sections, set: { [key]: ta.value } });
         markStatus(key, true);
+        saved[key] = ta.value; // new last-saved baseline for Undo
+        refreshUndo(key);
         setMsg(key, "");
         toast(sections.length > 1 ? `Saved — applied to ${sections.length} branches` : "Saved");
       } catch (err) {
@@ -636,6 +679,8 @@ function wireCustomize(section: string, detail: SectionOverrides): void {
         const ta = document.querySelector<HTMLTextAreaElement>(`textarea.cust-editor[data-key="${key}"]`)!;
         ta.value = detail.components[key].general; // show the inherited text
         markStatus(key, false);
+        saved[key] = detail.components[key].general; // Undo baseline follows the reset
+        refreshUndo(key);
         toast("Reset to general default");
       } catch (err) {
         btn.disabled = false;
