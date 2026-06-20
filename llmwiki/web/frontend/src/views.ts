@@ -5,13 +5,16 @@ import {
   type IngestResult,
   type LintIssue,
   type Meta,
+  type OverridesList,
   type PageRef,
   type QueryResult,
+  type SectionOverrides,
 } from "./state";
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
 import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
 import { setBreadcrumb, setScopedBreadcrumb } from "./topbar";
 import { renderLandingStats } from "./landing";
+import { toast } from "./toast";
 import {
   childSections,
   sectionAncestors,
@@ -175,6 +178,7 @@ export function renderSection(scope: string): void {
       <a class="btn" href="#/ask">Ask</a>
       <a class="btn" href="#/lint">Lint</a>
       <a class="btn" href="#/ingest">Ingest</a>
+      <a class="btn" href="#/customize/${scope}">Customize</a>
     </div>${childrenBlock}`;
 
   if (canCreate) wireCreateForm(scope);
@@ -471,4 +475,172 @@ async function runLint(): Promise<void> {
   } catch (err) {
     out.innerHTML = `<p class="notice">${escapeHtml((err as Error).message)}</p>`;
   }
+}
+
+// ── Customize ──────────────────────────────────────────────────────────────
+// Per-branch override of the LLM instruction set. Each component is the
+// operation prompt (ingest/answer/lint) or the purpose/schema; a branch either
+// carries its own override or inherits the general default. One Save can fan out
+// to several branches that are still on the general default (the targets panel).
+
+const CUST_COMPONENTS: { key: string; label: string; help: string }[] = [
+  { key: "purpose", label: "Purpose", help: "This branch's goals and scope — what its knowledge base is for." },
+  { key: "schema", label: "Schema", help: "Page format the compiler must follow: frontmatter and body sections." },
+  { key: "ingest_analysis", label: "Ingest · analysis", help: "How a new source is read to decide which concepts it covers." },
+  { key: "ingest_generation", label: "Ingest · generation", help: "How concept and source pages are written from a source." },
+  { key: "answer", label: "Answer · Ask", help: "How questions are answered from your wiki pages." },
+  { key: "lint", label: "Lint · deep review", help: "What the deep editorial review looks for." },
+];
+
+export async function renderCustomize(section: string): Promise<void> {
+  state.scope = section;
+  document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) => b.classList.remove("active"));
+  highlightSidebar(null);
+  renderPageList();
+  setScopedBreadcrumb(section, "Customize");
+  content.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const list = await getJSON<OverridesList>("/api/overrides");
+    // The General root ("") has no per-section file: it *is* the baseline, built
+    // here from the list endpoint's general texts.
+    const detail: SectionOverrides =
+      section === ""
+        ? {
+            section: "",
+            label: "General",
+            components: Object.fromEntries(
+              list.components.map((c) => [c, { effective: list.general[c], override: null, general: list.general[c] }]),
+            ),
+          }
+        : await getJSON<SectionOverrides>(
+            "/api/overrides/" + section.split("/").map(encodeURIComponent).join("/"),
+          );
+    paintCustomize(section, detail, list);
+  } catch (err) {
+    content.innerHTML = `<p class="notice">${escapeHtml((err as Error).message)}</p>`;
+  }
+}
+
+function customizeTargets(section: string, list: OverridesList): string {
+  if (section === "") return "";
+  const others = list.sections.filter((s) => s.section !== section);
+  if (!others.length) return "";
+  const rows = others
+    .map((s) => {
+      const n = Object.values(s.status).filter((v) => v === "override").length;
+      const hint = n ? `${n} overridden` : "on general default";
+      return (
+        `<label class="cust-target"><input type="checkbox" class="cust-target-cb" value="${escapeHtml(s.section)}">` +
+        `<span class="cust-target-name">${escapeHtml(s.label)}</span>` +
+        `<span class="cust-target-hint">${hint}</span></label>`
+      );
+    })
+    .join("");
+  return `
+    <div class="cust-targets">
+      <div class="cust-targets-head">Also apply each Save to</div>
+      <p class="cust-targets-hint muted">Pick other branches to receive the same change when you Save a card. Leave all unchecked to change only this branch.</p>
+      <div class="cust-target-list">${rows}</div>
+    </div>`;
+}
+
+function customizeCard(comp: { key: string; label: string; help: string }, st: { effective: string; override: string | null }, isGeneral: boolean): string {
+  const overridden = st.override !== null;
+  const badge = isGeneral
+    ? `<span class="cust-badge baseline">Baseline</span>`
+    : `<span class="cust-badge ${overridden ? "override" : "inherited"}">${overridden ? "Override" : "Inherited"}</span>`;
+  const reset = isGeneral
+    ? ""
+    : `<button type="button" class="btn btn-sm cust-reset" data-key="${comp.key}" ${overridden ? "" : "disabled"}>Reset to general</button>`;
+  return `
+    <section class="cust-card" data-key="${comp.key}">
+      <div class="cust-card-head">
+        <div class="cust-card-title">${escapeHtml(comp.label)}</div>
+        ${badge}
+      </div>
+      <p class="cust-card-help">${escapeHtml(comp.help)}</p>
+      <textarea class="cust-editor" data-key="${comp.key}" spellcheck="false" rows="9">${escapeHtml(st.effective)}</textarea>
+      <div class="cust-card-actions">
+        <button type="button" class="btn btn-primary btn-sm cust-save" data-key="${comp.key}">Save</button>
+        ${reset}
+        <span class="cust-card-msg" data-key="${comp.key}"></span>
+      </div>
+    </section>`;
+}
+
+function paintCustomize(section: string, detail: SectionOverrides, list: OverridesList): void {
+  const isGeneral = section === "";
+  const label = isGeneral ? "General" : sectionLabel(section);
+  const cards = CUST_COMPONENTS.map((c) =>
+    customizeCard(c, detail.components[c.key], isGeneral),
+  ).join("");
+  content.innerHTML = `
+    <p class="eyebrow eyebrow-ai">Customize · LLM instructions</p>
+    <h1>${escapeHtml(label)}</h1>
+    <p class="page-meta">${
+      isGeneral
+        ? "The shared default every branch inherits."
+        : `How the model ingests, answers, and lints in <strong>${escapeHtml(label)}</strong>. Each card overrides the general default for this branch only.`
+    }</p>
+    ${isGeneral ? `<p class="notice">You're editing the <strong>general baseline</strong>. Changes here apply to every branch that hasn't set its own override.</p>` : ""}
+    ${customizeTargets(section, list)}
+    <div class="cust-cards">${cards}</div>`;
+  wireCustomize(section, detail);
+  animateIn();
+}
+
+function wireCustomize(section: string, detail: SectionOverrides): void {
+  const checkedTargets = () =>
+    Array.from(document.querySelectorAll<HTMLInputElement>(".cust-target-cb:checked")).map((cb) => cb.value);
+  const setMsg = (key: string, text: string, cls = "muted") => {
+    const el = document.querySelector(`.cust-card-msg[data-key="${key}"]`);
+    if (el) el.innerHTML = text ? `<span class="${cls}">${escapeHtml(text)}</span>` : "";
+  };
+  const markStatus = (key: string, overridden: boolean) => {
+    const card = document.querySelector(`.cust-card[data-key="${key}"]`);
+    const badge = card?.querySelector(".cust-badge");
+    if (badge && !badge.classList.contains("baseline")) {
+      badge.className = "cust-badge " + (overridden ? "override" : "inherited");
+      badge.textContent = overridden ? "Override" : "Inherited";
+    }
+    const reset = card?.querySelector<HTMLButtonElement>(".cust-reset");
+    if (reset) reset.disabled = !overridden;
+  };
+
+  document.querySelectorAll<HTMLButtonElement>(".cust-save").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key!;
+      const ta = document.querySelector<HTMLTextAreaElement>(`textarea.cust-editor[data-key="${key}"]`)!;
+      const sections = [section, ...checkedTargets()];
+      btn.disabled = true;
+      setMsg(key, "Saving…");
+      try {
+        await postJSON("/api/overrides", { sections, set: { [key]: ta.value } });
+        markStatus(key, true);
+        setMsg(key, "");
+        toast(sections.length > 1 ? `Saved — applied to ${sections.length} branches` : "Saved");
+      } catch (err) {
+        setMsg(key, (err as Error).message, "cust-err");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>(".cust-reset").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key!;
+      btn.disabled = true;
+      try {
+        await postJSON("/api/overrides", { sections: [section], reset: [key] });
+        const ta = document.querySelector<HTMLTextAreaElement>(`textarea.cust-editor[data-key="${key}"]`)!;
+        ta.value = detail.components[key].general; // show the inherited text
+        markStatus(key, false);
+        toast("Reset to general default");
+      } catch (err) {
+        btn.disabled = false;
+        setMsg(key, (err as Error).message, "cust-err");
+      }
+    });
+  });
 }

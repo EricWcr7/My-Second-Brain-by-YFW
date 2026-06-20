@@ -1,4 +1,4 @@
-You are reviewing a personal academic wiki for quality problems.
+You are reviewing a personal knowledge wiki for quality problems.
 
 Given the index and a sample of page contents, identify:
 - **contradictions**: claims on different pages that conflict.

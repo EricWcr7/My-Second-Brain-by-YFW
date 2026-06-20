@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 
-from . import prompts
+from . import overrides
 from .config import Config
 from .providers.base import LLMProvider
 from .store import read_page
-from .wiki import PageRef, extract_wikilinks, iter_pages, read_optional, section_contains
+from .wiki import PageRef, extract_wikilinks, iter_pages, section_contains
 
 
 @dataclass
@@ -77,7 +77,7 @@ def _deterministic(config: Config, concepts: list[PageRef], sources: list[PageRe
     return issues
 
 
-def _deep(config: Config, provider: LLMProvider, concepts: list[PageRef]):
+def _deep(config: Config, provider: LLMProvider, concepts: list[PageRef], section: str | None):
     blocks: list[str] = []
     total = 0
     for ref in concepts:
@@ -92,7 +92,12 @@ def _deep(config: Config, provider: LLMProvider, concepts: list[PageRef]):
         total += tokens
 
     system = "\n\n".join(
-        p for p in (prompts.load("lint.md"), read_optional(config.purpose_file)) if p.strip()
+        p
+        for p in (
+            overrides.effective(config, section, "lint"),
+            overrides.effective(config, section, "purpose"),
+        )
+        if p.strip()
     ).strip()
     user = "Wiki pages:\n\n" + "\n\n".join(blocks)
     findings = provider.parse(system, user, LintFindings)
@@ -130,5 +135,5 @@ def lint(
 
     issues = _deterministic(config, concepts, sources)
     if deep and provider is not None and concepts:
-        issues += _deep(config, provider, concepts)
+        issues += _deep(config, provider, concepts, section)
     return issues

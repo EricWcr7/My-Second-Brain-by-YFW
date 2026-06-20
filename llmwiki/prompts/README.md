@@ -6,9 +6,14 @@ the `system` argument to a provider method. Keeping them in-repo (not inline in
 code) makes them inspectable, diff-able, and eval-able — the discoverability the
 `llm-engineering` rule asks for.
 
-Every call is *also* fed the vault's `wiki/purpose.md` + `wiki/schema.md` as system
-context, and structured-output prompts return a **Pydantic** model (validated by
-`provider.parse`), so a malformed response raises rather than corrupting the wiki.
+These `.md` files are the **general defaults**. Each call resolves its system
+prompt **per section** through [`overrides.py`](../overrides.py): if the section
+being operated on has an override (`.llmwiki/sections/<section>/<component>.md`) it
+replaces the default; otherwise the packaged prompt here is used. The vault's
+`wiki/purpose.md` + `wiki/schema.md` are appended the same way and are overridable
+per section too (`lint` is fed purpose but not schema). Structured-output prompts
+return a **Pydantic** model (validated by `provider.parse`), so a malformed
+response raises rather than corrupting the wiki.
 
 | Prompt | Used by | Provider call | Output shape |
 | --- | --- | --- | --- |
@@ -31,8 +36,9 @@ context, and structured-output prompts return a **Pydantic** model (validated by
 - **Eval method:** `tests/eval/test_grounding.py` (`make eval`) — the grounding
   check (`query.answer`) flags any `[[slug]]` that resolves to no wiki page.
 - **Known failure modes:** inventing a `[[slug]]` (caught + surfaced as
-  `ungrounded`); citing a real page it wasn't shown; over-summarizing technical
-  material (the prompt pushes for fidelity + preserved LaTeX).
+  `ungrounded`); citing a real page it wasn't shown; over-summarizing the
+  material (the prompt pushes for fidelity, preserving math/code/quotations as
+  written).
 
 ## `ingest_analysis.md`
 - **Purpose:** pass 1 of ingest — decide which **concepts** a new source covers, a
@@ -64,7 +70,7 @@ context, and structured-output prompts return a **Pydantic** model (validated by
 - **Purpose:** the deep (LLM) lint pass — surface contradictions, missing concepts,
   stale/unclear claims, plus growth suggestions (missing cross-refs, questions,
   sources to seek, data gaps).
-- **Inputs:** the index + a sample of page contents; `purpose.md` + `schema.md`.
+- **Inputs:** the index + a sample of page contents; `purpose.md` (no schema).
 - **Output shape:** `LintFindings` (see [`lint.py`](../lint.py)).
 - **Refusal/failure behavior:** returns empty lists where there's nothing to report;
   *names* data gaps but performs **no** web search (suggestions only).

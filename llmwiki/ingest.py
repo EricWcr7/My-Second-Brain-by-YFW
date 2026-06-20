@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import prompts
+from . import overrides
 from .config import Config
 from .loaders import LoadResult, is_url, load_source
 from .loaders.registry import IMAGE_EXTS
@@ -35,7 +35,6 @@ from .wiki import (
     append_log,
     concept_path,
     iter_pages,
-    read_optional,
     rebuild_index,
     slugify,
     source_path,
@@ -89,11 +88,14 @@ class IngestResult:
 # --- helpers -----------------------------------------------------------------
 
 
-def _system(instruction_file: str, config: Config) -> str:
+def _system(instruction_file: str, config: Config, section: str) -> str:
+    # ``instruction_file`` is "<component>.md"; resolve the operation prompt plus
+    # purpose/schema against this section's overrides (falling back to general).
+    component = Path(instruction_file).stem
     parts = [
-        prompts.load(instruction_file),
-        read_optional(config.purpose_file),
-        read_optional(config.schema_file),
+        overrides.effective(config, section, component),
+        overrides.effective(config, section, "purpose"),
+        overrides.effective(config, section, "schema"),
     ]
     return "\n\n".join(p for p in parts if p.strip()).strip()
 
@@ -279,7 +281,7 @@ def ingest(
     existing_titles = [r.title for r in iter_pages(config, "concept") if r.section == section]
 
     analysis = provider.parse(
-        _system("ingest_analysis.md", config),
+        _system("ingest_analysis.md", config, section),
         _analysis_user(section, loaded, existing_titles),
         SourceAnalysis,
     )
@@ -295,7 +297,7 @@ def ingest(
     ]
 
     gen = provider.parse(
-        _system("ingest_generation.md", config),
+        _system("ingest_generation.md", config, section),
         _generation_user(
             section, source_slug, loaded, analysis, existing_pages, index_titles
         ),

@@ -41,6 +41,32 @@ export interface IngestResult {
   section: string;
 }
 
+// --- per-section LLM customization (GET/POST /api/overrides) ----------------
+
+export interface OverrideComponentState {
+  effective: string;
+  override: string | null; // null = inherits the general default
+  general: string;
+}
+
+export interface SectionOverrides {
+  section: string;
+  label: string;
+  components: Record<string, OverrideComponentState>;
+}
+
+export interface OverrideSectionRow {
+  section: string;
+  label: string;
+  status: Record<string, string>; // component -> "override" | "general"
+}
+
+export interface OverridesList {
+  components: string[];
+  general: Record<string, string>;
+  sections: OverrideSectionRow[];
+}
+
 export const state = {
   meta: {
     sections: [],

@@ -87,6 +87,13 @@ sidebar collapses into a **☰ menu** in the top bar.
   and **🗑** deletes one (the seeded `academic` / `non-academic` branches are
   protected). Names keep their exact casing and non-Latin characters
   (`example-course`, `线性代数`).
+- **Customize** — each section hub has a **Customize** view to tailor the LLM
+  instruction set *for that branch*: the prompt for each operation (ingest
+  analysis, ingest generation, answer, lint) plus the branch's **purpose** and
+  **schema**. A branch either carries its own override or inherits the **general
+  default**; one Save can fan out to several branches still on the default. This is
+  how a proof-heavy course (e.g. `example-course`) keeps math/theorem/proof rules while
+  everything else stays general.
 
 Prefer Obsidian for reading? Open the `wiki/` folder as a vault — you get the graph
 view, backlinks, Marp decks, and Dataview tables for free, since the pages already
@@ -127,6 +134,11 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
    to sources, which point back to your raw files).
 3. **Lint** — structural checks plus an optional model review.
 
+Each operation's system prompt is the packaged **general default** plus the
+wiki's `purpose.md` / `schema.md` — unless the section being operated on has its
+own override (see **Customize** above), which replaces the default for that branch
+only.
+
 Every concept page carries `sources:` provenance, so claims trace back to a source
 page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 **compiled once and kept current**, so answers compound over time.
@@ -137,7 +149,7 @@ page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 | ---- | ---- |
 | `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
 | `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
-| `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache (gitignored). |
+| `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
 | `llmwiki/` | The Python package (the app itself). |
 
 ## Supported sources

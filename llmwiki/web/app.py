@@ -15,9 +15,11 @@ from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.responses import Response
 from starlette.types import Scope
 
+from .. import overrides
 from ..config import Config, load_config
 from ..ingest import ingest
 from ..lint import lint
@@ -49,6 +51,24 @@ SUPPORTED_EXTS = sorted(TEXT_EXTS | {".pdf", ".docx", ".pptx"} | IMAGE_EXTS)
 STATIC_DIR = Path(__file__).parent / "static"
 
 ProviderFactory = Callable[[Config], LLMProvider]
+
+
+def _section_label(section: str) -> str:
+    return section.split("/")[-1] if section else "General"
+
+
+class OverrideUpdate(BaseModel):
+    """Apply per-section overrides of the LLM instruction set.
+
+    ``set`` writes each ``component -> text`` override; ``reset`` removes the named
+    components (re-inheriting the general default). Both are applied to every
+    section in ``sections`` (``""`` = the General baseline), so one edit can fan
+    out to several branches at once.
+    """
+
+    sections: list[str]
+    set: dict[str, str] = {}
+    reset: list[str] = []
 
 
 class _SPAStaticFiles(StaticFiles):
@@ -176,6 +196,71 @@ def create_app(
         rebuild_index(config)  # drop the deleted pages from index.md / home overview
         append_log(config, "section", match, detail="deleted via web UI")
         return {"section": match}
+
+    @app.get("/api/overrides")
+    def overrides_list() -> dict:
+        """Per-section status of the LLM instruction set plus the general defaults.
+
+        Drives the customization UI: ``status`` shows, per component, which
+        branches still use the general default (so an edit can be applied to
+        several at once), and ``general`` carries the baseline text for each
+        component. Sections come from the on-disk branches and any branch that
+        already carries an override.
+        """
+        sections = sorted(section_dirs(config) | overrides.sections_with_overrides(config))
+        return {
+            "components": list(overrides.COMPONENTS),
+            "general": {c: overrides.general_default(config, c) for c in overrides.COMPONENTS},
+            "sections": [
+                {"section": s, "label": _section_label(s), "status": overrides.override_status(config, s)}
+                for s in sections
+            ],
+        }
+
+    @app.get("/api/overrides/{section:path}")
+    def overrides_get(section: str) -> dict:
+        """The instruction set for one section: effective text, the override (or
+        ``null`` when inherited), and the general default, per component."""
+        norm = normalize_section(section)
+        return {
+            "section": norm,
+            "label": _section_label(norm),
+            "components": {
+                c: {
+                    "effective": overrides.effective(config, norm, c),
+                    "override": overrides.read_override(config, norm, c),
+                    "general": overrides.general_default(config, c),
+                }
+                for c in overrides.COMPONENTS
+            },
+        }
+
+    @app.post("/api/overrides")
+    def overrides_save(update: OverrideUpdate) -> dict:
+        """Write/reset overrides across one or more sections (see OverrideUpdate)."""
+        known = section_dirs(config) | overrides.sections_with_overrides(config)
+        targets = []
+        for raw in update.sections:
+            norm = normalize_section(raw)
+            if norm and norm not in known:
+                raise HTTPException(status_code=404, detail=f"Section '{raw}' not found.")
+            targets.append(norm)
+        if not targets:
+            raise HTTPException(status_code=422, detail="No target sections given.")
+        try:
+            for norm in targets:
+                for component, text in update.set.items():
+                    overrides.write_override(config, norm, component, text)
+                for component in update.reset:
+                    overrides.delete_override(config, norm, component)
+        except ValueError as e:  # unknown component name
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        return {
+            "updated": [
+                {"section": s, "label": _section_label(s), "status": overrides.override_status(config, s)}
+                for s in sorted(set(targets))
+            ]
+        }
 
     @app.get("/api/home")
     def home() -> dict:

@@ -1,21 +1,20 @@
 You are the **generation stage** of a local-first LLM wiki compiler.
 
 Using the source text, the analysis, and any existing page bodies provided, write
-the concept pages and the source page. Fidelity matters more than brevity — for
-academic/technical material especially, do not flatten substance into a summary.
+the concept pages and the source page. Fidelity matters more than brevity — do not
+flatten substance into a shallow summary.
 
 Follow the wiki **schema** (provided in the system prompt) exactly:
-- Preserve ALL mathematics as LaTeX: inline `$...$`, display `$$...$$`. Keep the
-  source's notation.
-- Keep definitions, theorem statements, assumptions, notation, key formulas,
-  proof ideas, and examples — do not flatten them into a shallow summary.
+- Preserve the substance: keep the specifics, definitions, key facts, and figures,
+  and any math, code, or quotations as the source has them (use LaTeX `$...$` /
+  `$$...$$` for math, fenced blocks for code).
 - Use the concept body sections from the schema, omitting sections that don't
   apply.
 - Link related concepts with `[[slug]]` (slug = lowercase, hyphenated title).
   Only link to concepts that exist in the provided index or that you are creating
   in this same response.
-- In the **Related** section, say *how* concepts relate (e.g. "specializes
-  [[gradient]] to constrained problems").
+- In the **Related** section, say *how* concepts relate (e.g. "an instance of
+  [[deliberate-practice]]").
 
 Merging: when an existing page body is provided for a concept, produce the
 **updated full body** that integrates the new source's material with what's

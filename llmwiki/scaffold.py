@@ -35,9 +35,9 @@ max_retries = 2
 PURPOSE_MD = """\
 # Purpose
 
-This wiki is a personal **knowledge base** compiled from local materials. It is
-not limited to academic or math content. The raw sources in `raw/` are the source
-of truth; these wiki pages organize them for understanding, search, and review.
+This wiki is a personal **knowledge base** compiled from local materials — notes,
+articles, documents, and images. The raw sources in `raw/` are the source of
+truth; these wiki pages organize them for understanding, search, and review.
 
 ## Hierarchy & scope
 
@@ -51,34 +51,25 @@ of the knowledge base it can access**:
     - one subsection per **course** — by default each accesses only its own
       knowledge. To widen, query a parent section (Academic or General).
 
-A section is a `/`-joined path (e.g. `academic/multivariable-calculus`); a scope
-sees a page when the scope is a prefix of the page's section.
+A section is a `/`-joined path (e.g. `academic/example-course`); a scope sees a page when
+the scope is a prefix of the page's section.
 
 ## Goals (all sections)
 
 - Preserve substance — never reduce material to shallow summaries; keep the
-  detail, notation, and source references that make a page reusable.
+  detail, specifics, and source references that make a page reusable.
 - Make **relationships between concepts** explicit through `[[wikilinks]]` so the
   wiki reads as a connected map, not a pile of notes.
 - Stay reliable and **citation-aware**: every claim should trace back to a source
   page, and every source page back to a raw file.
 
-## Academic branch
+## Per-section customization
 
-Proof-heavy / theory-heavy courses (e.g. Multivariable Calculus, Statistical
-Theory, Algorithms & Complexity) live under `academic/<course>`. For these:
-
-- Preserve **definitions, theorems, assumptions, notation, formulas, proof ideas,
-  and examples** faithfully, with all mathematics as LaTeX.
-- **Keep all Theorem/Lemma/Example/Remark codes** and put the code first, e.g.
-  "Theorem 2.1.1: {content}".
-- **Place section/subsection codes (e.g. Section 2.1, Subsection 2.1.1) as tags**,
-  in valid Obsidian tag format.
-
-## Non-academic branch
-
-Notes, references, and free-form knowledge live under `non-academic`. Keep them
-citation-aware and wikilinked, but they need not follow the academic page schema.
+These instructions are the **general default**. Any branch may carry its own
+purpose, schema, or per-operation prompts that replace this default for that
+branch — e.g. a proof-heavy course can require theorems, proof ideas, and LaTeX
+notation while the rest of the wiki stays general. Customize a branch from its hub
+in the web app.
 """
 
 SCHEMA_MD = """\
@@ -91,8 +82,8 @@ compiler at ingest and query time.
 
 - Obsidian-compatible Markdown.
 - Link to other concepts/sources with `[[slug]]` or `[[slug|Display Text]]`.
-- Write all mathematics as LaTeX: inline `$...$`, display `$$...$$`. Preserve the
-  notation used in the source.
+- Write any mathematics as LaTeX (inline `$...$`, display `$$...$$`) and code in
+  fenced blocks. Preserve the notation and wording used in the source.
 - Every page begins with YAML frontmatter.
 
 ## Concept pages (`wiki/concepts/<section>/<slug>.md`)
@@ -102,7 +93,7 @@ Frontmatter:
 ```yaml
 title: <human title>
 type: concept
-section: <section path>          # e.g. academic/multivariable-calculus
+section: <section path>          # e.g. non-academic/productivity
 tags: [<topic>, ...]
 aliases: [<alternate names>, ...]
 sources: [<source-slug>, ...]   # provenance — required, never empty
@@ -111,15 +102,12 @@ updated: <YYYY-MM-DD>
 
 Body — include only the sections that apply, in this order:
 
-- **Definition** — precise statement of what the concept is.
-- **Assumptions / Hypotheses** — conditions under which results hold.
-- **Statement** — theorem/lemma/proposition statements (verbatim-faithful).
-- **Notation** — symbols and their meaning.
-- **Key Formulas** — important equations in LaTeX.
-- **Proof idea / sketch** — the essential argument, not necessarily full rigor.
-- **Examples** — worked or illustrative examples.
+- **Summary** — what the concept is, in a sentence or two.
+- **Details** — the substance: key facts, explanation, context, and specifics.
+- **Key points** — notable specifics worth surfacing (bullets).
+- **Examples** — concrete examples or instances, when helpful.
 - **Related** — `[[wikilinks]]` to connected concepts, with a phrase on how they
-  relate (e.g. "generalizes [[gradient]]").
+  relate (e.g. "builds on [[spaced-repetition]]").
 - **Sources** — `[[source-slug]]` links the claims draw from.
 
 ## Source pages (`wiki/sources/<section>/<slug>.md`)
@@ -129,7 +117,7 @@ Frontmatter:
 ```yaml
 title: <human title>
 type: source
-section: <section path>          # e.g. academic/multivariable-calculus
+section: <section path>          # e.g. non-academic/productivity
 kind: <markdown|pdf|docx|pptx|image|web|text>
 path: <relative path under raw/ , or the URL>
 assets: [<relative path under raw/assets/>, ...]   # optional; image sources only

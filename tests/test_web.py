@@ -124,6 +124,49 @@ def test_search_section_scope(client):
     assert client.get("/api/search", params={"q": "chain rule", "section": "non-academic"}).json() == []
 
 
+def test_overrides_list_reports_status_and_general(client):
+    data = client.get("/api/overrides").json()
+    assert set(data["components"]) == {
+        "ingest_analysis", "ingest_generation", "answer", "lint", "purpose", "schema"
+    }
+    assert "knowledge base" in data["general"]["answer"]  # the general default text
+    by_section = {s["section"]: s for s in data["sections"]}
+    assert "academic/calc" in by_section
+    assert set(by_section["academic/calc"]["status"].values()) == {"general"}
+
+
+def test_overrides_set_get_and_reset(client):
+    r = client.post("/api/overrides", json={"sections": ["academic/calc"], "set": {"answer": "CUSTOM"}})
+    assert r.status_code == 200
+    assert r.json()["updated"][0]["status"]["answer"] == "override"
+
+    got = client.get("/api/overrides/academic/calc").json()
+    assert got["components"]["answer"]["override"] == "CUSTOM"
+    assert got["components"]["answer"]["effective"] == "CUSTOM"
+    assert got["components"]["lint"]["override"] is None  # untouched components inherit
+
+    r2 = client.post("/api/overrides", json={"sections": ["academic/calc"], "reset": ["answer"]})
+    assert r2.json()["updated"][0]["status"]["answer"] == "general"
+    assert client.get("/api/overrides/academic/calc").json()["components"]["answer"]["override"] is None
+
+
+def test_overrides_multi_section_apply(client):
+    # One edit fans out to several branches at once.
+    r = client.post("/api/overrides", json={"sections": ["academic", "academic/calc"], "set": {"purpose": "P"}})
+    assert r.status_code == 200
+    statuses = {u["section"]: u["status"]["purpose"] for u in r.json()["updated"]}
+    assert statuses == {"academic": "override", "academic/calc": "override"}
+
+
+def test_overrides_unknown_section_404_and_component_422(client):
+    assert client.post(
+        "/api/overrides", json={"sections": ["does/not/exist"], "set": {"answer": "x"}}
+    ).status_code == 404
+    assert client.post(
+        "/api/overrides", json={"sections": ["academic/calc"], "set": {"bogus": "x"}}
+    ).status_code == 422
+
+
 def test_home_returns_content(client):
     assert "content" in client.get("/api/home").json()
 

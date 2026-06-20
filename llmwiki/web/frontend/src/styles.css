@@ -1015,6 +1015,69 @@ select, .btn {
 .lint-page:hover { color: var(--accent-strong); text-decoration: underline; border-bottom: 0; }
 .lint-clean { font-family: var(--font-mono); font-size: .95rem; color: var(--ok); }
 
+/* Customize — per-branch LLM instruction overrides --------------------------- */
+.cust-targets {
+  margin: 0 0 var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.cust-targets-head {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em;
+  color: var(--muted); margin-bottom: 6px;
+}
+.cust-targets-hint { font-size: .9rem; margin: 0 0 var(--space-3); }
+.cust-target-list { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.cust-target {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--fg); cursor: pointer;
+}
+.cust-target-hint { color: var(--faint); font-size: 11px; }
+
+.cust-cards { display: flex; flex-direction: column; gap: var(--space-5); }
+.cust-card {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.cust-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+}
+.cust-card-title {
+  font-family: var(--font-mono); font-size: 14px; font-weight: 600;
+  letter-spacing: .01em; color: var(--fg);
+}
+.cust-card-help { margin: 4px 0 12px; color: var(--muted); font-size: .92rem; }
+.cust-badge {
+  flex: none;
+  font-family: var(--font-mono); font-weight: 600;
+  text-transform: uppercase; font-size: 10px; letter-spacing: .1em;
+  padding: 3px 9px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+}
+.cust-badge.override  { color: var(--accent-strong); border-color: var(--accent-soft); background: var(--accent-soft); }
+.cust-badge.inherited { color: var(--muted); }
+.cust-badge.baseline  { color: var(--ai); border-color: var(--ai-soft); background: var(--ai-soft); }
+.cust-editor {
+  width: 100%; box-sizing: border-box;
+  min-height: 160px; resize: vertical;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; tab-size: 2;
+}
+.cust-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.cust-card-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.cust-card-msg { font-family: var(--font-mono); font-size: 12px; }
+.cust-card-msg .cust-err { color: var(--err); }
+
 /* Toast — transient navigation feedback (missing/dangling targets) ----------- */
 #toast {
   position: fixed;
