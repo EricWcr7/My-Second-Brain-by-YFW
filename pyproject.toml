@@ -26,6 +26,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
+# Hybrid (keyword + vector) retrieval. Optional: without it, search degrades to
+# BM25-only and the faked test suite still runs. LanceDB pulls pyarrow + numpy.
+search = ["lancedb>=0.13", "pyarrow>=15", "numpy>=1.26"]
 
 [project.scripts]
 llmwiki = "llmwiki.cli:main"

@@ -1,4 +1,4 @@
-"""Command-line interface: init, ingest, query, lint, search."""
+"""Command-line interface: init, ingest, query, lint, search, reindex."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from pathlib import Path
 
 from . import __version__, keystore
 from .config import ConfigError, load_config
+from .embeddings import make_embedder
+from .indexing import reindex_all
 from .ingest import ingest
 from .lint import lint
 from .loaders import LoaderError
@@ -15,6 +17,7 @@ from .providers import ProviderError, get_provider
 from .query import answer
 from .scaffold import scaffold_vault
 from .search import search
+from .vectorindex import VectorIndexUnavailable
 from .wiki import append_log
 
 
@@ -124,12 +127,46 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def cmd_search(args: argparse.Namespace) -> int:
     config = load_config()
-    hits = search(config, args.query, top_k=args.top_k, section=args.section)
+    # An embedder enables hybrid (keyword + vector) ranking; if none is available
+    # (no key / search extra not installed), search falls back to BM25 keyword.
+    hits = search(
+        config,
+        args.query,
+        top_k=args.top_k,
+        section=args.section,
+        embedder=make_embedder(config),
+    )
     if not hits:
         print("No matches.")
         return 0
     for hit in hits:
         print(f"{hit.score:6.2f}  [[{hit.ref.slug}]]  {hit.ref.title}  ({hit.ref.section or 'General'})")
+    return 0
+
+
+def cmd_reindex(args: argparse.Namespace) -> int:
+    config = load_config()
+    embedder = make_embedder(config)
+    if embedder is None:
+        _err(
+            "embeddings unavailable: set your embeddings key "
+            f"({config.embed_api_key_env}) and install the search extra "
+            "(`pip install '.[search]'`)."
+        )
+        return 2
+    try:
+        result = reindex_all(config, embedder, force=args.force)
+    except VectorIndexUnavailable as e:
+        _err(str(e))
+        return 2
+    print(
+        f"reindexed {result.pages} page(s): {result.chunks} chunk(s) embedded, "
+        f"{result.skipped} unchanged"
+    )
+    append_log(
+        config, "reindex", "vector index",
+        detail=f"{result.pages} pages, {result.chunks} chunks embedded",
+    )
     return 0
 
 
@@ -212,11 +249,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_l.set_defaults(func=cmd_lint)
 
-    p_s = sub.add_parser("search", help="keyword search over concept pages (no LLM)")
+    p_s = sub.add_parser(
+        "search", help="hybrid keyword + vector search over concept pages"
+    )
     p_s.add_argument("query")
     p_s.add_argument("--section", help="restrict to a section and its subtree")
     p_s.add_argument("--top-k", type=int, default=10, dest="top_k")
     p_s.set_defaults(func=cmd_search)
+
+    p_re = sub.add_parser(
+        "reindex", help="rebuild the vector index from concept pages (needs '.[search]')"
+    )
+    p_re.add_argument(
+        "--force", action="store_true", help="re-embed even pages that are unchanged"
+    )
+    p_re.set_defaults(func=cmd_reindex)
 
     p_key = sub.add_parser(
         "set-key",

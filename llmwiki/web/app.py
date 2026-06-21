@@ -21,6 +21,8 @@ from starlette.types import Scope
 
 from .. import overrides
 from ..config import Config, load_config
+from ..embeddings import make_embedder
+from ..indexing import reindex_all
 from ..ingest import ingest
 from ..lint import lint
 from ..loaders import LoaderError, load_source
@@ -29,6 +31,7 @@ from ..providers import LLMProvider, ProviderError, get_provider
 from ..query import answer
 from ..search import search
 from ..store import ensure_dir, read_page
+from ..vectorindex import VectorIndexUnavailable, open_index
 from ..wiki import (
     PageRef,
     append_log,
@@ -36,6 +39,7 @@ from ..wiki import (
     normalize_section,
     read_optional,
     rebuild_index,
+    section_contains,
     section_dirs,
     section_slug,
     section_to_relpath,
@@ -189,11 +193,22 @@ def create_app(
         )
         if match is None:
             raise HTTPException(status_code=404, detail=f"Section '{section}' not found.")
+        # Capture the concept slugs about to disappear so their vectors can be
+        # purged (deletion cascade) after the files are gone.
+        doomed = {
+            r.slug
+            for r in iter_pages(config, "concept")
+            if section_contains(match, r.section)
+        }
         rel = section_to_relpath(match)
         for t in (config.concepts_dir / rel, config.source_pages_dir / rel):
             if t.exists():
                 shutil.rmtree(t)
         rebuild_index(config)  # drop the deleted pages from index.md / home overview
+        try:  # best-effort: the index may not exist / search extra not installed
+            open_index(config).delete_page_slugs(doomed)
+        except Exception:
+            pass
         append_log(config, "section", match, detail="deleted via web UI")
         return {"section": match}
 
@@ -289,7 +304,13 @@ def create_app(
         section: str | None = None,
         top_k: int | None = None,
     ) -> list[dict]:
-        hits = search(config, q, top_k=top_k or config.search_top_k, section=section)
+        hits = search(
+            config,
+            q,
+            top_k=top_k or config.search_top_k,
+            section=section,
+            embedder=make_embedder(config),
+        )
         return [
             {
                 "slug": h.ref.slug,
@@ -299,6 +320,34 @@ def create_app(
             }
             for h in hits
         ]
+
+    @app.post("/api/reindex")
+    def reindex_endpoint() -> dict:
+        """Rebuild the vector index from all concept pages (needs the search extra)."""
+        embedder = make_embedder(config)
+        if embedder is None:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Embeddings unavailable: set {config.embed_api_key_env} and "
+                    "install the search extra (`pip install '.[search]'`)."
+                ),
+            )
+        try:
+            result = reindex_all(config, embedder)
+        except VectorIndexUnavailable as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        except ProviderError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        append_log(
+            config, "reindex", "vector index",
+            detail=f"{result.pages} pages, {result.chunks} chunks embedded",
+        )
+        return {
+            "pages": result.pages,
+            "chunks": result.chunks,
+            "skipped": result.skipped,
+        }
 
     @app.post("/api/ingest")
     async def ingest_endpoint(

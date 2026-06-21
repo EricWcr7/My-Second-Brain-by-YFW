@@ -100,8 +100,9 @@ llmwiki init                         # scaffold a vault here
 llmwiki                              # launch the app → http://127.0.0.1:8000
 ```
 
-A key is needed for **Ask**, **Ingest**, and **deep Lint**; browsing, search, and
-structural lint work offline. Full details (key persistence, hardened install,
+A key is needed for **Ask**, **Ingest**, **deep Lint**, and **semantic search**;
+browsing, **keyword** search, and structural lint work offline (hybrid search falls
+back to keyword-only). Full details (key persistence, hardened install,
 provider switch) are in the [README](README.md#run-the-app).
 
 ---
@@ -159,10 +160,16 @@ The app **checks the citations**: if an answer references a page that doesn't ex
 in your wiki, it shows a caution note listing those pages — that claim isn't backed
 by a source, so treat it skeptically. Grounded answers cite only real pages.
 
-### W6 — Fast keyword search
-The search box does BM25-lite ranking over concept pages — instant and free (no
-key). Use it to locate pages before asking a full question, or when you don't need
-synthesis.
+### W6 — Hybrid search (keyword + meaning)
+The search box ranks concept pages by **hybrid retrieval**: BM25 keyword scoring
+fused with **semantic vector** similarity via Reciprocal Rank Fusion, so a query
+finds the right page even when it shares no words with it (e.g. "rate of change of a
+multivariable function" → the *gradient* page). Use it to locate pages before asking
+a full question, or when you don't need synthesis. Semantic ranking needs the
+`[search]` extra and an embeddings key; without them the box falls back to instant,
+free BM25 keyword ranking. New pages are embedded automatically on ingest — run
+`llmwiki reindex` to rebuild the vector index from scratch (e.g. after installing
+`[search]` later, or changing `embed_model`).
 
 ### W7 — Health-check and grow the wiki
 The **Lint** view runs structural checks (missing `sources:` provenance, unresolved
@@ -199,11 +206,19 @@ provider = "anthropic"              # or "openai" (default)
 default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+hybrid_search = true                # fuse keyword + vector (false = keyword only)
+embed_model = "text-embedding-3-small"  # embedding model used for every section
+# embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
 request_timeout = 60.0              # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in
-the config. See [README → Configuration](README.md#configuration) for model overrides.
+the config. **Semantic search is independent of the chat `provider`** — embeddings
+always use an OpenAI-compatible endpoint, so it works on the Anthropic backend too;
+install it with `pip install ".[search]"`. After changing `embed_model`, run
+`llmwiki reindex` to rebuild the vector index. See
+[README → Configuration](README.md#configuration) for the full key list and model
+overrides.
 
 ### W12 — Customize a branch's LLM instructions
 Every section hub has a **Customize** view (also reachable at `#/customize/<section>`).
