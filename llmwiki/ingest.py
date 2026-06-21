@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 
 from . import overrides
 from .config import Config
+from .embeddings import make_embedder
+from .indexing import index_pages
 from .loaders import LoadResult, is_url, load_source
 from .loaders.registry import IMAGE_EXTS
 from .providers.base import LLMProvider
@@ -35,6 +37,7 @@ from .wiki import (
     append_log,
     concept_path,
     iter_pages,
+    normalize_section,
     rebuild_index,
     slugify,
     source_path,
@@ -318,6 +321,22 @@ def ingest(
     )
     append_log(config, "ingest", loaded.title, detail=detail)
     rebuild_index(config)
+
+    # Vector indexing is a best-effort post-step: embed the touched concept pages
+    # so semantic search sees them. It never blocks ingest — a missing search
+    # extra or embeddings key just leaves the wiki keyword-searchable.
+    embedder = make_embedder(config)
+    if embedder is not None and touched:
+        norm = normalize_section(section)
+        try:
+            refs = [
+                r
+                for r in iter_pages(config, "concept")
+                if r.slug in set(touched) and r.section == norm
+            ]
+            index_pages(config, embedder, refs)
+        except Exception as e:  # pragma: no cover - resilience path
+            warnings.append(f"vector indexing skipped: {e}")
 
     set_source_record(
         state,

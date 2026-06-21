@@ -7,6 +7,7 @@ from pathlib import Path
 
 from . import overrides
 from .config import Config
+from .embeddings import make_embedder
 from .providers.base import LLMProvider
 from .search import search
 from .store import read_page, write_page
@@ -51,7 +52,14 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _build_context(config: Config, question: str, section: str | None, top_k: int):
-    hits = search(config, question, page_type="concept", top_k=top_k, section=section)
+    hits = search(
+        config,
+        question,
+        page_type="concept",
+        top_k=top_k,
+        section=section,
+        embedder=make_embedder(config),
+    )
     blocks: list[str] = []
     used: list[str] = []
     total = 0

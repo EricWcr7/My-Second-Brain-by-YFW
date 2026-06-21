@@ -1,18 +1,29 @@
-"""Keyword search over the wiki (BM25-lite, no embeddings).
+"""Hybrid search over the wiki: BM25 keyword ⊕ vector, fused with RRF.
 
-The corpus is small (hundreds of pages at most), so the index is built in memory
-on each call. Titles are weighted above body text.
+The keyword index is BM25-lite, built in memory on each call (the corpus is small —
+hundreds of pages at most), with titles weighted above body text. When an
+:class:`~llmwiki.embeddings.Embedder` is supplied *and* a vector index exists, the
+keyword ranking is fused with a semantic ranking via **Reciprocal Rank Fusion**.
+Without an embedder — or if the vector index is unavailable — search degrades
+transparently to pure BM25, so key-less and faked runs behave exactly as before.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .config import Config
 from .store import read_page
 from .wiki import PageRef, iter_pages, section_contains
+
+if TYPE_CHECKING:
+    from .embeddings import Embedder
+
+logger = logging.getLogger("llmwiki.search")
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = {
@@ -48,19 +59,10 @@ def _build_docs(config: Config, page_type: str, section: str | None) -> list[tup
     return docs
 
 
-def search(
-    config: Config,
-    query: str,
-    *,
-    page_type: str = "concept",
-    top_k: int | None = None,
-    section: str | None = None,
+def _bm25_hits(
+    config: Config, query: str, page_type: str, section: str | None
 ) -> list[SearchHit]:
-    """Rank pages of ``page_type`` against ``query`` with BM25.
-
-    ``section`` scopes the corpus to that section's subtree (see
-    ``wiki.section_contains``); ``None`` searches the whole knowledge base.
-    """
+    """Full BM25 ranking (no top_k) of ``page_type`` pages against ``query``."""
     docs = _build_docs(config, page_type, section)
     if not docs:
         return []
@@ -92,6 +94,89 @@ def search(
             hits.append(SearchHit(ref=ref, score=score))
 
     hits.sort(key=lambda h: h.score, reverse=True)
-    if top_k is not None:
-        hits = hits[:top_k]
     return hits
+
+
+def _rrf(ranked_slug_lists: list[list[str]], k: int) -> dict[str, float]:
+    """Reciprocal Rank Fusion: a slug's score is Σ 1/(k + rank) across lists."""
+    scores: dict[str, float] = {}
+    for slugs in ranked_slug_lists:
+        for rank, slug in enumerate(slugs):
+            scores[slug] = scores.get(slug, 0.0) + 1.0 / (k + rank + 1)
+    return scores
+
+
+def _vector_page_list(
+    config: Config, query: str, scope: str, embedder: "Embedder"
+) -> list[str]:
+    """Ranked page slugs from semantic search, scope-filtered and aggregated.
+
+    Chunk hits are filtered with ``section_contains`` and collapsed to pages (a
+    page's rank = its best-ranked chunk).
+    """
+    from .vectorindex import open_index
+
+    index = open_index(config)
+    qvec = embedder.embed([query], model=config.embed_model)[0]
+    order: list[str] = []
+    seen: set[str] = set()
+    for row in index.search(config.embed_model, qvec, config.vector_top_n):
+        if not section_contains(scope, row["section"]):
+            continue
+        slug = row["page_slug"]
+        if slug not in seen:
+            seen.add(slug)
+            order.append(slug)
+    return order
+
+
+def _hybrid_hits(
+    config: Config,
+    query: str,
+    section: str | None,
+    bm25_hits: list[SearchHit],
+    embedder: "Embedder",
+) -> list[SearchHit]:
+    scope = section or ""
+    vector_list = _vector_page_list(config, query, scope, embedder)
+    if not vector_list:
+        return bm25_hits  # nothing indexed yet → keyword only
+
+    scores = _rrf([[h.ref.slug for h in bm25_hits], vector_list], config.rrf_k)
+    # Resolve fused slugs back to concept pages in scope; drop any whose file is
+    # gone (self-healing against stale chunks left by a deleted page).
+    refs = {
+        r.slug: r
+        for r in iter_pages(config, "concept")
+        if section_contains(scope, r.section)
+    }
+    hits = [SearchHit(ref=refs[s], score=sc) for s, sc in scores.items() if s in refs]
+    hits.sort(key=lambda h: h.score, reverse=True)
+    return hits
+
+
+def search(
+    config: Config,
+    query: str,
+    *,
+    page_type: str = "concept",
+    top_k: int | None = None,
+    section: str | None = None,
+    embedder: "Embedder | None" = None,
+) -> list[SearchHit]:
+    """Rank pages of ``page_type`` against ``query``.
+
+    ``section`` scopes the corpus to that section's subtree (see
+    ``wiki.section_contains``); ``None`` searches the whole knowledge base. With an
+    ``embedder`` and a populated vector index, BM25 is fused with semantic search
+    via RRF (concept pages only); otherwise this is pure BM25.
+    """
+    bm25_hits = _bm25_hits(config, query, page_type, section)
+    hits = bm25_hits
+    if embedder is not None and page_type == "concept":
+        try:
+            hits = _hybrid_hits(config, query, section, bm25_hits, embedder)
+        except Exception:  # vector path is best-effort; never break search
+            logger.debug("vector search unavailable; using BM25 only", exc_info=True)
+            hits = bm25_hits
+    return hits[:top_k] if top_k is not None else hits

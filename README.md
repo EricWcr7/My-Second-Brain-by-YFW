@@ -10,8 +10,9 @@ search, and ask questions of, **all in your browser, all on your machine**.
 - **Hierarchical scope** — General → Academic / Non-academic → courses; every
   scope runs the same operations over its slice (see [Hierarchy & scope](#hierarchy--scope)).
 - **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$` / `$$…$$` math.
-- **Local-first** — no cloud, single-user, your files stay on disk. Keyword search
-  + an LLM compiler (OpenAI by default; Anthropic/Claude is a one-line config switch).
+- **Local-first** — no cloud, single-user, your files stay on disk. **Hybrid
+  search** (BM25 keyword ⊕ on-disk semantic vectors) + an LLM compiler (OpenAI by
+  default; Anthropic/Claude is a one-line config switch).
 
 > 📖 **New here? Start with the [User Manual](USER_MANUAL.md)** — task-based
 > walkthroughs of every workflow in the app (ingesting each source type, asking,
@@ -51,8 +52,10 @@ bind a different address or skip auto-opening: `llmwiki serve --port 8080 --host
   over the stored file. `llmwiki set-key --show` lists stored keys (masked). Get or
   rotate keys at platform.openai.com → API keys, or console.anthropic.com →
   Settings → API Keys.
-- A key is only needed for **Ask**, **Ingest**, and **deep Lint**. Browsing,
-  keyword search, and structural lint work offline.
+- A key is only needed for **Ask**, **Ingest**, **deep Lint**, and **semantic
+  search**. Browsing, **keyword** search, and structural lint work offline —
+  hybrid search simply falls back to BM25 keyword ranking when no embeddings key
+  (or the `[search]` extra) is present.
 
 </details>
 
@@ -80,7 +83,9 @@ sidebar collapses into a **☰ menu** in the top bar.
   pages used. You can attach files as **one-off context** for a single answer;
   attachments are never written to the wiki. If an answer cites a page that isn't in
   your wiki, the app flags it so you can distrust that claim (provenance you can see).
-- **Search** — instant keyword ranking over concept pages (no key needed).
+- **Search** — **hybrid** ranking over concept pages: BM25 keyword fused with
+  semantic vector search (Reciprocal Rank Fusion), so a query finds the right page
+  even with no shared words. Falls back to instant keyword-only ranking offline.
 - **Lint** — structural checks, plus an optional **deep** LLM review that flags
   contradictions and suggests what to read next.
 - **Courses & sections** — from a section hub, **+ New course** scaffolds a branch
@@ -129,10 +134,14 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
    which concepts it teaches and a *generation* pass writes/merges the concept
    pages and the source page. `index.md` is regenerated and `log.md` appended,
    deterministically.
-2. **Ask** — keyword search retrieves candidate pages, a token-budgeted context is
-   assembled, and the model answers with citations to wiki pages (which point back
-   to sources, which point back to your raw files).
+2. **Ask** — hybrid (keyword ⊕ vector) search retrieves candidate pages, a
+   token-budgeted context is assembled, and the model answers with citations to wiki
+   pages (which point back to sources, which point back to your raw files).
 3. **Lint** — structural checks plus an optional model review.
+
+Ingesting a source also **embeds** the new pages into the on-disk vector index;
+`llmwiki reindex` rebuilds it from scratch (e.g. after installing the `[search]`
+extra or changing `embed_model`).
 
 Each operation's system prompt is the packaged **general default** plus the
 wiki's `purpose.md` / `schema.md` — unless the section being operated on has its
@@ -149,7 +158,7 @@ page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 | ---- | ---- |
 | `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
 | `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
-| `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
+| `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache + `lancedb/` vector index (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
 | `llmwiki/` | The Python package (the app itself). |
 
 ## Supported sources
@@ -169,10 +178,24 @@ provider = "openai"                 # "openai" (default) or "anthropic"
 default_section = "non-academic"    # default scope when none is given
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+hybrid_search = true                # fuse keyword + vector search (off = BM25 only)
+embed_model = "text-embedding-3-small"  # embedding model used for every section
+# embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
+# embed_api_key_env = "OPENAI_API_KEY"          # env var the embeddings key is read from
+vector_top_n = 40                   # chunk candidates pulled before fusion
+rrf_k = 60                          # Reciprocal Rank Fusion constant
+chunk_max_chars = 1500              # split a page section longer than this
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
 request_timeout = 60.0              # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures
 ```
+
+Semantic search needs the **`[search]`** extra (`pip install ".[web,search]"`,
+which adds LanceDB) and an embeddings key. Embeddings are **decoupled from the chat
+provider** — they always go through an OpenAI-compatible `/v1/embeddings` endpoint,
+so semantic search works even on the Anthropic chat backend, or against a local
+endpoint via `embed_base_url`. After changing `embed_model`, run `llmwiki reindex`
+to rebuild the vector index.
 
 Both OpenAI and Anthropic support every operation. Leave the models unset to use
 the defaults — OpenAI `gpt-5.5` (a reasoning model run at `high` reasoning effort);

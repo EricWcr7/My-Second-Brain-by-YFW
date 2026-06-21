@@ -36,6 +36,21 @@ class Config:
     # Retrieval / context budgets.
     search_top_k: int = 8
     context_token_budget: int = 60_000
+    # Hybrid (keyword + vector) retrieval. Embeddings are decoupled from the chat
+    # `provider`: they go through an OpenAI-compatible endpoint so semantic search
+    # works regardless of which chat backend is configured. `embed_base_url=None`
+    # uses the OpenAI default; the key comes from `embed_api_key_env` (env only).
+    # `embed_model` is the single embedding model used for every section.
+    hybrid_search: bool = True
+    embed_base_url: str | None = None
+    embed_api_key_env: str = "OPENAI_API_KEY"
+    embed_model: str = "text-embedding-3-small"
+    # How many chunk candidates the vector pass pulls before fusion, and the RRF
+    # constant used to fuse the keyword and vector rankings.
+    vector_top_n: int = 40
+    rrf_k: int = 60
+    # Max characters per chunk before a heading-section is sub-split (chunking.py).
+    chunk_max_chars: int = 1500
     # If PyMuPDF text extraction yields fewer chars per page than this, the PDF
     # is treated as scanned/image-heavy and transcribed with a vision model.
     pdf_vision_min_chars_per_page: int = 100
@@ -86,6 +101,12 @@ class Config:
         return self.state_dir / "state.json"
 
     @property
+    def lancedb_dir(self) -> Path:
+        # On-disk vector index (one LanceDB table per embedding model). Lives
+        # under .llmwiki/ so it stays filesystem-first and is easy to gitignore.
+        return self.state_dir / "lancedb"
+
+    @property
     def config_file(self) -> Path:
         return self.state_dir / "config.toml"
 
@@ -130,6 +151,13 @@ _SETTING_KEYS = (
     "default_section",
     "search_top_k",
     "context_token_budget",
+    "hybrid_search",
+    "embed_base_url",
+    "embed_api_key_env",
+    "embed_model",
+    "vector_top_n",
+    "rrf_k",
+    "chunk_max_chars",
     "pdf_vision_min_chars_per_page",
     "request_timeout",
     "max_retries",

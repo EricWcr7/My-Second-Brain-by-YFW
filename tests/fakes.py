@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import re
 from pathlib import Path
 
 from llmwiki.ingest import (
@@ -55,3 +57,37 @@ class FakeProvider(LLMProvider):
 
     def count_tokens(self, system, user, *, model=None) -> int:
         return max(1, len(user) // 4)
+
+
+class FakeEmbedder:
+    """Deterministic bag-of-words embedder for tests (no network, no key).
+
+    Each text becomes an L2-normalized count vector over a small fixed vocabulary
+    (prefix-matched, so ``derivatives`` hits ``derivative``), plus a constant
+    baseline dimension so a vector is never all-zero. Texts sharing vocabulary get
+    high cosine similarity, which is enough to assert hybrid ranking deterministically.
+    """
+
+    DEFAULT_VOCAB = (
+        "gradient", "vector", "derivative", "partial", "curl", "divergence",
+        "flux", "sunset", "sky", "color", "limit", "continuity",
+    )
+
+    def __init__(self, vocab: tuple[str, ...] = DEFAULT_VOCAB):
+        self.vocab = list(vocab)
+        self.calls: list[tuple[str, int]] = []
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    def embed(self, texts: list[str], *, model: str) -> list[list[float]]:
+        self.calls.append((model, len(texts)))
+        return [self._vec(t) for t in texts]
+
+    def _vec(self, text: str) -> list[float]:
+        words = re.findall(r"[a-z]+", text.lower())
+        counts = [float(sum(w.startswith(v) for w in words)) for v in self.vocab]
+        counts.append(0.1)  # baseline keeps the vector non-zero for cosine
+        norm = math.sqrt(sum(x * x for x in counts)) or 1.0
+        return [x / norm for x in counts]
