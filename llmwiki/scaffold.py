@@ -28,7 +28,9 @@ context_token_budget = 60000
 pdf_vision_min_chars_per_page = 100
 # Provider call resilience: seconds before a request times out, and how many
 # times the SDK retries transient failures (rate limits, dropped connections).
-request_timeout = 60.0
+# Generous by default — ingesting a large source runs a reasoning model that can
+# take minutes.
+request_timeout = 300.0
 max_retries = 2
 """
 

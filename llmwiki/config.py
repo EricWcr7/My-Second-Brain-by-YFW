@@ -51,12 +51,20 @@ class Config:
     rrf_k: int = 60
     # Max characters per chunk before a heading-section is sub-split (chunking.py).
     chunk_max_chars: int = 1500
+    # Compile a source larger than this (estimated tokens) in segments instead of
+    # one model pass, so a very large file (e.g. a 1000-page PDF) stays within the
+    # context window and the request timeout. Each segment runs the analysis +
+    # generation passes and merges into the section's shared concept pages.
+    ingest_segment_max_tokens: int = 60_000
     # If PyMuPDF text extraction yields fewer chars per page than this, the PDF
     # is treated as scanned/image-heavy and transcribed with a vision model.
     pdf_vision_min_chars_per_page: int = 100
     # Per-request resilience for provider calls: how long to wait before a call
     # times out (seconds) and how many times the SDK retries transient failures.
-    request_timeout: float = 60.0
+    # The default is generous because ingesting a large source runs a reasoning
+    # model that can take minutes — too low a timeout aborts an otherwise healthy
+    # call (seen as ``APITimeoutError`` mid-ingest).
+    request_timeout: float = 300.0
     max_retries: int = 2
     extra: dict = field(default_factory=dict)
 
@@ -158,6 +166,7 @@ _SETTING_KEYS = (
     "vector_top_n",
     "rrf_k",
     "chunk_max_chars",
+    "ingest_segment_max_tokens",
     "pdf_vision_min_chars_per_page",
     "request_timeout",
     "max_retries",

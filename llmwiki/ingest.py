@@ -10,12 +10,13 @@ from __future__ import annotations
 import datetime as _dt
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from . import overrides
+from .chunking import segment_markdown
 from .config import Config
 from .embeddings import make_embedder
 from .indexing import index_pages
@@ -45,6 +46,9 @@ from .wiki import (
 )
 
 LARGE_TOKEN_WARN = 200_000
+# Rough bytes-per-token used to turn the token budget into a character budget for
+# the deterministic source split (avoids a provider token-count per segment).
+_CHARS_PER_TOKEN = 4
 
 
 # --- structured outputs ------------------------------------------------------
@@ -230,6 +234,34 @@ def _write_concept_page(
     return slugify(draft.title)
 
 
+def _merge_source_drafts(drafts: list[SourcePageDraft]) -> SourcePageDraft:
+    """Fold per-segment source-page drafts into one page for the whole source.
+
+    A segmented ingest produces one draft per segment; the source has a single
+    provenance page, so concatenate the part summaries and union the grounded
+    concepts (deduped by slug, order preserved).
+    """
+    if len(drafts) == 1:
+        return drafts[0]
+    summaries = [d.summary.strip() for d in drafts if d.summary.strip()]
+    if len(summaries) > 1:
+        summary = (
+            f"This source was large and compiled in {len(drafts)} parts.\n\n"
+            + "\n\n".join(f"**Part {i}.** {s}" for i, s in enumerate(summaries, 1))
+        )
+    else:
+        summary = summaries[0] if summaries else ""
+    seen: set[str] = set()
+    grounds: list[str] = []
+    for draft in drafts:
+        for title in draft.grounds:
+            slug = slugify(title)
+            if slug and slug not in seen:
+                seen.add(slug)
+                grounds.append(title)
+    return SourcePageDraft(summary=summary, grounds=grounds)
+
+
 # --- entry point -------------------------------------------------------------
 
 
@@ -281,44 +313,72 @@ def ingest(
     except Exception:  # count_tokens is best-effort
         pass
 
-    existing_titles = [r.title for r in iter_pages(config, "concept") if r.section == section]
-
-    analysis = provider.parse(
-        _system("ingest_analysis.md", config, section),
-        _analysis_user(section, loaded, existing_titles),
-        SourceAnalysis,
+    segments = segment_markdown(
+        loaded.markdown, max_chars=config.ingest_segment_max_tokens * _CHARS_PER_TOKEN
     )
+    if len(segments) > 1:
+        warnings.append(
+            f"Large source compiled in {len(segments)} segments to stay within the "
+            "model's context window."
+        )
 
-    existing_pages: list[tuple[str, str, str]] = []
-    for title in analysis.concept_titles:
-        page = read_page(concept_path(config, section, title))
-        if page:
-            existing_pages.append((slugify(title), title, page.content))
-
-    index_titles = [
-        f"{r.slug} :: {r.title}" for r in iter_pages(config, "concept") if r.section == section
-    ]
-
-    gen = provider.parse(
-        _system("ingest_generation.md", config, section),
-        _generation_user(
-            section, source_slug, loaded, analysis, existing_pages, index_titles
-        ),
-        GenerationResult,
-    )
-
-    _write_source_page(config, section, source_slug, loaded, raw_ref, gen.source_page)
-
+    # Compile each segment with the same two passes, accumulating into the
+    # section's shared concept pages. ``existing_titles``/``existing_pages`` are
+    # read live from disk, so a later segment merges into pages earlier ones wrote
+    # — one source, one provenance record, concepts folded together.
     touched: list[str] = []
-    for draft in gen.concept_pages:
-        touched.append(_write_concept_page(config, section, source_slug, draft))
+    source_drafts: list[SourcePageDraft] = []
+    overview: str | None = None
+    log_entry = ""
+    for segment in segments:
+        seg_loaded = replace(loaded, markdown=segment)
+        existing_titles = [
+            r.title for r in iter_pages(config, "concept") if r.section == section
+        ]
+        analysis = provider.parse(
+            _system("ingest_analysis.md", config, section),
+            _analysis_user(section, seg_loaded, existing_titles),
+            SourceAnalysis,
+        )
+        existing_pages: list[tuple[str, str, str]] = []
+        for title in analysis.concept_titles:
+            page = read_page(concept_path(config, section, title))
+            if page:
+                existing_pages.append((slugify(title), title, page.content))
+        index_titles = [
+            f"{r.slug} :: {r.title}"
+            for r in iter_pages(config, "concept")
+            if r.section == section
+        ]
+        gen = provider.parse(
+            _system("ingest_generation.md", config, section),
+            _generation_user(
+                section, source_slug, seg_loaded, analysis, existing_pages, index_titles
+            ),
+            GenerationResult,
+        )
+        for draft in gen.concept_pages:
+            slug = _write_concept_page(config, section, source_slug, draft)
+            if slug not in touched:
+                touched.append(slug)
+        source_drafts.append(gen.source_page)
+        if gen.overview and gen.overview.strip():
+            overview = gen.overview
+        if gen.log_entry.strip():
+            log_entry = gen.log_entry.strip()
 
-    if gen.overview and gen.overview.strip():
-        config.overview_file.write_text(gen.overview.strip() + "\n", "utf-8")
+    _write_source_page(
+        config, section, source_slug, loaded, raw_ref, _merge_source_drafts(source_drafts)
+    )
 
-    detail = gen.log_entry.strip() or (
+    if overview and overview.strip():
+        config.overview_file.write_text(overview.strip() + "\n", "utf-8")
+
+    detail = log_entry or (
         f"concepts: {', '.join(touched) or 'none'} (section: {section or 'General'})"
     )
+    if len(segments) > 1:
+        detail += f" [{len(segments)} segments]"
     append_log(config, "ingest", loaded.title, detail=detail)
     rebuild_index(config)
 

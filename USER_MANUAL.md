@@ -150,6 +150,15 @@ The Ingest panel accepts a **URL** or one-or-more **uploaded files**:
 Each source lands in your current scope. Multiple files are processed one at a time
 with a ✓/✗ per file.
 
+**Very large files** (e.g. a several-hundred- or 1000-page PDF) are compiled in
+**segments** automatically: the source is split on page/heading boundaries into
+windows of about `ingest_segment_max_tokens`, each window runs the analysis +
+generation passes, and the results **merge into the same section's pages**. You
+still upload one file and get one source page and one provenance record — no need
+to split the PDF yourself. It just takes proportionally longer (each segment is a
+model pass). *Scanned* PDFs that big are still limited by single-call vision
+transcription — split those by hand for now.
+
 ### W5 — Ask questions and let answers compound
 Use the **Ask** panel; answers come only from the wiki, with citations to the pages
 used. Attach files to give the model **one-off context** for a single answer — those
@@ -180,9 +189,12 @@ Suggestions only — the app doesn't browse the web itself.
 
 ### W8 — Manage courses and sections
 From any section hub: **+ New course / + New section** scaffolds a branch; the **🗑**
-on a card deletes one (removes its `concepts/` and `sources/` directories after a
-confirmation). The seeded `academic` / `non-academic` branches are protected. Names
-keep their casing and non-Latin characters (`example-course`, `线性代数`).
+on a card deletes one after a confirmation — a *full* wipe that removes its
+`concepts/` and `sources/` pages **and** everything filed under it (the ingest
+ledger records, their cached/raw source files, and any per-section
+customizations), so re-ingesting the same source later starts clean instead of
+being skipped as unchanged. The seeded `academic` / `non-academic` branches are
+protected. Names keep their casing and non-Latin characters (`example-course`, `线性代数`).
 
 ### W9 — Read and navigate in Obsidian
 Open the `wiki/` folder as an Obsidian vault for: the **graph view** (hubs,
@@ -206,10 +218,11 @@ provider = "anthropic"              # or "openai" (default)
 default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+ingest_segment_max_tokens = 60000   # compile a larger source in segments (W4)
 hybrid_search = true                # fuse keyword + vector (false = keyword only)
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
-request_timeout = 60.0              # seconds before a provider call times out
+request_timeout = 300.0             # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in

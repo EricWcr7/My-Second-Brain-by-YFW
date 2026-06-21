@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+import shutil
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
 from .config import Config
-from .store import Page, ensure_dir, read_page
+from .store import Page, ensure_dir, load_state, read_page, save_state
+from .vectorindex import VectorIndexUnavailable, open_index
 
 WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
@@ -223,6 +225,89 @@ def rebuild_index(config: Config) -> None:
 
     ensure_dir(config.wiki_dir)
     config.index_file.write_text("\n".join(lines).rstrip() + "\n", "utf-8")
+
+
+def _section_owns(scope: str, candidate: str) -> bool:
+    """True if ``candidate`` is ``scope`` or a section nested under it.
+
+    Case-insensitive (course casing drifts between deletes/recreates) and, unlike
+    :func:`section_contains`, an empty ``scope`` owns *nothing* — purging the
+    General root must never sweep every record.
+    """
+    s = normalize_section(scope).lower()
+    c = normalize_section(candidate).lower()
+    return bool(s) and (c == s or c.startswith(s + "/"))
+
+
+def purge_section(config: Config, section: str) -> list[str]:
+    """Tear a section down *completely*; return the ledger keys removed.
+
+    Deleting a section must leave nothing behind. Removing only the page
+    directories (the old behavior) stranded three kinds of artifact, so a later
+    re-ingest of the same file was silently skipped as "unchanged" and orphans
+    piled up:
+
+    1. the ``state.json`` ledger record for each source filed there — dropped
+       here along with the bytes it owns: the ``normalized/<checksum>.md`` cache
+       and the ``raw/`` file;
+    2. the concept/source page subtrees;
+    3. the per-section override files under ``.llmwiki/sections/``;
+    4. the deleted concepts' chunks in the vector index (so semantic search can't
+       still surface a page that no longer exists).
+
+    The match covers descendant sections, so deleting a branch clears every
+    course beneath it. Assets attached to image sources are not ledger-tracked
+    and are out of scope. Index/log writes stay with the pipeline: this refreshes
+    ``index.md``; callers append their own ``log.md`` entry.
+    """
+    rel = section_to_relpath(section)
+    # Capture the concept slugs before the pages are gone, so their vectors can be
+    # dropped from the index afterwards.
+    doomed_slugs = {
+        ref.slug
+        for ref in iter_pages(config, "concept")
+        if _section_owns(section, ref.section)
+    }
+
+    state = load_state(config)
+    sources = state.get("sources", {})
+    removed = [
+        key
+        for key, rec in sources.items()
+        if _section_owns(section, str(rec.get("section", "")))
+    ]
+    for key in removed:
+        rec = sources.pop(key)
+        checksum = rec.get("checksum")
+        if checksum:
+            (config.normalized_dir / f"{checksum}.md").unlink(missing_ok=True)
+        raw_ref = rec.get("raw_ref")
+        if raw_ref:
+            (config.root / raw_ref).unlink(missing_ok=True)
+    if removed:
+        save_state(config, state)
+
+    for base in (
+        config.concepts_dir,
+        config.source_pages_dir,
+        config.section_overrides_dir,
+    ):
+        target = base / rel
+        if target.exists():
+            shutil.rmtree(target)
+
+    rebuild_index(config)  # drop the deleted pages from index.md
+
+    if doomed_slugs:
+        # Best-effort: a missing search extra / index just means nothing to drop.
+        try:
+            open_index(config).delete_page_slugs(doomed_slugs)
+        except VectorIndexUnavailable:
+            pass
+        except Exception:  # pragma: no cover - resilience path; never block a delete
+            pass
+
+    return removed
 
 
 def read_optional(path: Path) -> str:
