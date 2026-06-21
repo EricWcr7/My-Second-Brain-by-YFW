@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from ..config import Config
@@ -24,6 +26,58 @@ def _extract_text(path: Path) -> tuple[str, int]:
     return "\n\n".join(parts), page_count
 
 
+def _transcribe_by_pages(
+    path: Path, provider: LLMProvider, batch_pages: int, max_concurrency: int
+) -> str:
+    """Vision-transcribe a scanned/image PDF in page-range batches.
+
+    A single vision call over a very large PDF blows the model's context window
+    and is capped at the provider's output-token limit (silently truncating the
+    transcription). Splitting the PDF into ``batch_pages``-page sub-PDFs keeps each
+    call bounded; a ``<!-- page N -->`` marker per batch (matching the text path)
+    gives the downstream segmented-ingest split deterministic boundaries. A PDF
+    that fits in one batch is a single call — the original behavior.
+
+    The batches are independent and the time is network wait, so up to
+    ``max_concurrency`` of them are transcribed at once (bounded to stay under the
+    provider's rate limits). Results are reassembled in page order regardless of
+    completion order. (Concurrent calls race on the provider's ``last_usage``
+    snapshot — that's observability only; per-call usage is still logged.)
+    """
+    import fitz  # PyMuPDF; presence already ensured by _extract_text
+
+    batch_pages = max(batch_pages, 1)
+    with fitz.open(path) as src, tempfile.TemporaryDirectory() as tmpdir:
+        # Slice into per-batch sub-PDFs up front (fitz work is serial and cheap);
+        # the slow per-batch vision calls are overlapped below.
+        batches: list[tuple[int, Path]] = []
+        for start in range(0, src.page_count, batch_pages):
+            end = min(start + batch_pages, src.page_count) - 1
+            batch_path = Path(tmpdir) / f"batch-{start}.pdf"
+            with fitz.open() as out:
+                out.insert_pdf(src, from_page=start, to_page=end)
+                out.save(batch_path)
+            batches.append((start, batch_path))
+
+        def _transcribe(item: tuple[int, Path]) -> tuple[int, str]:
+            start, batch_path = item
+            return start, provider.transcribe_pdf(batch_path).strip()
+
+        workers = max(1, min(max_concurrency, len(batches)))
+        if workers == 1:
+            results = [_transcribe(b) for b in batches]
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                results = list(pool.map(_transcribe, batches))
+
+    parts = [
+        f"<!-- page {start + 1} -->\n{text}" for start, text in sorted(results) if text
+    ]  # skip blank batches; a wholly empty PDF raises below
+    if not parts:
+        raise LoaderError(f"Vision transcription produced no text for {path}.")
+    return "\n\n".join(parts)
+
+
 def load(
     path: Path,
     *,
@@ -35,9 +89,12 @@ def load(
     threshold = config.pdf_vision_min_chars_per_page * max(page_count, 1)
     use_vision = force_vision or len(text) < threshold
     if use_vision:
-        markdown = provider.transcribe_pdf(path)
-        if not markdown.strip():
-            raise LoaderError(f"Vision transcription produced no text for {path}.")
+        markdown = _transcribe_by_pages(
+            path,
+            provider,
+            config.pdf_vision_batch_pages,
+            config.pdf_vision_max_concurrency,
+        )
     else:
         markdown = text
     return LoadResult(markdown=markdown, kind="pdf", title=path.stem)

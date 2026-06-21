@@ -59,6 +59,16 @@ class Config:
     # If PyMuPDF text extraction yields fewer chars per page than this, the PDF
     # is treated as scanned/image-heavy and transcribed with a vision model.
     pdf_vision_min_chars_per_page: int = 100
+    # A scanned/image PDF is vision-transcribed in batches of this many pages per
+    # call, so a very large scanned PDF doesn't blow the context window or get
+    # truncated at the output-token cap. Each batch carries a page marker so the
+    # segmented-ingest path can split it like a text PDF. Raise for sparse pages,
+    # lower for dense ones.
+    pdf_vision_batch_pages: int = 10
+    # How many page-batch vision calls to run at once when transcribing a scanned
+    # PDF. The batches are independent network calls, so overlapping them cuts
+    # wall-clock time on big scans; kept low to stay under provider rate limits.
+    pdf_vision_max_concurrency: int = 4
     # Per-request resilience for provider calls: how long to wait before a call
     # times out (seconds) and how many times the SDK retries transient failures.
     # The default is generous because ingesting a large source runs a reasoning
@@ -168,6 +178,8 @@ _SETTING_KEYS = (
     "chunk_max_chars",
     "ingest_segment_max_tokens",
     "pdf_vision_min_chars_per_page",
+    "pdf_vision_batch_pages",
+    "pdf_vision_max_concurrency",
     "request_timeout",
     "max_retries",
 )

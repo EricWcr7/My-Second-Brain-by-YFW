@@ -140,8 +140,10 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
    journaled to `log.md`. A source larger than `ingest_segment_max_tokens` is
    compiled in segments that each merge into the same pages, so very large files
    (e.g. a 1000-page PDF) stay within the model's context window — still one
-   source, one provenance record. `index.md` is regenerated and `log.md` appended,
-   deterministically.
+   source, one provenance record. A large *scanned* PDF is vision-transcribed in
+   `pdf_vision_batch_pages`-page batches first (up to `pdf_vision_max_concurrency`
+   batches at once), so it segments the same way. `index.md` is regenerated and
+   `log.md` appended, deterministically.
 2. **Ask** — hybrid (keyword ⊕ vector) search retrieves candidate pages, a
    token-budgeted context is assembled, and the model answers with citations to wiki
    pages (which point back to sources, which point back to your raw files).
@@ -195,6 +197,8 @@ rrf_k = 60                          # Reciprocal Rank Fusion constant
 chunk_max_chars = 1500              # split a page section longer than this
 ingest_segment_max_tokens = 60000   # compile a larger source in segments
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
+pdf_vision_batch_pages = 10         # scanned PDF: pages per vision-transcription call
+pdf_vision_max_concurrency = 4      # how many of those batch calls run at once
 request_timeout = 300.0             # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures
 ```
