@@ -387,6 +387,41 @@ def test_ingest_general_scope_files_into_root(ingest_client, vault, monkeypatch)
     assert read_page(source_path(vault, "", "root-note")) is not None
 
 
+def test_ingest_user_prompt_reaches_provider(vault, monkeypatch):
+    # The optional guidance box on the Ingest form rides through to the model's
+    # compile passes (parse calls) and is journaled for provenance.
+    _seed(vault)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    seen: list[str] = []
+
+    class _Recording(FakeProvider):
+        def parse(self, system, user, schema, *, model=None, max_tokens=16000):
+            seen.append(user)
+            return super().parse(system, user, schema, model=model, max_tokens=max_tokens)
+
+    fake = _Recording(
+        analysis=SourceAnalysis(
+            source_title="Chain Rule Notes",
+            source_summary="Notes on the chain rule.",
+            concept_titles=["Chain Rule"],
+        ),
+        generation=GenerationResult(
+            concept_pages=[ConceptDraft(title="Chain Rule", body="Chain rule body.")],
+            source_page=SourcePageDraft(summary="A short note.", grounds=["Chain Rule"]),
+            log_entry="Ingested chain rule notes.",
+        ),
+    )
+    app_client = TestClient(create_app(vault, provider_factory=lambda cfg: fake))
+    r = app_client.post(
+        "/api/ingest",
+        data={"section": "academic/calc", "prompt": "focus on the proofs"},
+        files={"file": ("note.md", b"# Chain Rule\n\nbody", "text/markdown")},
+    )
+    assert r.status_code == 200, r.text
+    assert any("focus on the proofs" in u for u in seen)
+    assert "guidance: focus on the proofs" in vault.log_file.read_text("utf-8")
+
+
 def test_ingest_requires_api_key(client, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     r = client.post(

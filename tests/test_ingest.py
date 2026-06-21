@@ -186,6 +186,55 @@ def test_ingest_segments_large_source_into_one_provenance(vault):
     assert "Open Sets" in provider.user_prompts[2]
 
 
+def _single_segment_provider() -> "_ScriptedProvider":
+    return _ScriptedProvider(
+        analyses=[
+            SourceAnalysis(
+                source_title="Chain Rule Notes",
+                source_summary="Notes on the chain rule.",
+                concept_titles=["Chain Rule"],
+            )
+        ],
+        generations=[
+            GenerationResult(
+                concept_pages=[ConceptDraft(title="Chain Rule", body="Chain rule body.")],
+                source_page=SourcePageDraft(summary="Covers the chain rule.", grounds=["Chain Rule"]),
+                log_entry="Ingested chain rule notes.",
+            )
+        ],
+    )
+
+
+def test_ingest_threads_user_prompt_into_both_passes(vault):
+    # An optional user instruction rides into BOTH compile passes (analysis at
+    # index 0, generation at index 1) and is journaled for provenance.
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nThe chain rule differentiates compositions.", "utf-8")
+
+    provider = _single_segment_provider()
+    ingest(vault, provider, str(src), section="academic/calc", user_prompt="focus on the proofs")
+
+    assert "User instruction" in provider.user_prompts[0]
+    assert "focus on the proofs" in provider.user_prompts[0]
+    assert "focus on the proofs" in provider.user_prompts[1]
+
+    assert "guidance: focus on the proofs" in vault.log_file.read_text("utf-8")
+
+
+def test_ingest_without_user_prompt_leaves_prompts_and_log_unchanged(vault):
+    # The default (no guidance) path must be byte-for-byte unchanged: no
+    # instruction block in the prompts and no guidance line in the log.
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nThe chain rule differentiates compositions.", "utf-8")
+
+    provider = _single_segment_provider()
+    ingest(vault, provider, str(src), section="academic/calc")
+
+    assert "User instruction" not in provider.user_prompts[0]
+    assert "User instruction" not in provider.user_prompts[1]
+    assert "guidance:" not in vault.log_file.read_text("utf-8")
+
+
 def test_ingest_single_segment_unchanged_for_small_source(vault):
     # A source within budget still compiles in exactly one analysis + generation
     # pass (no behavior change for the common case).

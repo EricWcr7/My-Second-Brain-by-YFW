@@ -353,6 +353,8 @@ function renderIngest(): void {
       </label>
       <div class="ingest-or">or paste a URL</div>
       <input id="ingest-url" type="url" placeholder="https://…" autocomplete="off" ${dis}>
+      <div class="ingest-or">optional — guide how it's compiled</div>
+      <textarea id="ingest-prompt" placeholder="e.g. 'focus on the proofs', 'only chapter 3', 'keep it beginner-friendly'" ${dis}></textarea>
       <div class="row">
         <button type="submit" class="btn btn-primary" ${dis}>Ingest</button>
       </div>
@@ -366,9 +368,12 @@ async function onIngest(e: Event): Promise<void> {
   e.preventDefault();
   const filesEl = document.getElementById("ingest-files") as HTMLInputElement;
   const urlEl = document.getElementById("ingest-url") as HTMLInputElement;
+  const promptEl = document.getElementById("ingest-prompt") as HTMLTextAreaElement | null;
   const out = document.getElementById("ingest-results")!;
   const files = filesEl.files ? Array.from(filesEl.files) : [];
   const url = urlEl.value.trim();
+  // Optional guidance steering how every item in this submission is compiled.
+  const prompt = promptEl?.value.trim() ?? "";
   // Every item carries the current scope, so a General ingest files into the
   // General root, an Academic ingest into academic/, a course into that course.
   const section = state.scope;
@@ -377,12 +382,14 @@ async function onIngest(e: Event): Promise<void> {
     const fd = new FormData();
     fd.append("file", f);
     fd.append("section", section);
+    if (prompt) fd.append("prompt", prompt);
     items.push({ label: f.name, fd });
   }
   if (url) {
     const fd = new FormData();
     fd.append("url", url);
     fd.append("section", section);
+    if (prompt) fd.append("prompt", prompt);
     items.push({ label: url, fd });
   }
   if (!items.length) {
@@ -435,6 +442,7 @@ async function onIngest(e: Event): Promise<void> {
     renderLandingStats(); // keep the landing counts live after an ingest
     filesEl.value = "";
     urlEl.value = "";
+    if (promptEl) promptEl.value = "";
   }
 }
 

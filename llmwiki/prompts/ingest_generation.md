@@ -21,6 +21,9 @@ Merging: when an existing page body is provided for a concept, produce the
 already there — preserve correct existing content, add what's new, and resolve
 overlaps. Do not drop existing detail.
 
+If a **user instruction** is provided, follow it in emphasis, depth, and framing — but
+stay faithful to the source and the schema; never add content the source doesn't support.
+
 For the source page, write a structured summary of the source and list the
 concept titles it grounds.
 
