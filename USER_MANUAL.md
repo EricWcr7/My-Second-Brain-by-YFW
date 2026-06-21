@@ -212,7 +212,7 @@ context_token_budget = 60000        # max context tokens for Ask/Lint
 hybrid_search = true                # fuse keyword + vector (false = keyword only)
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
-request_timeout = 60.0              # seconds before a provider call times out
+request_timeout = 300.0             # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in

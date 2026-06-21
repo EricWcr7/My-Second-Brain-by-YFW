@@ -188,7 +188,7 @@ vector_top_n = 40                   # chunk candidates pulled before fusion
 rrf_k = 60                          # Reciprocal Rank Fusion constant
 chunk_max_chars = 1500              # split a page section longer than this
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
-request_timeout = 60.0              # seconds before a provider call times out
+request_timeout = 300.0             # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures
 ```
 

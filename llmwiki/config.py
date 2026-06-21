@@ -56,7 +56,10 @@ class Config:
     pdf_vision_min_chars_per_page: int = 100
     # Per-request resilience for provider calls: how long to wait before a call
     # times out (seconds) and how many times the SDK retries transient failures.
-    request_timeout: float = 60.0
+    # The default is generous because ingesting a large source runs a reasoning
+    # model that can take minutes — too low a timeout aborts an otherwise healthy
+    # call (seen as ``APITimeoutError`` mid-ingest).
+    request_timeout: float = 300.0
     max_retries: int = 2
     extra: dict = field(default_factory=dict)
 
