@@ -7,7 +7,14 @@ from llmwiki.ingest import (
     SourceAnalysis,
     SourcePageDraft,
 )
-from llmwiki.store import read_page, write_page
+from llmwiki.store import (
+    ensure_dir,
+    load_state,
+    read_page,
+    save_state,
+    set_source_record,
+    write_page,
+)
 from llmwiki.web.app import SUPPORTED_EXTS, create_app
 from llmwiki.wiki import concept_path, source_path
 
@@ -107,6 +114,90 @@ def test_delete_section_removes_dirs(client, vault):
     assert not (vault.concepts_dir / "academic" / "example-course").exists()
     assert not (vault.source_pages_dir / "academic" / "example-course").exists()
     assert "academic/example-course" not in client.get("/api/meta").json()["sections"]
+
+
+def test_delete_section_wipes_ledger_cache_raw_and_overrides(client, vault):
+    # Deleting a section must leave nothing behind: not just the pages, but the
+    # ledger record, its normalized cache + raw bytes, and per-section overrides.
+    section = "academic/example-course"
+    client.post("/api/sections", json={"name": "example-course", "parent": "academic"})
+
+    write_page(
+        concept_path(vault, section, "Open Sets"),
+        {"title": "Open Sets", "type": "concept", "section": section, "sources": ["course-source"]},
+        "An open set is...\n",
+    )
+    checksum = "deadbeef"
+    raw_ref = "raw/sources/course-source.pdf"
+    ensure_dir(vault.normalized_dir)
+    (vault.normalized_dir / f"{checksum}.md").write_text("normalized\n", "utf-8")
+    ensure_dir((vault.root / raw_ref).parent)
+    (vault.root / raw_ref).write_text("%PDF fake\n", "utf-8")
+    state = load_state(vault)
+    set_source_record(
+        state, raw_ref, {"checksum": checksum, "section": section, "raw_ref": raw_ref}
+    )
+    save_state(vault, state)
+    override = vault.section_overrides_dir / "academic" / "example-course" / "purpose.md"
+    ensure_dir(override.parent)
+    override.write_text("course-specific purpose\n", "utf-8")
+
+    assert client.delete(f"/api/sections/{section}").status_code == 200
+
+    assert not (vault.concepts_dir / "academic" / "example-course").exists()
+    assert not (vault.normalized_dir / f"{checksum}.md").exists()
+    assert not (vault.root / raw_ref).exists()
+    assert not (vault.section_overrides_dir / "academic" / "example-course").exists()
+    assert load_state(vault).get("sources", {}) == {}
+
+
+def test_delete_section_keeps_other_sections_intact(client, vault):
+    # A sibling section's ledger record and bytes must survive the delete.
+    client.post("/api/sections", json={"name": "example-course", "parent": "academic"})
+    keep_checksum = "cafef00d"
+    keep_ref = "raw/sources/keep.pdf"
+    ensure_dir(vault.normalized_dir)
+    (vault.normalized_dir / f"{keep_checksum}.md").write_text("keep\n", "utf-8")
+    state = load_state(vault)
+    set_source_record(
+        state,
+        keep_ref,
+        {"checksum": keep_checksum, "section": "academic/calc", "raw_ref": keep_ref},
+    )
+    save_state(vault, state)
+
+    assert client.delete("/api/sections/academic/example-course").status_code == 200
+
+    assert (vault.normalized_dir / f"{keep_checksum}.md").exists()
+    assert keep_ref in load_state(vault).get("sources", {})
+
+
+def test_delete_section_purges_vector_index(client, vault):
+    # The deleted concepts' chunks must leave the vector index too, or semantic
+    # search would still surface a page that no longer exists on disk.
+    pytest.importorskip("lancedb")
+    from llmwiki.indexing import reindex_all
+    from llmwiki.vectorindex import open_index
+
+    from tests.fakes import FakeEmbedder
+
+    client.post("/api/sections", json={"name": "example-course", "parent": "academic"})
+    write_page(
+        concept_path(vault, "academic/example-course", "Open Sets"),
+        {"title": "Open Sets", "type": "concept", "section": "academic/example-course", "sources": ["course-source"]},
+        "Open sets, limits and continuity in topology.\n",
+    )
+    reindex_all(vault, FakeEmbedder())
+
+    def stored_slugs():
+        ids = open_index(vault).existing_hashes(vault.embed_model)
+        return {cid.split("#", 1)[0] for cid in ids}
+
+    assert "open-sets" in stored_slugs()  # indexed before delete
+
+    assert client.delete("/api/sections/academic/example-course").status_code == 200
+
+    assert "open-sets" not in stored_slugs()  # vectors dropped with the page
 
 
 def test_delete_section_protects_roots(client, vault):

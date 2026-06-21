@@ -180,9 +180,12 @@ Suggestions only — the app doesn't browse the web itself.
 
 ### W8 — Manage courses and sections
 From any section hub: **+ New course / + New section** scaffolds a branch; the **🗑**
-on a card deletes one (removes its `concepts/` and `sources/` directories after a
-confirmation). The seeded `academic` / `non-academic` branches are protected. Names
-keep their casing and non-Latin characters (`example-course`, `线性代数`).
+on a card deletes one after a confirmation — a *full* wipe that removes its
+`concepts/` and `sources/` pages **and** everything filed under it (the ingest
+ledger records, their cached/raw source files, and any per-section
+customizations), so re-ingesting the same source later starts clean instead of
+being skipped as unchanged. The seeded `academic` / `non-academic` branches are
+protected. Names keep their casing and non-Latin characters (`example-course`, `线性代数`).
 
 ### W9 — Read and navigate in Obsidian
 Open the `wiki/` folder as an Obsidian vault for: the **graph view** (hubs,

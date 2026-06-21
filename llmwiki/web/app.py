@@ -8,7 +8,6 @@ The ``provider_factory`` argument lets tests inject a fake provider.
 from __future__ import annotations
 
 import os
-import shutil
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -31,15 +30,14 @@ from ..providers import LLMProvider, ProviderError, get_provider
 from ..query import answer
 from ..search import search
 from ..store import ensure_dir, read_page
-from ..vectorindex import VectorIndexUnavailable, open_index
+from ..vectorindex import VectorIndexUnavailable
 from ..wiki import (
     PageRef,
     append_log,
     iter_pages,
     normalize_section,
+    purge_section,
     read_optional,
-    rebuild_index,
-    section_contains,
     section_dirs,
     section_slug,
     section_to_relpath,
@@ -178,8 +176,14 @@ def create_app(
 
     @app.delete("/api/sections/{section:path}")
     def delete_section(section: str) -> dict:
-        """Delete a course/branch: remove its ``concepts/<section>`` and
-        ``sources/<section>`` directories (and everything inside them).
+        """Delete a course/branch and wipe *everything* filed under it.
+
+        Removes the ``concepts/<section>`` and ``sources/<section>`` page subtrees
+        plus the artifacts the old behavior stranded — the ``state.json`` ledger
+        records for sources here (and their normalized cache / ``raw/`` bytes), the
+        per-section overrides, and the deleted concepts' vector-index chunks — so a
+        later re-ingest isn't silently skipped and search can't surface dead pages.
+        See :func:`purge_section`.
 
         The seeded ``academic``/``non-academic`` roots are protected. The section
         is resolved case-insensitively against the dirs on disk, so the URL casing
@@ -193,22 +197,7 @@ def create_app(
         )
         if match is None:
             raise HTTPException(status_code=404, detail=f"Section '{section}' not found.")
-        # Capture the concept slugs about to disappear so their vectors can be
-        # purged (deletion cascade) after the files are gone.
-        doomed = {
-            r.slug
-            for r in iter_pages(config, "concept")
-            if section_contains(match, r.section)
-        }
-        rel = section_to_relpath(match)
-        for t in (config.concepts_dir / rel, config.source_pages_dir / rel):
-            if t.exists():
-                shutil.rmtree(t)
-        rebuild_index(config)  # drop the deleted pages from index.md / home overview
-        try:  # best-effort: the index may not exist / search extra not installed
-            open_index(config).delete_page_slugs(doomed)
-        except Exception:
-            pass
+        purge_section(config, match)  # pages, ledger, cache, raw, overrides, vectors
         append_log(config, "section", match, detail="deleted via web UI")
         return {"section": match}
 

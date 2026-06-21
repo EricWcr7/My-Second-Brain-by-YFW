@@ -89,8 +89,10 @@ sidebar collapses into a **☰ menu** in the top bar.
 - **Lint** — structural checks, plus an optional **deep** LLM review that flags
   contradictions and suggests what to read next.
 - **Courses & sections** — from a section hub, **+ New course** scaffolds a branch
-  and **🗑** deletes one (the seeded `academic` / `non-academic` branches are
-  protected). Names keep their exact casing and non-Latin characters
+  and **🗑** deletes one — a full wipe of its pages *and* the sources filed under
+  it (ledger, cached/raw files, customizations), so the same source can be
+  re-ingested cleanly afterward. The seeded `academic` / `non-academic` branches
+  are protected. Names keep their exact casing and non-Latin characters
   (`example-course`, `线性代数`).
 - **Customize** — each section hub has a **Customize** view to tailor the LLM
   instruction set *for that branch*: the prompt for each operation (ingest
