@@ -343,6 +343,7 @@ def create_app(
         file: UploadFile | None = File(None),
         url: str | None = Form(None),
         section: str | None = Form(None),
+        prompt: str | None = Form(None),
     ) -> dict:
         """Ingest one uploaded file or URL into ``section`` (the UI's current scope).
 
@@ -365,16 +366,23 @@ def create_app(
         # The General scope is "" — and empty multipart fields don't always survive
         # the wire — so collapse a missing/empty section to the root explicitly.
         target_section = section or ""
+        # Optional free-text guidance steering how this source is compiled; blank
+        # collapses to None so an un-guided ingest is unchanged.
+        user_prompt = (prompt or "").strip() or None
         provider = provider_factory(config)
         try:
             if spec_url:
-                result = ingest(config, provider, spec_url, section=target_section)
+                result = ingest(
+                    config, provider, spec_url, section=target_section, user_prompt=user_prompt
+                )
             else:
                 data = await file.read()  # type: ignore[union-attr]
                 with tempfile.TemporaryDirectory() as td:
                     tmp = Path(td) / Path(file.filename).name  # type: ignore[union-attr]
                     tmp.write_bytes(data)
-                    result = ingest(config, provider, str(tmp), section=target_section)
+                    result = ingest(
+                        config, provider, str(tmp), section=target_section, user_prompt=user_prompt
+                    )
         except (LoaderError, ProviderError, ValueError, FileNotFoundError) as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         return {

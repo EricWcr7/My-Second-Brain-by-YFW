@@ -139,10 +139,28 @@ def _resolve_raw(config: Config, spec: str) -> tuple[Path | None, str, str]:
     return path, rel, rel
 
 
-def _analysis_user(section: str, loaded: LoadResult, existing_titles: list[str]) -> str:
+def _instruction_block(user_prompt: str | None) -> str:
+    # Optional free-text guidance from the user, placed at the top of the user
+    # message so the model reads it before the source. Empty when absent, so an
+    # un-guided ingest produces a byte-for-byte unchanged prompt.
+    if not user_prompt:
+        return ""
+    return (
+        "User instruction (honor it where it doesn't conflict with grounding):\n"
+        f"{user_prompt}\n\n"
+    )
+
+
+def _analysis_user(
+    section: str,
+    loaded: LoadResult,
+    existing_titles: list[str],
+    user_prompt: str | None = None,
+) -> str:
     existing = "\n".join(f"- {t}" for t in existing_titles) or "(none yet)"
     return (
-        f"Section: {section or 'General'}\n"
+        _instruction_block(user_prompt)
+        + f"Section: {section or 'General'}\n"
         f"Source title: {loaded.title}\n"
         f"Source kind: {loaded.kind}\n\n"
         f"Existing concept titles in this section:\n{existing}\n\n"
@@ -157,6 +175,7 @@ def _generation_user(
     analysis: SourceAnalysis,
     existing_pages: list[tuple[str, str, str]],
     index_titles: list[str],
+    user_prompt: str | None = None,
 ) -> str:
     idx = "\n".join(f"- {t}" for t in index_titles) or "(none yet)"
     existing_blocks = [
@@ -166,7 +185,8 @@ def _generation_user(
     existing_text = "\n\n".join(existing_blocks) or "(no existing pages to merge)"
     concept_list = "\n".join(f"- {t}" for t in analysis.concept_titles) or "(decide from source)"
     return (
-        f"Section: {section or 'General'}\n"
+        _instruction_block(user_prompt)
+        + f"Section: {section or 'General'}\n"
         f"This source's provenance slug: {source_slug}\n"
         f"Source title: {loaded.title} (kind: {loaded.kind})\n\n"
         f"Analysis summary: {analysis.source_summary}\n"
@@ -273,6 +293,7 @@ def ingest(
     section: str | None = None,
     force_vision: bool = False,
     force: bool = False,
+    user_prompt: str | None = None,
 ) -> IngestResult:
     section = section if section is not None else config.default_section
     warnings: list[str] = []
@@ -337,7 +358,7 @@ def ingest(
         ]
         analysis = provider.parse(
             _system("ingest_analysis.md", config, section),
-            _analysis_user(section, seg_loaded, existing_titles),
+            _analysis_user(section, seg_loaded, existing_titles, user_prompt),
             SourceAnalysis,
         )
         existing_pages: list[tuple[str, str, str]] = []
@@ -353,7 +374,13 @@ def ingest(
         gen = provider.parse(
             _system("ingest_generation.md", config, section),
             _generation_user(
-                section, source_slug, seg_loaded, analysis, existing_pages, index_titles
+                section,
+                source_slug,
+                seg_loaded,
+                analysis,
+                existing_pages,
+                index_titles,
+                user_prompt,
             ),
             GenerationResult,
         )
@@ -379,6 +406,10 @@ def ingest(
     )
     if len(segments) > 1:
         detail += f" [{len(segments)} segments]"
+    if user_prompt:
+        # Record the guidance that shaped these pages (collapsed to one line so the
+        # log.md bullet stays single-line).
+        detail += f" | guidance: {' '.join(user_prompt.split())}"
     append_log(config, "ingest", loaded.title, detail=detail)
     rebuild_index(config)
 

@@ -937,6 +937,23 @@ select, .btn {
   color: var(--fg);
 }
 #ingest-url:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ai-soft); }
+#ingest-form textarea {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--ai);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  background: var(--bg-elev);
+  color: var(--fg);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+#ingest-form textarea::placeholder { color: var(--muted); }
+#ingest-form textarea:focus { outline: none; border-color: var(--ai); box-shadow: 0 0 0 3px var(--ai-soft); }
 #ingest-form .btn-primary { background: var(--ai); border-color: var(--ai); }
 #ingest-form .btn-primary:hover { background: var(--ai); border-color: var(--ai); filter: brightness(1.08); }
 

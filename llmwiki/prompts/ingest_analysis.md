@@ -13,6 +13,8 @@ Rules:
   if "Time Blocking" exists). A list of existing concept titles is provided.
 - Note any **contradictions** between this source and existing wiki content.
 - Write a concise 2–4 sentence factual summary of the source.
+- If a **user instruction** is provided, let it steer which concepts you prioritize —
+  but never invent concepts the source doesn't actually cover.
 
 Return only the structured output requested. Do not invent concepts the source
 does not actually cover.

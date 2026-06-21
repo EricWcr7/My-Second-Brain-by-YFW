@@ -150,6 +150,14 @@ The Ingest panel accepts a **URL** or one-or-more **uploaded files**:
 Each source lands in your current scope. Multiple files are processed one at a time
 with a ✓/✗ per file.
 
+**Optional guidance.** Below the file/URL inputs is an optional **guidance box** — type
+a short instruction for how the model should compile the source ("focus on the proofs",
+"only chapter 3", "keep it beginner-friendly"). It steers **both** compile passes (which
+concepts get extracted *and* how the pages are written), applies to every file/URL in
+that submission, and is recorded in `log.md` for that ingest. Leave it blank for the
+default behavior. Guidance never overrides grounding — the model still won't add anything
+the source doesn't support.
+
 **Very large files** (e.g. a several-hundred- or 1000-page PDF) are compiled in
 **segments** automatically: the source is split on page/heading boundaries into
 windows of about `ingest_segment_max_tokens`, each window runs the analysis +

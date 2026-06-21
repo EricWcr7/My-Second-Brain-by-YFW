@@ -78,7 +78,9 @@ sidebar collapses into a **☰ menu** in the top bar.
   and a link to a page that isn't in your wiki tells you instead of doing nothing.
 - **Ingest** — the Ingest panel (sidebar, the General card, and each section hub)
   takes one or more **uploaded files** (Markdown/text, PDF, Word, PowerPoint,
-  images) **or a URL**, and compiles them into the wiki at your current scope.
+  images) **or a URL**, and compiles them into the wiki at your current scope. An
+  optional **guidance box** lets you steer how a source is compiled (e.g. "focus on
+  the proofs") without ever overriding source grounding.
 - **Ask** — ask a question answered only from the wiki, with citations back to the
   pages used. You can attach files as **one-off context** for a single answer;
   attachments are never written to the wiki. If an answer cites a page that isn't in
@@ -134,7 +136,8 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
 1. **Ingest** — a loader normalizes the source to Markdown (vision for images and
    scanned/math PDFs), it's checksummed and cached, then an *analysis* pass decides
    which concepts it teaches and a *generation* pass writes/merges the concept
-   pages and the source page. A source larger than `ingest_segment_max_tokens` is
+   pages and the source page. Optional user **guidance** steers both passes and is
+   journaled to `log.md`. A source larger than `ingest_segment_max_tokens` is
    compiled in segments that each merge into the same pages, so very large files
    (e.g. a 1000-page PDF) stay within the model's context window — still one
    source, one provenance record. `index.md` is regenerated and `log.md` appended,
