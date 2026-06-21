@@ -150,6 +150,15 @@ The Ingest panel accepts a **URL** or one-or-more **uploaded files**:
 Each source lands in your current scope. Multiple files are processed one at a time
 with a ✓/✗ per file.
 
+**Very large files** (e.g. a several-hundred- or 1000-page PDF) are compiled in
+**segments** automatically: the source is split on page/heading boundaries into
+windows of about `ingest_segment_max_tokens`, each window runs the analysis +
+generation passes, and the results **merge into the same section's pages**. You
+still upload one file and get one source page and one provenance record — no need
+to split the PDF yourself. It just takes proportionally longer (each segment is a
+model pass). *Scanned* PDFs that big are still limited by single-call vision
+transcription — split those by hand for now.
+
 ### W5 — Ask questions and let answers compound
 Use the **Ask** panel; answers come only from the wiki, with citations to the pages
 used. Attach files to give the model **one-off context** for a single answer — those
@@ -209,6 +218,7 @@ provider = "anthropic"              # or "openai" (default)
 default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+ingest_segment_max_tokens = 60000   # compile a larger source in segments (W4)
 hybrid_search = true                # fuse keyword + vector (false = keyword only)
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)

@@ -51,6 +51,11 @@ class Config:
     rrf_k: int = 60
     # Max characters per chunk before a heading-section is sub-split (chunking.py).
     chunk_max_chars: int = 1500
+    # Compile a source larger than this (estimated tokens) in segments instead of
+    # one model pass, so a very large file (e.g. a 1000-page PDF) stays within the
+    # context window and the request timeout. Each segment runs the analysis +
+    # generation passes and merges into the section's shared concept pages.
+    ingest_segment_max_tokens: int = 60_000
     # If PyMuPDF text extraction yields fewer chars per page than this, the PDF
     # is treated as scanned/image-heavy and transcribed with a vision model.
     pdf_vision_min_chars_per_page: int = 100
@@ -161,6 +166,7 @@ _SETTING_KEYS = (
     "vector_top_n",
     "rrf_k",
     "chunk_max_chars",
+    "ingest_segment_max_tokens",
     "pdf_vision_min_chars_per_page",
     "request_timeout",
     "max_retries",

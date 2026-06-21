@@ -134,7 +134,10 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
 1. **Ingest** — a loader normalizes the source to Markdown (vision for images and
    scanned/math PDFs), it's checksummed and cached, then an *analysis* pass decides
    which concepts it teaches and a *generation* pass writes/merges the concept
-   pages and the source page. `index.md` is regenerated and `log.md` appended,
+   pages and the source page. A source larger than `ingest_segment_max_tokens` is
+   compiled in segments that each merge into the same pages, so very large files
+   (e.g. a 1000-page PDF) stay within the model's context window — still one
+   source, one provenance record. `index.md` is regenerated and `log.md` appended,
    deterministically.
 2. **Ask** — hybrid (keyword ⊕ vector) search retrieves candidate pages, a
    token-budgeted context is assembled, and the model answers with citations to wiki
@@ -187,6 +190,7 @@ embed_model = "text-embedding-3-small"  # embedding model used for every section
 vector_top_n = 40                   # chunk candidates pulled before fusion
 rrf_k = 60                          # Reciprocal Rank Fusion constant
 chunk_max_chars = 1500              # split a page section longer than this
+ingest_segment_max_tokens = 60000   # compile a larger source in segments
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
 request_timeout = 300.0             # seconds before a provider call times out
 max_retries = 2                     # retries for transient provider failures

@@ -22,6 +22,9 @@ from .wiki import PageRef
 
 _HEADING_RE = re.compile(r"^(#{2,3})\s+(.*)$")
 _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
+# Page markers emitted by the PDF loader ("<!-- page N -->"); a zero-width
+# lookahead keeps each marker at the head of its block when splitting.
+_PAGE_MARKER_RE = re.compile(r"(?=^<!-- page \d+ -->$)", re.MULTILINE)
 
 
 @dataclass
@@ -108,3 +111,39 @@ def chunk_page(ref: PageRef, content: str, *, max_chars: int) -> list[Chunk]:
             chunk.content_hash = sha256_bytes(chunk.embed_text().encode("utf-8"))
             chunks.append(chunk)
     return chunks
+
+
+def segment_markdown(markdown: str, *, max_chars: int) -> list[str]:
+    """Split a normalized source into ordered segments of ~``max_chars`` each.
+
+    Used by ingest to compile a source too large for one model pass (e.g. a
+    1000-page PDF) segment by segment. Boundaries prefer PDF page markers
+    (``<!-- page N -->``), then ``##``/``###`` headings; a single block larger than
+    the budget is paragraph-split. Greedy packing keeps segments near the budget
+    and display math (``$$…$$``) is never broken mid-fence. Returns ``[markdown]``
+    unchanged when the source already fits.
+    """
+    text = markdown.strip()
+    if len(text) <= max_chars:
+        return [text]
+    blocks = [b.strip() for b in _PAGE_MARKER_RE.split(text) if b.strip()]
+    if len(blocks) <= 1:  # no page markers — fall back to heading sections
+        blocks = [block for _, block in _split_by_heading(text)] or [text]
+
+    segments: list[str] = []
+    cur: list[str] = []
+    for block in blocks:
+        if len(block) > max_chars:  # an oversized block: flush, then sub-split it
+            if cur:
+                segments.append("\n\n".join(cur))
+                cur = []
+            segments.extend(_subsplit(block, max_chars))
+            continue
+        joined = "\n\n".join(cur)
+        if cur and len(joined) + len(block) + 2 > max_chars and _balanced_math(joined):
+            segments.append(joined)
+            cur = []
+        cur.append(block)
+    if cur:
+        segments.append("\n\n".join(cur))
+    return [s for s in segments if s.strip()] or [text]
