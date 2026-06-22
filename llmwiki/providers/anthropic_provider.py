@@ -8,6 +8,7 @@ thinking; the stable system prompt is prompt-cached.
 from __future__ import annotations
 
 import base64
+import copy
 import logging
 import mimetypes
 import time
@@ -55,6 +56,13 @@ class AnthropicProvider(LLMProvider):
             raise ProviderError(
                 "Could not initialize the Anthropic client. Set ANTHROPIC_API_KEY."
             ) from e
+
+    def with_timeout(self, timeout: float) -> "AnthropicProvider":
+        # Scope a longer per-request timeout (ingest) without mutating the shared
+        # provider: ``with_options`` returns a copied client with the override.
+        clone = copy.copy(self)
+        clone.client = self.client.with_options(timeout=timeout)
+        return clone
 
     def _system_blocks(self, system: str) -> list[dict]:
         # Cache the stable system prefix across ingests/queries.

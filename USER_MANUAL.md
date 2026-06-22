@@ -164,11 +164,18 @@ windows of about `ingest_segment_max_tokens`, each window runs the analysis +
 generation passes, and the results **merge into the same section's pages**. You
 still upload one file and get one source page and one provenance record — no need
 to split the PDF yourself. It just takes proportionally longer (each segment is a
-model pass). **Scanned** PDFs that big work the same way: they're vision-transcribed
+model pass), and ingest runs under the longer `ingest_request_timeout` so a slow
+pass isn't cut off the way the shorter interactive timeout would. The compile is
+**atomic**: nothing is written until every segment has succeeded, so if an ingest
+fails partway (a timeout or model error) the wiki is left exactly as it was — just
+re-run it. **Scanned** PDFs that big work the same way: they're vision-transcribed
 in batches of `pdf_vision_batch_pages` pages per call (so the transcription never
 blows the context window or gets truncated), then segmented like a text PDF — no
 need to split them by hand. Those batch calls run up to `pdf_vision_max_concurrency`
 at a time, so a big scan transcribes faster without tripping provider rate limits.
+If a page-batch can't be transcribed, the ingest stops and tells you which pages
+failed instead of quietly leaving them out, so a source page is never built from a
+partial scan.
 
 ### W5 — Ask questions and let answers compound
 Use the **Ask** panel; answers come only from the wiki, with citations to the pages
@@ -179,6 +186,13 @@ it back into the wiki so explorations accumulate instead of vanishing.
 The app **checks the citations**: if an answer references a page that doesn't exist
 in your wiki, it shows a caution note listing those pages — that claim isn't backed
 by a source, so treat it skeptically. Grounded answers cite only real pages.
+
+For tougher questions you can enable **reranking** (`rerank = true` in
+`.llmwiki/config.toml`): after hybrid retrieval pulls a wider pool of
+`rerank_candidates` pages, the model reorders them by relevance so the most useful
+ones win the answer's limited context budget. It's off by default because it adds
+one model call per question; if that call fails the answer simply falls back to the
+normal retrieval order.
 
 ### W6 — Hybrid search (keyword + meaning)
 The search box ranks concept pages by **hybrid retrieval**: BM25 keyword scoring
@@ -229,6 +243,8 @@ provider = "anthropic"              # or "openai" (default)
 default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+rerank = false                      # opt-in: LLM reranks retrieved pages before answering (W5)
+rerank_candidates = 20              # candidates pulled before reranking down to search_top_k
 ingest_segment_max_tokens = 60000   # compile a larger source in segments (W4)
 pdf_vision_batch_pages = 10         # scanned PDF: pages per vision-transcription call
 pdf_vision_max_concurrency = 4      # how many of those batch calls run at once
@@ -236,6 +252,7 @@ hybrid_search = true                # fuse keyword + vector (false = keyword onl
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
 request_timeout = 300.0             # seconds before a provider call times out
+ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in

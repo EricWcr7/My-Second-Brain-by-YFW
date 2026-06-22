@@ -85,7 +85,21 @@ def test_openai_client_uses_config_timeout_and_retries(monkeypatch):
     pytest.importorskip("openai")
     provider = op.OpenAIProvider(Config(root=Path("/tmp"), request_timeout=12.0, max_retries=5))
     # Resilience knobs flow from config into the SDK client.
+    assert provider.client.timeout == 12.0
     assert provider.client.max_retries == 5
+
+
+def test_openai_with_timeout_scopes_a_longer_client(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    pytest.importorskip("openai")
+    provider = op.OpenAIProvider(Config(root=Path("/tmp"), request_timeout=12.0, max_retries=5))
+    scoped = provider.with_timeout(3600.0)
+    # A distinct provider + client carrying the override; the original is untouched
+    # and other resilience knobs are preserved.
+    assert scoped is not provider and scoped.client is not provider.client
+    assert scoped.client.timeout == 3600.0
+    assert scoped.client.max_retries == 5
+    assert provider.client.timeout == 12.0
 
 
 def test_openai_records_usage(monkeypatch):
@@ -127,11 +141,23 @@ def test_openai_normalizes_sdk_errors(monkeypatch):
         provider.complete("system", "user")
 
 
-def test_anthropic_client_uses_config_retries(monkeypatch):
+def test_anthropic_client_uses_config_timeout_and_retries(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
     pytest.importorskip("anthropic")
-    provider = ap.AnthropicProvider(Config(root=Path("/tmp"), max_retries=5))
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp"), request_timeout=12.0, max_retries=5))
+    assert provider.client.timeout == 12.0
     assert provider.client.max_retries == 5
+
+
+def test_anthropic_with_timeout_scopes_a_longer_client(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp"), request_timeout=12.0, max_retries=5))
+    scoped = provider.with_timeout(3600.0)
+    assert scoped is not provider and scoped.client is not provider.client
+    assert scoped.client.timeout == 3600.0
+    assert scoped.client.max_retries == 5
+    assert provider.client.timeout == 12.0
 
 
 def test_anthropic_normalizes_count_tokens_errors(monkeypatch):

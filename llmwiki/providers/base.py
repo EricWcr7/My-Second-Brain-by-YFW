@@ -33,6 +33,16 @@ class LLMProvider(ABC):
     # this; the base default keeps fakes and key-less paths safe to read.
     last_usage: Usage | None = None
 
+    def with_timeout(self, timeout: float) -> "LLMProvider":
+        """Return a view of this provider whose calls use ``timeout`` seconds.
+
+        Ingest wraps its provider with a longer timeout than the interactive
+        query/lint path (a big source runs many slow model passes). The default
+        is a no-op so fakes and key-less paths stay safe; SDK-backed providers
+        override it to scope the underlying client's per-request timeout.
+        """
+        return self
+
     @abstractmethod
     def complete(
         self, system: str, user: str, *, model: str | None = None, max_tokens: int = 16000

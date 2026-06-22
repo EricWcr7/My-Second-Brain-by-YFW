@@ -25,6 +25,8 @@ provider = "openai"
 default_section = "non-academic"
 search_top_k = 8
 context_token_budget = 60000
+# rerank = true                      # opt-in: LLM reranks retrieved pages (one extra call per Ask)
+# rerank_candidates = 20             # pages pulled before reranking down to search_top_k
 pdf_vision_min_chars_per_page = 100
 pdf_vision_batch_pages = 10          # vision-transcribe a scanned PDF this many pages per call
 pdf_vision_max_concurrency = 4       # how many of those batch calls to run at once
@@ -33,6 +35,7 @@ pdf_vision_max_concurrency = 4       # how many of those batch calls to run at o
 # Generous by default — ingesting a large source runs a reasoning model that can
 # take minutes.
 request_timeout = 300.0
+ingest_request_timeout = 3600.0      # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2
 """
 

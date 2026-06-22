@@ -10,6 +10,7 @@ Every operation runs on a GPT-5.5+ reasoning model at ``high`` reasoning effort.
 from __future__ import annotations
 
 import base64
+import copy
 import logging
 import mimetypes
 import time
@@ -60,6 +61,13 @@ class OpenAIProvider(LLMProvider):
             raise ProviderError(
                 "Could not initialize the OpenAI client. Set OPENAI_API_KEY."
             ) from e
+
+    def with_timeout(self, timeout: float) -> "OpenAIProvider":
+        # Scope a longer per-request timeout (ingest) without mutating the shared
+        # provider: ``with_options`` returns a copied client with the override.
+        clone = copy.copy(self)
+        clone.client = self.client.with_options(timeout=timeout)
+        return clone
 
     def _invoke(self, op: str, model: str, call):
         """Run an SDK call: time it, normalize errors, record usage safely.
