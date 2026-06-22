@@ -140,13 +140,19 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
    journaled to `log.md`. A source larger than `ingest_segment_max_tokens` is
    compiled in segments that each merge into the same pages, so very large files
    (e.g. a 1000-page PDF) stay within the model's context window — still one
-   source, one provenance record. A large *scanned* PDF is vision-transcribed in
+   source, one provenance record. Segmented compilation is **atomic**: pages are
+   written only after every segment succeeds, so a failure partway leaves the wiki
+   unchanged and safe to retry (ingest runs under the longer
+   `ingest_request_timeout`). A large *scanned* PDF is vision-transcribed in
    `pdf_vision_batch_pages`-page batches first (up to `pdf_vision_max_concurrency`
-   batches at once), so it segments the same way. `index.md` is regenerated and
-   `log.md` appended, deterministically.
-2. **Ask** — hybrid (keyword ⊕ vector) search retrieves candidate pages, a
-   token-budgeted context is assembled, and the model answers with citations to wiki
-   pages (which point back to sources, which point back to your raw files).
+   batches at once), so it segments the same way; if any page-batch can't be
+   transcribed the ingest aborts naming those pages rather than silently dropping
+   them. `index.md` is regenerated and `log.md` appended, deterministically.
+2. **Ask** — hybrid (keyword ⊕ vector) search retrieves candidate pages; an
+   optional LLM **rerank** pass (`rerank`, off by default) reorders the top
+   `rerank_candidates` by relevance; a token-budgeted context is assembled, and the
+   model answers with citations to wiki pages (which point back to sources, which
+   point back to your raw files).
 3. **Lint** — structural checks plus an optional model review.
 
 Ingesting a source also **embeds** the new pages into the on-disk vector index;
@@ -194,12 +200,15 @@ embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_api_key_env = "OPENAI_API_KEY"          # env var the embeddings key is read from
 vector_top_n = 40                   # chunk candidates pulled before fusion
 rrf_k = 60                          # Reciprocal Rank Fusion constant
+rerank = false                      # opt-in: LLM reranks retrieved pages before answering
+rerank_candidates = 20              # candidates pulled before reranking down to search_top_k
 chunk_max_chars = 1500              # split a page section longer than this
 ingest_segment_max_tokens = 60000   # compile a larger source in segments
 pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
 pdf_vision_batch_pages = 10         # scanned PDF: pages per vision-transcription call
 pdf_vision_max_concurrency = 4      # how many of those batch calls run at once
 request_timeout = 300.0             # seconds before a provider call times out
+ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
 ```
 

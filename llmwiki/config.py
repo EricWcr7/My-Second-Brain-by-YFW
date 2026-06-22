@@ -49,6 +49,12 @@ class Config:
     # constant used to fuse the keyword and vector rankings.
     vector_top_n: int = 40
     rrf_k: int = 60
+    # Opt-in second-stage reranking: after hybrid retrieval, an LLM pass reorders
+    # the top ``rerank_candidates`` pages by relevance to the question, and the best
+    # ``search_top_k`` of those go into the answer's context. Off by default — it
+    # adds one model call per Ask; a failure degrades to the retrieval order.
+    rerank: bool = False
+    rerank_candidates: int = 20
     # Max characters per chunk before a heading-section is sub-split (chunking.py).
     chunk_max_chars: int = 1500
     # Compile a source larger than this (estimated tokens) in segments instead of
@@ -75,6 +81,11 @@ class Config:
     # model that can take minutes — too low a timeout aborts an otherwise healthy
     # call (seen as ``APITimeoutError`` mid-ingest).
     request_timeout: float = 300.0
+    # Ingest runs many model passes over large material (multi-segment compilation,
+    # per-page vision transcription), so its provider calls get a much longer ceiling
+    # than the interactive query/lint path — applied via ``provider.with_timeout`` for
+    # the duration of an ingest only, leaving ``request_timeout`` for everything else.
+    ingest_request_timeout: float = 3600.0
     max_retries: int = 2
     extra: dict = field(default_factory=dict)
 
@@ -175,12 +186,15 @@ _SETTING_KEYS = (
     "embed_model",
     "vector_top_n",
     "rrf_k",
+    "rerank",
+    "rerank_candidates",
     "chunk_max_chars",
     "ingest_segment_max_tokens",
     "pdf_vision_min_chars_per_page",
     "pdf_vision_batch_pages",
     "pdf_vision_max_concurrency",
     "request_timeout",
+    "ingest_request_timeout",
     "max_retries",
 )
 

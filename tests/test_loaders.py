@@ -87,3 +87,27 @@ def test_concurrent_batches_reassembled_in_page_order(tmp_path, vault):
     md = pdf_loader.load(pdf, config=vault, provider=_PerBatchProvider(), force_vision=True).markdown
     assert md.index("BODY-batch-0") < md.index("BODY-batch-2") < md.index("BODY-batch-4")
     assert md.index("<!-- page 1 -->") < md.index("<!-- page 3 -->") < md.index("<!-- page 5 -->")
+
+
+def test_vision_batch_failure_names_pages_and_aborts(tmp_path, vault):
+    # One un-transcribable page-batch aborts the whole transcription (no silent page
+    # loss): the error names the failed page range, and every batch is still tried
+    # rather than the first failure abandoning its siblings.
+    class _FlakyProvider(FakeProvider):
+        def transcribe_pdf(self, path):
+            self.calls.append("transcribe_pdf")
+            if path.stem == "batch-2":  # the sub-PDF covering pages 3-4
+                raise RuntimeError("vision boom")
+            return f"BODY-{path.stem}"
+
+    pdf = tmp_path / "scan.pdf"
+    _make_pdf(pdf, n_pages=5)
+    vault.pdf_vision_batch_pages = 2  # batches: pages 1-2, 3-4, 5
+    vault.pdf_vision_max_concurrency = 3  # all at once
+    provider = _FlakyProvider()
+    with pytest.raises(LoaderError) as exc:
+        pdf_loader.load(pdf, config=vault, provider=provider, force_vision=True)
+    msg = str(exc.value)
+    assert "3" in msg and "4" in msg  # failed page range named
+    assert "retry" in msg.lower()
+    assert provider.calls.count("transcribe_pdf") == 3  # siblings still attempted

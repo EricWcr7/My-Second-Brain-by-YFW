@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from ..config import Config
@@ -43,32 +43,61 @@ def _transcribe_by_pages(
     provider's rate limits). Results are reassembled in page order regardless of
     completion order. (Concurrent calls race on the provider's ``last_usage``
     snapshot — that's observability only; per-call usage is still logged.)
+
+    Every batch is attempted even when a sibling fails; if any batch can't be
+    transcribed the whole transcription is aborted with the failed page ranges
+    named, rather than silently dropping pages — the source's provenance must stay
+    complete, so a partial scan is never written.
     """
     import fitz  # PyMuPDF; presence already ensured by _extract_text
 
     batch_pages = max(batch_pages, 1)
     with fitz.open(path) as src, tempfile.TemporaryDirectory() as tmpdir:
         # Slice into per-batch sub-PDFs up front (fitz work is serial and cheap);
-        # the slow per-batch vision calls are overlapped below.
-        batches: list[tuple[int, Path]] = []
+        # the slow per-batch vision calls are overlapped below. ``end`` is the
+        # 0-based inclusive last page, retained so a failure can name its pages.
+        batches: list[tuple[int, int, Path]] = []
         for start in range(0, src.page_count, batch_pages):
             end = min(start + batch_pages, src.page_count) - 1
             batch_path = Path(tmpdir) / f"batch-{start}.pdf"
             with fitz.open() as out:
                 out.insert_pdf(src, from_page=start, to_page=end)
                 out.save(batch_path)
-            batches.append((start, batch_path))
+            batches.append((start, end, batch_path))
 
-        def _transcribe(item: tuple[int, Path]) -> tuple[int, str]:
-            start, batch_path = item
+        def _transcribe(batch: tuple[int, int, Path]) -> tuple[int, str]:
+            start, _end, batch_path = batch
             return start, provider.transcribe_pdf(batch_path).strip()
 
+        # Collect successes and failures separately so one bad batch neither
+        # abandons its in-flight siblings nor masks the others' failures.
+        results: list[tuple[int, str]] = []
+        failures: list[tuple[int, int]] = []  # (start, end) of batches that errored
         workers = max(1, min(max_concurrency, len(batches)))
         if workers == 1:
-            results = [_transcribe(b) for b in batches]
+            for batch in batches:
+                try:
+                    results.append(_transcribe(batch))
+                except Exception:
+                    failures.append((batch[0], batch[1]))
         else:
             with ThreadPoolExecutor(max_workers=workers) as pool:
-                results = list(pool.map(_transcribe, batches))
+                futures = {pool.submit(_transcribe, b): b for b in batches}
+                for future in as_completed(futures):
+                    batch = futures[future]
+                    try:
+                        results.append(future.result())
+                    except Exception:
+                        failures.append((batch[0], batch[1]))
+
+    if failures:
+        ranges = ", ".join(
+            f"{s + 1}–{e + 1}" if e > s else f"{s + 1}" for s, e in sorted(failures)
+        )
+        raise LoaderError(
+            f"Vision transcription failed for page(s) {ranges} of {path.name}; "
+            "no pages were written — retry the ingest."
+        )
 
     parts = [
         f"<!-- page {start + 1} -->\n{text}" for start, text in sorted(results) if text

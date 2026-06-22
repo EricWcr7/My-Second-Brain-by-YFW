@@ -9,6 +9,7 @@ from . import overrides
 from .config import Config
 from .embeddings import make_embedder
 from .providers.base import LLMProvider
+from .rerank import rerank_hits
 from .search import search
 from .store import read_page, write_page
 from .wiki import all_concept_slugs, extract_wikilinks, iter_pages, slugify, today
@@ -51,15 +52,27 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _build_context(config: Config, question: str, section: str | None, top_k: int):
+def _build_context(
+    config: Config,
+    provider: LLMProvider,
+    question: str,
+    section: str | None,
+    top_k: int,
+):
+    # With reranking on, retrieve a wider candidate pool, let the LLM reorder it by
+    # relevance, then keep the best ``top_k``; otherwise retrieve ``top_k`` directly.
+    candidate_k = max(config.rerank_candidates, top_k) if config.rerank else top_k
     hits = search(
         config,
         question,
         page_type="concept",
-        top_k=top_k,
+        top_k=candidate_k,
         section=section,
         embedder=make_embedder(config),
     )
+    if config.rerank:
+        hits = rerank_hits(config, provider, question, hits)
+    hits = hits[:top_k]
     blocks: list[str] = []
     used: list[str] = []
     total = 0
@@ -92,7 +105,7 @@ def answer(
     attachments: list[tuple[str, str]] | None = None,
 ) -> QueryResult:
     top_k = top_k or config.search_top_k
-    blocks, _retrieved = _build_context(config, question, section, top_k)
+    blocks, _retrieved = _build_context(config, provider, question, section, top_k)
     context = "\n\n".join(blocks) or "(no matching pages found)"
 
     system = "\n\n".join(

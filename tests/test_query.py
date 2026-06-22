@@ -1,8 +1,69 @@
-from llmwiki.query import _format_directive, answer
+from llmwiki.query import _build_context, _format_directive, answer
+from llmwiki.search import search
 from llmwiki.store import read_page, write_page
 from llmwiki.wiki import concept_path
 
 from tests.fakes import FakeProvider
+
+
+def _seed_pages(vault):
+    # Three concept pages that all match the query "gradient", so BM25 retrieves
+    # every one as a rerank candidate.
+    for title in ("Alpha", "Beta", "Gamma"):
+        write_page(
+            concept_path(vault, "academic/calc", title),
+            {"title": title, "type": "concept", "section": "academic/calc", "sources": ["s1"]},
+            f"The gradient appears in {title}.",
+        )
+
+
+def _retrieval_order(vault):
+    return [h.ref.slug for h in search(vault, "gradient", section="academic/calc", top_k=8)]
+
+
+def test_rerank_reorders_context_when_enabled(vault):
+    vault.rerank = True
+    _seed_pages(vault)
+    provider = FakeProvider(rerank_order=["gamma", "alpha", "beta"])
+    _blocks, used = _build_context(vault, provider, "gradient", "academic/calc", 8)
+    assert used == ["gamma", "alpha", "beta"]
+    assert "parse:RerankResult" in provider.calls
+
+
+def test_rerank_off_keeps_retrieval_order(vault):
+    _seed_pages(vault)  # vault.rerank defaults to False
+    provider = FakeProvider(rerank_order=["gamma", "alpha", "beta"])
+    _blocks, used = _build_context(vault, provider, "gradient", "academic/calc", 8)
+    assert used == _retrieval_order(vault)
+    assert "parse:RerankResult" not in provider.calls  # reranker never invoked
+
+
+def test_rerank_failure_degrades_to_retrieval_order(vault):
+    vault.rerank = True
+    _seed_pages(vault)
+
+    class _RerankBoom(FakeProvider):
+        def parse(self, system, user, schema, *, model=None, max_tokens=16000):
+            from llmwiki.rerank import RerankResult
+
+            if schema is RerankResult:
+                raise RuntimeError("rerank boom")
+            return super().parse(system, user, schema, model=model, max_tokens=max_tokens)
+
+    _blocks, used = _build_context(vault, _RerankBoom(), "gradient", "academic/calc", 8)
+    assert used == _retrieval_order(vault)  # a rerank failure never breaks Ask
+
+
+def test_rerank_never_invents_or_drops_candidates(vault):
+    vault.rerank = True
+    _seed_pages(vault)
+    # The model echoes one valid slug, one invented slug, and omits the other two.
+    provider = FakeProvider(rerank_order=["gamma", "made-up-slug"])
+    _blocks, used = _build_context(vault, provider, "gradient", "academic/calc", 8)
+    assert set(used) == {"alpha", "beta", "gamma"}  # invented dropped, none lost
+    assert used[0] == "gamma"  # the one valid ranking is honored
+    # Omitted candidates are appended in their original retrieval order.
+    assert used[1:] == [s for s in _retrieval_order(vault) if s != "gamma"]
 
 
 def test_answer_uses_retrieved_pages(vault):
