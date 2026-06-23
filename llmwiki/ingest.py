@@ -298,6 +298,11 @@ def ingest(
     section = section if section is not None else config.default_section
     warnings: list[str] = []
 
+    # Ingest runs many slow model passes (multi-segment compilation, per-page
+    # vision transcription), so scope a longer per-request timeout to this call —
+    # the interactive query/lint paths keep the shorter ``request_timeout``.
+    provider = provider.with_timeout(config.ingest_request_timeout)
+
     raw_path, key, raw_ref = _resolve_raw(config, spec)
     load_spec = spec if is_url(spec) else str(raw_path)
     loaded = load_source(
@@ -343,19 +348,32 @@ def ingest(
             "model's context window."
         )
 
-    # Compile each segment with the same two passes, accumulating into the
-    # section's shared concept pages. ``existing_titles``/``existing_pages`` are
-    # read live from disk, so a later segment merges into pages earlier ones wrote
-    # — one source, one provenance record, concepts folded together.
-    touched: list[str] = []
+    # Compile each segment with the same two passes. To keep a multi-segment
+    # ingest atomic, NOTHING is written during the loop: results accumulate in
+    # memory and every file write happens afterward, once all model passes have
+    # succeeded — so a mid-loop failure leaves the wiki untouched. Earlier
+    # segments' concepts are folded into later ones through the prompt context,
+    # fed from the accumulator below instead of from disk, so the source still
+    # collapses to one provenance record with concepts merged together.
+    pre_refs = [r for r in iter_pages(config, "concept") if r.section == section]
+    accumulated: dict[str, ConceptDraft] = {}
     source_drafts: list[SourcePageDraft] = []
     overview: str | None = None
     log_entry = ""
+
+    def _visible_concepts() -> tuple[list[str], list[str]]:
+        # Section concepts the next segment can link/merge: those on disk when the
+        # ingest started, plus the ones earlier segments produced (still in
+        # memory). The accumulator overrides disk for a shared slug — its draft is
+        # the newer version. Returns (titles, "slug :: title" index lines).
+        by_slug: dict[str, str] = {r.slug: r.title for r in pre_refs}
+        for d in accumulated.values():
+            by_slug[slugify(d.title)] = d.title
+        return list(by_slug.values()), [f"{s} :: {t}" for s, t in by_slug.items()]
+
     for segment in segments:
         seg_loaded = replace(loaded, markdown=segment)
-        existing_titles = [
-            r.title for r in iter_pages(config, "concept") if r.section == section
-        ]
+        existing_titles, index_titles = _visible_concepts()
         analysis = provider.parse(
             _system("ingest_analysis.md", config, section),
             _analysis_user(section, seg_loaded, existing_titles, user_prompt),
@@ -363,14 +381,14 @@ def ingest(
         )
         existing_pages: list[tuple[str, str, str]] = []
         for title in analysis.concept_titles:
-            page = read_page(concept_path(config, section, title))
-            if page:
-                existing_pages.append((slugify(title), title, page.content))
-        index_titles = [
-            f"{r.slug} :: {r.title}"
-            for r in iter_pages(config, "concept")
-            if r.section == section
-        ]
+            slug = slugify(title)
+            if slug in accumulated:
+                draft = accumulated[slug]
+                existing_pages.append((slug, draft.title, draft.body))
+            else:
+                page = read_page(concept_path(config, section, title))
+                if page:
+                    existing_pages.append((slug, title, page.content))
         gen = provider.parse(
             _system("ingest_generation.md", config, section),
             _generation_user(
@@ -385,15 +403,29 @@ def ingest(
             GenerationResult,
         )
         for draft in gen.concept_pages:
-            slug = _write_concept_page(config, section, source_slug, draft)
-            if slug not in touched:
-                touched.append(slug)
+            slug = slugify(draft.title)
+            prev = accumulated.get(slug)
+            if prev is not None:
+                # Last segment wins on body/tags/aliases (matching the on-disk
+                # last-write), but keep every source this concept was grounded in.
+                related = list(
+                    dict.fromkeys([*prev.related_source_slugs, *draft.related_source_slugs])
+                )
+                accumulated[slug] = draft.model_copy(update={"related_source_slugs": related})
+            else:
+                accumulated[slug] = draft
         source_drafts.append(gen.source_page)
         if gen.overview and gen.overview.strip():
             overview = gen.overview
         if gen.log_entry.strip():
             log_entry = gen.log_entry.strip()
 
+    # Every segment compiled cleanly — now the deterministic writes (the wiki's
+    # commit point for this source).
+    touched = [
+        _write_concept_page(config, section, source_slug, draft)
+        for draft in accumulated.values()
+    ]
     _write_source_page(
         config, section, source_slug, loaded, raw_ref, _merge_source_drafts(source_drafts)
     )

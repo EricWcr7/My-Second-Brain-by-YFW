@@ -164,7 +164,11 @@ windows of about `ingest_segment_max_tokens`, each window runs the analysis +
 generation passes, and the results **merge into the same section's pages**. You
 still upload one file and get one source page and one provenance record — no need
 to split the PDF yourself. It just takes proportionally longer (each segment is a
-model pass). *Scanned* PDFs that big are still limited by single-call vision
+model pass), and ingest runs under the longer `ingest_request_timeout` so a slow
+pass isn't cut off the way the shorter interactive timeout would. The compile is
+**atomic**: nothing is written until every segment has succeeded, so if an ingest
+fails partway (a timeout or model error) the wiki is left exactly as it was — just
+re-run it. *Scanned* PDFs that big are still limited by single-call vision
 transcription — split those by hand for now.
 
 ### W5 — Ask questions and let answers compound
@@ -176,6 +180,13 @@ it back into the wiki so explorations accumulate instead of vanishing.
 The app **checks the citations**: if an answer references a page that doesn't exist
 in your wiki, it shows a caution note listing those pages — that claim isn't backed
 by a source, so treat it skeptically. Grounded answers cite only real pages.
+
+For tougher questions you can enable **reranking** (`rerank = true` in
+`.llmwiki/config.toml`): after hybrid retrieval pulls a wider pool of
+`rerank_candidates` pages, the model reorders them by relevance so the most useful
+ones win the answer's limited context budget. It's off by default because it adds
+one model call per question; if that call fails the answer simply falls back to the
+normal retrieval order.
 
 ### W6 — Hybrid search (keyword + meaning)
 The search box ranks concept pages by **hybrid retrieval**: BM25 keyword scoring
@@ -226,11 +237,14 @@ provider = "anthropic"              # or "openai" (default)
 default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
+rerank = false                      # opt-in: LLM reranks retrieved pages before answering (W5)
+rerank_candidates = 20              # candidates pulled before reranking down to search_top_k
 ingest_segment_max_tokens = 60000   # compile a larger source in segments (W4)
 hybrid_search = true                # fuse keyword + vector (false = keyword only)
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
 request_timeout = 300.0             # seconds before a provider call times out
+ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in

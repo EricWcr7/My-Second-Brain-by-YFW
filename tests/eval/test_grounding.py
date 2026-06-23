@@ -62,8 +62,9 @@ GOLDEN: list[dict] = [
 ]
 
 
-def _run_case(vault, case: dict) -> list[str]:
+def _run_case(vault, case: dict, *, rerank: bool = False) -> list[str]:
     """Materialize the case's pages, run the pipeline, return flagged slugs."""
+    vault.rerank = rerank
     for title in case["pages"]:
         write_page(
             concept_path(vault, "academic/calc", title),
@@ -75,9 +76,12 @@ def _run_case(vault, case: dict) -> list[str]:
     return result.ungrounded
 
 
+# Reranking changes retrieval order, never the grounding contract — so every golden
+# case must flag exactly the same invented citations with the rerank pass on or off.
+@pytest.mark.parametrize("rerank", [False, True], ids=["rerank-off", "rerank-on"])
 @pytest.mark.parametrize("case", GOLDEN, ids=lambda c: c["name"])
-def test_grounding_case(vault, case):
-    assert _run_case(vault, case) == case["expect_ungrounded"]
+def test_grounding_case(vault, case, rerank):
+    assert _run_case(vault, case, rerank=rerank) == case["expect_ungrounded"]
 
 
 def test_grounding_accuracy(vault, capsys):

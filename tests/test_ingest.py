@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from llmwiki.chunking import segment_markdown
 from llmwiki.ingest import (
     ConceptDraft,
@@ -8,6 +10,7 @@ from llmwiki.ingest import (
     SourcePageDraft,
     ingest,
 )
+from llmwiki.providers import ProviderError
 from llmwiki.store import read_page
 from llmwiki.wiki import concept_path, source_path
 
@@ -250,10 +253,75 @@ def test_ingest_single_segment_unchanged_for_small_source(vault):
         ],
     )
     ingest(vault, provider, str(src), section="academic/calc")
-    assert provider.calls == ["parse:SourceAnalysis", "parse:GenerationResult"]
+    assert provider.calls == [
+        f"with_timeout:{vault.ingest_request_timeout}",
+        "parse:SourceAnalysis",
+        "parse:GenerationResult",
+    ]
     source = read_page(source_path(vault, "academic/calc", "small"))
     assert source is not None and "one part" in source.content
     assert "compiled in" not in source.content  # no multi-part preamble
+
+
+def test_ingest_scopes_the_ingest_request_timeout(vault):
+    # Ingest rescopes its provider to the longer ingest timeout before any model
+    # call (so multi-segment compilation + vision transcription get the headroom),
+    # leaving the interactive request_timeout untouched for query/lint.
+    src = vault.root / "n.md"
+    src.write_text("# Chain Rule\n\nShort.", "utf-8")
+    provider = _provider()
+    ingest(vault, provider, str(src), section="academic/calc")
+    assert provider.calls[0] == f"with_timeout:{vault.ingest_request_timeout}"
+
+
+def test_ingest_segment_failure_leaves_wiki_untouched(vault):
+    # A multi-segment ingest is atomic: if a later segment's model pass fails, the
+    # concept pages an earlier segment produced must NOT be on disk, and there must
+    # be no source page, ledger record, or log entry — nothing half-written.
+    vault.ingest_segment_max_tokens = 50  # force a 2-segment split (~200 chars each)
+    page1 = "<!-- page 1 -->\n" + "Open sets are defined here. " * 12
+    page2 = "<!-- page 2 -->\n" + "Compact sets are defined here. " * 12
+    src = vault.root / "book.md"
+    src.write_text(page1 + "\n\n" + page2, "utf-8")
+
+    class _FailSecondSegment(_ScriptedProvider):
+        def parse(self, system, user, schema, *, model=None, max_tokens=16000):
+            # Sequence is a1, g1, a2 — blow up on the 2nd segment's analysis, after
+            # segment 1 has fully compiled (its pages are only in memory, unwritten).
+            if schema is SourceAnalysis and self.calls.count("parse:SourceAnalysis") == 1:
+                raise ProviderError("simulated mid-ingest failure")
+            return super().parse(system, user, schema, model=model, max_tokens=max_tokens)
+
+    provider = _FailSecondSegment(
+        analyses=[
+            SourceAnalysis(source_title="Book", source_summary="Part 1.", concept_titles=["Open Sets"]),
+            SourceAnalysis(source_title="Book", source_summary="Part 2.", concept_titles=["Compact Sets"]),
+        ],
+        generations=[
+            GenerationResult(
+                concept_pages=[ConceptDraft(title="Open Sets", body="Open sets body.")],
+                source_page=SourcePageDraft(summary="Covers open sets.", grounds=["Open Sets"]),
+            ),
+        ],
+    )
+
+    log_before = vault.log_file.read_text("utf-8") if vault.log_file.exists() else ""
+
+    with pytest.raises(ProviderError):
+        ingest(vault, provider, str(src), section="academic/calc")
+
+    # Segment 1's concept was compiled but never written — the wiki is untouched.
+    assert read_page(concept_path(vault, "academic/calc", "Open Sets")) is None
+    assert read_page(source_path(vault, "academic/calc", "book")) is None
+    # No ledger commit at all: the state file is never written when ingest aborts.
+    sources = (
+        json.loads(vault.state_file.read_text("utf-8")).get("sources", {})
+        if vault.state_file.exists()
+        else {}
+    )
+    assert "raw/sources/book.md" not in sources
+    log_after = vault.log_file.read_text("utf-8") if vault.log_file.exists() else ""
+    assert log_after == log_before
 
 
 def test_segment_markdown_splits_on_page_markers():

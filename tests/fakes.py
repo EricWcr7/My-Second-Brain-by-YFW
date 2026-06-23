@@ -14,6 +14,7 @@ from llmwiki.ingest import (
 )
 from llmwiki.lint import LintFindings
 from llmwiki.providers.base import LLMProvider
+from llmwiki.rerank import RerankResult
 
 
 class FakeProvider(LLMProvider):
@@ -24,12 +25,20 @@ class FakeProvider(LLMProvider):
         generation: GenerationResult | None = None,
         answer_text: str = "Fake answer [[concept]].",
         findings: LintFindings | None = None,
+        rerank_order: list[str] | None = None,
     ):
         self._analysis = analysis
         self._generation = generation
         self._answer = answer_text
         self._findings = findings
+        self._rerank_order = rerank_order
         self.calls: list[str] = []
+
+    def with_timeout(self, timeout: float) -> "FakeProvider":
+        # Record the requested timeout so a test can assert ingest scopes its own;
+        # no real client to rescope, so return self unchanged.
+        self.calls.append(f"with_timeout:{timeout}")
+        return self
 
     def complete(self, system, user, *, model=None, max_tokens=16000) -> str:
         self.calls.append("complete")
@@ -45,6 +54,9 @@ class FakeProvider(LLMProvider):
             return self._generation
         if schema is LintFindings:
             return self._findings or LintFindings()
+        if schema is RerankResult:
+            # Empty by default → rerank_hits keeps the retrieval order unchanged.
+            return RerankResult(slugs=self._rerank_order or [])
         raise AssertionError(f"unexpected schema {schema!r}")
 
     def transcribe_pdf(self, path: Path) -> str:
