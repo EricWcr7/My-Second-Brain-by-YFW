@@ -168,14 +168,8 @@ model pass), and ingest runs under the longer `ingest_request_timeout` so a slow
 pass isn't cut off the way the shorter interactive timeout would. The compile is
 **atomic**: nothing is written until every segment has succeeded, so if an ingest
 fails partway (a timeout or model error) the wiki is left exactly as it was — just
-re-run it. **Scanned** PDFs that big work the same way: they're vision-transcribed
-in batches of `pdf_vision_batch_pages` pages per call (so the transcription never
-blows the context window or gets truncated), then segmented like a text PDF — no
-need to split them by hand. Those batch calls run up to `pdf_vision_max_concurrency`
-at a time, so a big scan transcribes faster without tripping provider rate limits.
-If a page-batch can't be transcribed, the ingest stops and tells you which pages
-failed instead of quietly leaving them out, so a source page is never built from a
-partial scan.
+re-run it. *Scanned* PDFs that big are still limited by single-call vision
+transcription — split those by hand for now.
 
 ### W5 — Ask questions and let answers compound
 Use the **Ask** panel; answers come only from the wiki, with citations to the pages
@@ -246,8 +240,6 @@ context_token_budget = 60000        # max context tokens for Ask/Lint
 rerank = false                      # opt-in: LLM reranks retrieved pages before answering (W5)
 rerank_candidates = 20              # candidates pulled before reranking down to search_top_k
 ingest_segment_max_tokens = 60000   # compile a larger source in segments (W4)
-pdf_vision_batch_pages = 10         # scanned PDF: pages per vision-transcription call
-pdf_vision_max_concurrency = 4      # how many of those batch calls run at once
 hybrid_search = true                # fuse keyword + vector (false = keyword only)
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
