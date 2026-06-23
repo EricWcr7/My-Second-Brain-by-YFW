@@ -164,11 +164,8 @@ windows of about `ingest_segment_max_tokens`, each window runs the analysis +
 generation passes, and the results **merge into the same section's pages**. You
 still upload one file and get one source page and one provenance record — no need
 to split the PDF yourself. It just takes proportionally longer (each segment is a
-model pass). **Scanned** PDFs that big work the same way: they're vision-transcribed
-in batches of `pdf_vision_batch_pages` pages per call (so the transcription never
-blows the context window or gets truncated), then segmented like a text PDF — no
-need to split them by hand. Those batch calls run up to `pdf_vision_max_concurrency`
-at a time, so a big scan transcribes faster without tripping provider rate limits.
+model pass). *Scanned* PDFs that big are still limited by single-call vision
+transcription — split those by hand for now.
 
 ### W5 — Ask questions and let answers compound
 Use the **Ask** panel; answers come only from the wiki, with citations to the pages
@@ -230,8 +227,6 @@ default_section = "non-academic"
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
 ingest_segment_max_tokens = 60000   # compile a larger source in segments (W4)
-pdf_vision_batch_pages = 10         # scanned PDF: pages per vision-transcription call
-pdf_vision_max_concurrency = 4      # how many of those batch calls run at once
 hybrid_search = true                # fuse keyword + vector (false = keyword only)
 embed_model = "text-embedding-3-small"  # embedding model used for every section
 # embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
