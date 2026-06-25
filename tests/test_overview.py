@@ -71,7 +71,7 @@ def test_refresh_overview_empty_section_writes_stub_without_model_call(vault):
 
 def test_build_overview_input_scopes_to_section_and_descendants(vault):
     _concept(vault, "academic/calc", "Chain Rule")
-    _concept(vault, "non-academic", "Cooking")
+    _concept(vault, "personal", "Cooking")
 
     catalog, slugs = build_overview_input(vault, "academic")
 

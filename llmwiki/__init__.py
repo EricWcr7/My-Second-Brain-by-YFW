@@ -2,8 +2,9 @@
 
 Compiles local materials (Markdown, PDFs, slides, docs, images, web URLs) into a
 persistent, Obsidian-compatible Markdown wiki organized as a section hierarchy
-(General → Academic / Non-academic → courses). Raw sources stay local and remain
-the source of truth; generated wiki pages are the study layer.
+(General → Academic → courses, plus your own top-level branches). Raw sources
+stay local and remain the source of truth; generated wiki pages are the study
+layer.
 """
 
 __version__ = "0.1.0"

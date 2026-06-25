@@ -30,9 +30,9 @@ class Config:
     cheap_model: str | None = None
     # Section a source lands in when `--section` is omitted. Sections are
     # `/`-joined path strings (e.g. "academic/multivariable-calculus"); "" is the
-    # General root that sees the whole knowledge base. Filing defaults to the flat
-    # non-academic branch.
-    default_section: str = "non-academic"
+    # General root that sees the whole knowledge base, and is the default — an
+    # un-sectioned source lands at the top level.
+    default_section: str = ""
     # Retrieval / context budgets.
     search_top_k: int = 8
     context_token_budget: int = 60_000

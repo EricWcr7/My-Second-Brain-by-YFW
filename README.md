@@ -7,8 +7,9 @@ search, and ask questions of, **all in your browser, all on your machine**.
 
 - **Concept-centric** — one page per concept (definition, theorems, notation,
   formulas, proof ideas, examples) plus one page per source.
-- **Hierarchical scope** — General → Academic / Non-academic → courses; every
-  scope runs the same operations over its slice (see [Hierarchy & scope](#hierarchy--scope)).
+- **Hierarchical scope** — General → Academic (+ your own top-level branches) →
+  courses; every scope runs the same operations over its slice (see
+  [Hierarchy & scope](#hierarchy--scope)).
 - **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$` / `$$…$$` math.
 - **Local-first** — no cloud, single-user, your files stay on disk. **Hybrid
   search** (BM25 keyword ⊕ on-disk semantic vectors) + an LLM compiler (OpenAI by
@@ -96,11 +97,12 @@ sidebar collapses into a **☰ menu** in the top bar.
   even with no shared words. Falls back to instant keyword-only ranking offline.
 - **Lint** — structural checks, plus an optional **deep** LLM review that flags
   contradictions and suggests what to read next.
-- **Courses & sections** — from a section hub, **+ New course** scaffolds a branch
-  and **🗑** deletes one — a full wipe of its pages *and* the sources filed under
-  it (ledger, cached/raw files, customizations), so the same source can be
-  re-ingested cleanly afterward. The seeded `academic` / `non-academic` branches
-  are protected. Names keep their exact casing and non-Latin characters
+- **Branches, courses & sections** — from the homepage, **+ New branch** adds a
+  top-level branch (a sibling of Academic); from a section hub, **+ New course** /
+  **+ New section** scaffolds a child, and **🗑** deletes one — a full wipe of its
+  pages *and* the sources filed under it (ledger, cached/raw files, customizations),
+  so the same source can be re-ingested cleanly afterward. The seeded `academic`
+  branch is protected. Names keep their exact casing and non-Latin characters
   (`example-course`, `线性代数`).
 - **Customize** — each section hub has a **Customize** view to tailor the LLM
   instruction set *for that branch*: the prompt for each operation (ingest
@@ -123,9 +125,9 @@ Knowledge lives in a tree of **sections** — a `/`-joined path like
 
 ```
 General (root)            → can access the ENTIRE knowledge base
-├── Non-academic (flat)   → only non-academic knowledge
-└── Academic              → all courses' knowledge
-    └── <course>          → only that course (default)
+├── Academic              → all courses' knowledge
+│   └── <course>          → only that course (default)
+└── <your branch>         → a top-level branch you add (e.g. Personal, Work)
 ```
 
 Access follows one **prefix rule**: a scope sees a page iff the scope is a prefix
@@ -194,7 +196,7 @@ PDFs), Word `.docx`, PowerPoint `.pptx`, images (vision), and web URLs.
 provider = "openai"                 # "openai" (default) or "anthropic"
 # compile_model = "gpt-5.5"         # ingest + answer model (optional; GPT-5.5+)
 # cheap_model = "gpt-5.5"           # reserved for cheap ops (optional)
-default_section = "non-academic"    # default scope when none is given
+default_section = ""                # default scope when none is given ("" = General root)
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
 hybrid_search = true                # fuse keyword + vector search (off = BM25 only)

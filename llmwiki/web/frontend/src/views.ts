@@ -13,7 +13,7 @@ import {
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
 import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
 import { setBreadcrumb, setScopedBreadcrumb } from "./topbar";
-import { renderLandingStats } from "./landing";
+import { renderLandingStats, renderBranches } from "./landing";
 import { toast } from "./toast";
 import {
   childSections,
@@ -22,8 +22,8 @@ import {
   sectionLabel,
 } from "./sections";
 
-// The seeded roots the UI relies on — not deletable (mirrors the backend guard).
-const PROTECTED_SECTIONS = new Set(["academic", "non-academic"]);
+// The seeded root the UI relies on — not deletable (mirrors the backend guard).
+const PROTECTED_SECTIONS = new Set(["academic"]);
 
 export function setView(name: string): void {
   document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
@@ -98,8 +98,6 @@ function sectionDescription(scope: string): string {
     return "Your whole knowledge base — ask or lint across everything, or open a section below to focus.";
   if (scope === "academic")
     return "All your course knowledge. Each course below sees only its own material; ask or lint here to work across every course.";
-  if (scope === "non-academic")
-    return "Personal, free-form knowledge — notes and references that don't belong to a course.";
   return "Everything filed under this section. The operations below are scoped to it and everything beneath it.";
 }
 
@@ -117,13 +115,13 @@ export function renderSection(scope: string): void {
   const isGeneral = scope === "";
   const isAcademic = scope === "academic";
   // Courses (and anything beneath them) are leaves under Academic — you can add
-  // courses to Academic itself, but not sub-sections inside a course. General's
-  // children are the fixed seeded branches, so it offers no create control.
-  const canCreate = !isGeneral && (isAcademic || !sectionContains("academic", scope));
-  const createLabel = isAcademic ? "New course" : "New section";
-  const headLabel = isGeneral ? "Sections" : isAcademic ? "Courses" : "Sub-sections";
-  // Always surface the seeded branches under General, even before either exists
-  // on disk (a fresh vault may have only `academic/`).
+  // courses to Academic itself, but not sub-sections inside a course. General can
+  // create top-level branches (siblings of Academic); the homepage offers the same.
+  const canCreate = isGeneral || isAcademic || !sectionContains("academic", scope);
+  const createLabel = isAcademic ? "New course" : isGeneral ? "New branch" : "New section";
+  const headLabel = isGeneral ? "Branches" : isAcademic ? "Courses" : "Sub-sections";
+  // Always surface the seeded `academic` branch under General, even before it
+  // exists on disk (a fresh vault may not have filed anything yet).
   const children = isGeneral
     ? [...new Set([...PROTECTED_SECTIONS, ...childSections(scope, state.meta.sections)])].sort()
     : childSections(scope, state.meta.sections);
@@ -159,7 +157,7 @@ export function renderSection(scope: string): void {
   if (canCreate) {
     const empty = children.length
       ? ""
-      : `<p class="muted hub-empty">No ${isAcademic ? "courses" : "sub-sections"} yet — create one to get started.</p>`;
+      : `<p class="muted hub-empty">No ${isAcademic ? "courses" : isGeneral ? "branches" : "sub-sections"} yet — create one to get started.</p>`;
     childrenBlock = `
     <div class="hub-head-row">
       <div class="hub-head">${headLabel}</div>
@@ -167,7 +165,7 @@ export function renderSection(scope: string): void {
     </div>
     <form id="new-section-form" class="new-section-form" hidden>
       <input id="new-section-name" type="text" autocomplete="off"
-        placeholder="${isAcademic ? "Course name" : "Section name"}…">
+        placeholder="${isAcademic ? "Course name" : isGeneral ? "Branch name" : "Section name"}…">
       <button type="submit" class="btn btn-primary">Create</button>
       <button type="button" id="new-section-cancel" class="btn">Cancel</button>
     </form>
@@ -474,6 +472,7 @@ async function onIngest(e: Event): Promise<void> {
     }
     await loadPages();
     renderLandingStats(); // keep the landing counts live after an ingest
+    renderBranches(); // and the branch cards (counts + any new branch)
     filesEl.value = "";
     urlEl.value = "";
     if (promptEl) promptEl.value = "";

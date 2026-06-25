@@ -66,10 +66,10 @@ def test_search_ranks_the_concept(client):
 
 def test_meta_reports_sections(client):
     meta = client.get("/api/meta").json()
-    # Sections come from pages *and* directories, so the seeded academic/
-    # non-academic branches show up even before anything is filed in them.
-    assert meta["sections"] == ["academic", "academic/calc", "non-academic"]
-    assert meta["default_section"] == "non-academic"
+    # Sections come from pages *and* directories, so the seeded academic branch
+    # shows up even before anything is filed in it.
+    assert meta["sections"] == ["academic", "academic/calc"]
+    assert meta["default_section"] == ""
 
 
 def test_create_section_scaffolds_dirs(client, vault):
@@ -104,6 +104,20 @@ def test_create_section_rejects_duplicate_and_blank(client):
     # Case-insensitive: "calc" collides with the seeded academic/calc.
     assert client.post("/api/sections", json={"name": "CALC", "parent": "academic"}).status_code == 409
     assert client.post("/api/sections", json={"name": "   ", "parent": "academic"}).status_code == 422
+
+
+def test_create_top_level_branch_at_general_root(client, vault):
+    # A top-level branch (parent="" → the General root) is creatable from the web
+    # UI, appears beside the seeded Academic branch, and — unlike Academic — is
+    # deletable (not protected).
+    r = client.post("/api/sections", json={"name": "Personal", "parent": ""})
+    assert r.status_code == 200
+    assert r.json()["section"] == "Personal"
+    assert (vault.concepts_dir / "Personal").is_dir()
+    assert (vault.source_pages_dir / "Personal").is_dir()
+    assert "Personal" in client.get("/api/meta").json()["sections"]
+    assert client.delete("/api/sections/Personal").status_code == 200
+    assert "Personal" not in client.get("/api/meta").json()["sections"]
 
 
 def test_delete_section_removes_dirs(client, vault):
@@ -212,7 +226,7 @@ def test_delete_section_missing_returns_404(client):
 def test_search_section_scope(client):
     # The Academic branch sees the course page; a sibling section does not.
     assert client.get("/api/search", params={"q": "chain rule", "section": "academic"}).json()
-    assert client.get("/api/search", params={"q": "chain rule", "section": "non-academic"}).json() == []
+    assert client.get("/api/search", params={"q": "chain rule", "section": "personal"}).json() == []
 
 
 def test_overrides_list_reports_status_and_general(client):
