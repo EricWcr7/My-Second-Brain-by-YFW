@@ -159,7 +159,17 @@ class Config:
 
     @property
     def overview_file(self) -> Path:
+        # The General-root overview. Per-section overviews live under
+        # ``overviews_dir`` (see ``wiki.overview_path``).
         return self.wiki_dir / "overview.md"
+
+    @property
+    def overviews_dir(self) -> Path:
+        # Per-section overview pages, mirroring the section path
+        # (``overviews/<section-relpath>.md``). Kept OUT of ``concepts/``/
+        # ``sources/`` so ``iter_pages``/``rebuild_index`` never treat an
+        # overview as a wiki page.
+        return self.wiki_dir / "overviews"
 
 
 # Keys that map directly onto Config fields when present in config.toml.

@@ -64,6 +64,17 @@ def normalize_section(section: str) -> str:
     return "/".join(section_slug(seg) for seg in section_segments(section))
 
 
+def section_ancestry(section: str) -> list[str]:
+    """The General root down to ``section``: ``["", …parents…, section]``.
+
+    e.g. ``"academic/example-course"`` -> ``["", "academic", "academic/example-course"]``.
+    Mirrors the frontend ``sectionAncestors``; used to refresh a section's
+    overview together with every ancestor that summarizes it.
+    """
+    segs = section_segments(normalize_section(section))
+    return [""] + ["/".join(segs[: i + 1]) for i in range(len(segs))]
+
+
 def section_dirs(config: Config) -> set[str]:
     """Normalized section paths that exist as directories under concepts/ or sources/.
 
@@ -110,6 +121,19 @@ def concept_path(config: Config, section: str, title: str) -> Path:
 
 def source_path(config: Config, section: str, source_slug: str) -> Path:
     return config.source_pages_dir / section_to_relpath(section) / f"{source_slug}.md"
+
+
+def overview_path(config: Config, section: str) -> Path:
+    """Where a section's overview lives.
+
+    The General root (``""``) reuses ``wiki/overview.md`` (already wired to the
+    home view); every other section maps to ``overviews/<section-relpath>.md``.
+    Overviews sit OUTSIDE ``concepts/``/``sources/`` so ``iter_pages`` never sees
+    them as wiki pages.
+    """
+    if not normalize_section(section):
+        return config.overview_file
+    return config.overviews_dir / section_to_relpath(section).with_suffix(".md")
 
 
 def today() -> str:
@@ -250,7 +274,8 @@ def purge_section(config: Config, section: str) -> list[str]:
     1. the ``state.json`` ledger record for each source filed there — dropped
        here along with the bytes it owns: the ``normalized/<checksum>.md`` cache
        and the ``raw/`` file;
-    2. the concept/source page subtrees;
+    2. the concept/source page subtrees, plus the section's own overview page
+       and its descendants' overviews under ``wiki/overviews/``;
     3. the per-section override files under ``.llmwiki/sections/``;
     4. the deleted concepts' chunks in the vector index (so semantic search can't
        still surface a page that no longer exists).
@@ -291,10 +316,14 @@ def purge_section(config: Config, section: str) -> list[str]:
         config.concepts_dir,
         config.source_pages_dir,
         config.section_overrides_dir,
+        config.overviews_dir,  # the descendants' overview subtree
     ):
         target = base / rel
         if target.exists():
             shutil.rmtree(target)
+    # The section's own overview is a FILE (``overviews/<rel>.md``), removed
+    # separately from the descendants subtree swept above.
+    overview_path(config, section).unlink(missing_ok=True)
 
     rebuild_index(config)  # drop the deleted pages from index.md
 

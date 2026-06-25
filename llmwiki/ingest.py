@@ -22,6 +22,7 @@ from .embeddings import make_embedder
 from .indexing import index_pages
 from .loaders import LoadResult, is_url, load_source
 from .loaders.registry import IMAGE_EXTS
+from .overview import refresh_overview
 from .providers.base import LLMProvider
 from .store import (
     ensure_dir,
@@ -40,6 +41,7 @@ from .wiki import (
     iter_pages,
     normalize_section,
     rebuild_index,
+    section_ancestry,
     slugify,
     source_path,
     today,
@@ -77,7 +79,6 @@ class SourcePageDraft(BaseModel):
 class GenerationResult(BaseModel):
     concept_pages: list[ConceptDraft] = Field(default_factory=list)
     source_page: SourcePageDraft
-    overview: str | None = None
     log_entry: str = ""
 
 
@@ -358,7 +359,6 @@ def ingest(
     pre_refs = [r for r in iter_pages(config, "concept") if r.section == section]
     accumulated: dict[str, ConceptDraft] = {}
     source_drafts: list[SourcePageDraft] = []
-    overview: str | None = None
     log_entry = ""
 
     def _visible_concepts() -> tuple[list[str], list[str]]:
@@ -415,8 +415,6 @@ def ingest(
             else:
                 accumulated[slug] = draft
         source_drafts.append(gen.source_page)
-        if gen.overview and gen.overview.strip():
-            overview = gen.overview
         if gen.log_entry.strip():
             log_entry = gen.log_entry.strip()
 
@@ -429,9 +427,6 @@ def ingest(
     _write_source_page(
         config, section, source_slug, loaded, raw_ref, _merge_source_drafts(source_drafts)
     )
-
-    if overview and overview.strip():
-        config.overview_file.write_text(overview.strip() + "\n", "utf-8")
 
     detail = log_entry or (
         f"concepts: {', '.join(touched) or 'none'} (section: {section or 'General'})"
@@ -460,6 +455,16 @@ def ingest(
             index_pages(config, embedder, refs)
         except Exception as e:  # pragma: no cover - resilience path
             warnings.append(f"vector indexing skipped: {e}")
+
+    # Section overviews are LLM-maintained: refresh the ingested section and every
+    # ancestor up to General (each summarizes everything beneath it). Best-effort,
+    # like vector indexing above — a failure here must never undo a committed
+    # ingest, so it degrades to a warning.
+    for sec in section_ancestry(section):
+        try:
+            refresh_overview(config, provider, sec)
+        except Exception as e:  # pragma: no cover - resilience path
+            warnings.append(f"overview refresh skipped for {sec or 'General'}: {e}")
 
     set_source_record(
         state,

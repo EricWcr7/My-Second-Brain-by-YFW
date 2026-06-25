@@ -253,11 +253,15 @@ def test_ingest_single_segment_unchanged_for_small_source(vault):
         ],
     )
     ingest(vault, provider, str(src), section="academic/calc")
-    assert provider.calls == [
+    # One analysis + one generation pass for the single segment...
+    assert provider.calls[:3] == [
         f"with_timeout:{vault.ingest_request_timeout}",
         "parse:SourceAnalysis",
         "parse:GenerationResult",
     ]
+    # ...then a best-effort overview refresh for the section and its two ancestors
+    # (General + academic), each a `complete` call.
+    assert provider.calls.count("complete") == 3
     source = read_page(source_path(vault, "academic/calc", "small"))
     assert source is not None and "one part" in source.content
     assert "compiled in" not in source.content  # no multi-part preamble

@@ -25,7 +25,7 @@ Three layers, which you should never confuse:
 | Layer | What it is | Who edits it |
 | ----- | ---------- | ------------ |
 | **Raw sources** (`raw/`) | The files you ingest, copied in verbatim. The source of truth. | You (by ingesting). Immutable afterwards. |
-| **Wiki** (`wiki/`) | LLM-generated concept/source pages, plus `index.md`, `log.md`, `overview.md`. | The LLM. |
+| **Wiki** (`wiki/`) | LLM-generated concept/source pages, plus per-section overviews (`overviews/`), `index.md`, `log.md`, `overview.md`. | The LLM. |
 | **Schema** (`wiki/purpose.md`, `wiki/schema.md`) | The instructions the compiler obeys. | You + the LLM, occasionally. |
 
 Unlike classic RAG (which re-reads raw chunks on every question), the knowledge is
@@ -80,7 +80,7 @@ when you pick something, tap away, or press Esc.
 | `queries/<slug>.md` | A saved answer. |
 | `index.md` | Auto-regenerated navigation catalog. **Never hand-edit.** |
 | `log.md` | Append-only, greppable operation timeline. **Never hand-edit.** |
-| `overview.md` | Narrative orientation, refreshed on ingest. |
+| `overview.md`, `overviews/<section>.md` | One narrative overview per section (the General root uses `overview.md`; every other section maps to `overviews/<section-path>.md`). Refreshed on ingest and on demand. |
 | `purpose.md`, `schema.md` | The schema layer, fed into every LLM call. |
 
 ### Provenance
@@ -121,8 +121,9 @@ Run `llmwiki init` in an empty folder, then launch the app. You get an empty vau
 Open the **Academic** hub and **+ New course** (e.g. `multivariable-calculus`), or
 just ingest into it and it's created on first use. Select the course scope, then use
 the **Ingest** panel to upload lecture PDFs/slides one at a time. Each ingest
-writes/merges concept pages, writes the source page, refreshes `overview.md`,
-regenerates `index.md`, and logs the operation. Re-ingesting an edited file
+writes/merges concept pages, writes the source page, refreshes the section's
+overview (and its parents up to General), regenerates `index.md`, and logs the
+operation. Re-ingesting an edited file
 **merges** new material rather than duplicating it. Then switch to **Ask** to study:
 *"state the chain rule and its proof idea."* Proof-heavy courses (like the seeded
 `example-course`) carry their own **Customize** override that preserves definitions,
@@ -275,6 +276,21 @@ wiki stays general — the seeded `example-course` ships with override prompts/p
 that preserve definitions, theorem/lemma codes, notation, proof ideas, and LaTeX.
 Create another proof course and you can apply the same from this view. Customizing
 **General** edits the shared default every uncustomized branch inherits.
+
+### W13 — Browse and refresh a section's overview
+Every section hub — **General**, each branch, each course — has a **Browse overview**
+button that opens an LLM-written orientation to *that* section: what it covers, how
+its main ideas connect, and where to start, with `[[wikilinks]]` into the pages. The
+General root's overview is also the app's home page.
+
+Overviews are kept current for you: every **Ingest** refreshes the overview of the
+section you added to **and all of its parents up to General** (so a branch or the home
+overview never goes stale just because you filed into a course beneath it). To rebuild
+one yourself — say after deleting a sub-section, or to retry — open the section's hub
+and click **Regenerate overview**. From the terminal, `llmwiki overview --section
+academic/example-course` does the same (omit `--section` for the General overview). Overviews
+live at `wiki/overview.md` (General) and `wiki/overviews/<section-path>.md`, and are
+LLM-owned like the rest of `wiki/` — don't hand-edit them.
 
 ---
 

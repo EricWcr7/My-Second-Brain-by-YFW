@@ -13,6 +13,7 @@ from .indexing import reindex_all
 from .ingest import ingest
 from .lint import lint
 from .loaders import LoaderError
+from .overview import refresh_overview
 from .providers import ProviderError, get_provider
 from .query import answer
 from .scaffold import scaffold_vault
@@ -100,6 +101,16 @@ def cmd_lint(args: argparse.Namespace) -> int:
     for issue in sorted(issues, key=lambda i: order.get(i.level, 3)):
         print(f"[{issue.level:7}] {issue.page}: {issue.message}")
     return 1 if any(i.level == "error" for i in issues) else 0
+
+
+def cmd_overview(args: argparse.Namespace) -> int:
+    config = load_config()
+    provider = get_provider(config)
+    section = args.section or ""
+    path = refresh_overview(config, provider, section)
+    append_log(config, "overview", section or "General", detail="regenerated via CLI")
+    print(f"overview written: {path.relative_to(config.root)}")
+    return 0
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -248,6 +259,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--deep", action="store_true", help="also run an LLM contradiction/gap review"
     )
     p_l.set_defaults(func=cmd_lint)
+
+    p_ov = sub.add_parser(
+        "overview", help="regenerate a section's LLM overview (default: General root)"
+    )
+    p_ov.add_argument(
+        "--section", help="section path to refresh (default: General — the whole base)"
+    )
+    p_ov.set_defaults(func=cmd_overview)
 
     p_s = sub.add_parser(
         "search", help="hybrid keyword + vector search over concept pages"

@@ -76,6 +76,12 @@ sidebar collapses into a **☰ menu** in the top bar.
   clickable `[[wikilinks]]`. Every page/section link behaves the same way —
   sidebar, breadcrumb, wikilinks, and Lint references all navigate consistently,
   and a link to a page that isn't in your wiki tells you instead of doing nothing.
+- **Overview** — every section hub (General, each branch, each course) has a
+  **Browse overview** that opens an LLM-written orientation to *that* section:
+  what it covers and how its ideas connect, with `[[wikilinks]]` into the pages.
+  Overviews stay current automatically — each ingest refreshes the section you
+  added to **and its parents up to General** — and a **Regenerate overview** button
+  rewrites one on demand.
 - **Ingest** — the Ingest panel (sidebar, the General card, and each section hub)
   takes one or more **uploaded files** (Markdown/text, PDF, Word, PowerPoint,
   images) **or a URL**, and compiles them into the wiki at your current scope. An
@@ -170,7 +176,7 @@ page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 | Path | Role |
 | ---- | ---- |
 | `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
-| `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `index.md`, `log.md`, `overview.md`, `purpose.md`, `schema.md`. |
+| `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `overviews/<section>.md` (per-section overviews), `index.md`, `log.md`, `overview.md` (General overview), `purpose.md`, `schema.md`. |
 | `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache + `lancedb/` vector index (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
 | `llmwiki/` | The Python package (the app itself). |
 

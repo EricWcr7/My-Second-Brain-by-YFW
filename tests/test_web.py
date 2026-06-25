@@ -262,6 +262,22 @@ def test_home_returns_content(client):
     assert "content" in client.get("/api/home").json()
 
 
+def test_home_is_scope_aware(client, monkeypatch):
+    # Refreshing the course overview, then asking /api/home for that scope, serves
+    # the section's own overview (not the global one).
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    assert client.post("/api/overview/refresh", json={"section": "academic/calc"}).status_code == 200
+    body = client.get("/api/home", params={"section": "academic/calc"}).json()
+    assert "chain rule" in body["content"].lower()
+
+
+def test_overview_refresh_requires_key(client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    r = client.post("/api/overview/refresh", json={"section": "academic/calc"})
+    assert r.status_code == 503
+    assert "OPENAI_API_KEY" in r.json()["detail"]
+
+
 def test_lint_flags_dangling_wikilink(client):
     issues = client.get("/api/lint").json()
     assert any("gradient" in i["message"] for i in issues)
