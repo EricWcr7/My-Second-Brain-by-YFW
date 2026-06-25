@@ -138,7 +138,10 @@ Body — a structured summary of the source plus a list of the concepts it groun
 - `index.md` — auto-generated navigation catalog (do not edit by hand).
 - `log.md` — append-only operation record; each entry is a
   `## [YYYY-MM-DD] <op> | <title>` heading so the timeline is greppable.
-- `overview.md` — narrative orientation across sections (compiler-maintained).
+- `overview.md` and `overviews/<section>.md` — one LLM-maintained narrative
+  overview per section (the General root uses `overview.md`, every other section
+  maps to `overviews/<section-path>.md`). Refreshed on ingest (the ingested
+  section and its ancestors) and on demand; not hand-edited.
 """
 
 OVERVIEW_MD = """\

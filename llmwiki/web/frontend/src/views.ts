@@ -55,11 +55,21 @@ function providerLabel(): string {
 }
 
 async function renderHome(): Promise<void> {
+  // Scope-aware: each section hub's "Browse overview" lands here with its scope,
+  // so a course shows its own overview, a branch its branch overview, etc.
   setScopedBreadcrumb(state.scope, "Overview");
   mount('<p class="muted">Loading…</p>');
   try {
-    const d = await getJSON<{ content: string }>("/api/home");
-    mount(renderMarkdown(d.content || "_No overview yet. Add a source from the Ingest view._"));
+    const url = state.scope
+      ? "/api/home?section=" + encodeURIComponent(state.scope)
+      : "/api/home";
+    const d = await getJSON<{ content: string }>(url);
+    mount(
+      renderMarkdown(
+        d.content ||
+          "_No overview here yet. Ingest a source into this section, or use **Regenerate overview** on the section hub._",
+      ),
+    );
   } catch (err) {
     mount(`<p class="notice">${escapeHtml((err as Error).message)}</p>`);
   }
@@ -179,11 +189,35 @@ export function renderSection(scope: string): void {
       <a class="btn" href="#/lint">Lint</a>
       <a class="btn" href="#/ingest">Ingest</a>
       <a class="btn" href="#/customize/${scope}">Customize</a>
+      <button id="regen-overview-btn" class="btn" type="button" ${state.meta.has_api_key ? "" : "disabled"}
+        title="${state.meta.has_api_key ? "Rewrite this section's overview with the model" : "Set an API key to regenerate overviews"}">Regenerate overview</button>
     </div>${childrenBlock}`;
 
   if (canCreate) wireCreateForm(scope);
   wireDeleteButtons(scope);
+  wireRegenOverview(scope);
   animateIn();
+}
+
+// Wire the "Regenerate overview" button: ask the server to rewrite this section's
+// overview with the model, then open the (now-refreshed) overview for this scope.
+function wireRegenOverview(scope: string): void {
+  const btn = document.getElementById("regen-overview-btn") as HTMLButtonElement | null;
+  if (!btn || btn.disabled) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "Regenerating…";
+    try {
+      await postJSON("/api/overview/refresh", { section: scope });
+      toast("Overview regenerated");
+      location.hash = "#/overview"; // show the refreshed overview for this scope
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = label;
+      toast((err as Error).message);
+    }
+  });
 }
 
 // Wire the 🗑 button on each child card: confirm, delete on the server, then drop

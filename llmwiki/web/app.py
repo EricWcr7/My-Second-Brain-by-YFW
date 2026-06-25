@@ -31,11 +31,13 @@ from ..query import answer
 from ..search import search
 from ..store import ensure_dir, read_page
 from ..vectorindex import VectorIndexUnavailable
+from ..overview import refresh_overview
 from ..wiki import (
     PageRef,
     append_log,
     iter_pages,
     normalize_section,
+    overview_path,
     purge_section,
     read_optional,
     section_dirs,
@@ -267,9 +269,42 @@ def create_app(
         }
 
     @app.get("/api/home")
-    def home() -> dict:
-        content = read_optional(config.overview_file) or read_optional(config.index_file)
+    def home(section: str | None = None) -> dict:
+        """The overview for ``section`` (the UI's current scope; default General).
+
+        Each section hub's "Browse overview" lands here with its scope, so a
+        course sees its own overview, a branch sees its branch overview, etc. The
+        General root keeps its catalog fallback so a fresh vault's home isn't blank;
+        a section with no overview yet returns empty (the UI shows an empty state).
+        """
+        norm = normalize_section(section or "")
+        content = read_optional(overview_path(config, norm))
+        if not content and not norm:
+            content = read_optional(config.index_file)
         return {"title": "Overview", "content": content}
+
+    @app.post("/api/overview/refresh")
+    def overview_refresh(section: str = Body("", embed=True)) -> dict:
+        """Regenerate one section's overview on demand (the hub's button / CLI).
+
+        API-key-gated like ingest/query: the LLM rewrites the overview from the
+        section's concept catalog. Unlike ingest (which also refreshes ancestors),
+        this targets just the requested section — the user is on that hub.
+        """
+        if not _has_api_key(config):
+            env = _api_key_env(config)
+            raise HTTPException(
+                status_code=503,
+                detail=f"{env} is not set; set it and restart to regenerate overviews.",
+            )
+        provider = provider_factory(config)
+        norm = normalize_section(section)
+        try:
+            path = refresh_overview(config, provider, norm)
+        except ProviderError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        append_log(config, "overview", norm or "General", detail="regenerated via web UI")
+        return {"section": norm, "content": read_optional(path)}
 
     @app.get("/api/page/{slug}")
     def page(slug: str) -> dict:
