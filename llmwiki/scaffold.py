@@ -20,9 +20,9 @@ provider = "openai"
 # compile_model = "gpt-5.5"        # ingest + answer model (must be gpt-5.5+)
 # cheap_model = "gpt-5.5"          # reserved for cheap ops
 # Section a source lands in when `--section` is omitted. Sections are `/`-joined
-# paths (e.g. "academic/multivariable-calculus"); "" is the General root. Filing
-# defaults to the flat non-academic branch.
-default_section = "non-academic"
+# paths (e.g. "academic/multivariable-calculus"); "" is the General root and the
+# default — un-sectioned sources land at the top level.
+default_section = ""
 search_top_k = 8
 context_token_budget = 60000
 # rerank = true                      # opt-in: LLM reranks retrieved pages (one extra call per Ask)
@@ -51,10 +51,11 @@ wiki operations (ingest, query, search, lint) — the only difference is **how m
 of the knowledge base it can access**:
 
 - **General** (root) — accesses the entire knowledge base.
-  - **Non-academic** — personal, free-form knowledge; currently flat.
   - **Academic** — accesses all course knowledge.
     - one subsection per **course** — by default each accesses only its own
       knowledge. To widen, query a parent section (Academic or General).
+  - add your own **top-level branches** (e.g. Personal, Work) from the web UI —
+    each is a sibling of Academic that scopes its own knowledge.
 
 A section is a `/`-joined path (e.g. `academic/example-course`); a scope sees a page when
 the scope is a prefix of the page's section.
@@ -98,7 +99,7 @@ Frontmatter:
 ```yaml
 title: <human title>
 type: concept
-section: <section path>          # e.g. non-academic/productivity
+section: <section path>          # e.g. academic/example-course
 tags: [<topic>, ...]
 aliases: [<alternate names>, ...]
 sources: [<source-slug>, ...]   # provenance — required, never empty
@@ -122,7 +123,7 @@ Frontmatter:
 ```yaml
 title: <human title>
 type: source
-section: <section path>          # e.g. non-academic/productivity
+section: <section path>          # e.g. academic/example-course
 kind: <markdown|pdf|docx|pptx|image|web|text>
 path: <relative path under raw/ , or the URL>
 assets: [<relative path under raw/assets/>, ...]   # optional; image sources only
@@ -168,11 +169,11 @@ def scaffold_vault(root: Path) -> Config:
     ):
         ensure_dir(d)
 
-    # Seed the conventional top-level branches so the hierarchy is visible from
-    # the start. These are conventions, not enforced — any nesting depth works.
+    # Seed the conventional `academic` branch so the hierarchy is visible from the
+    # start. This is a convention, not enforced — any nesting depth works, and you
+    # can add more top-level branches (siblings of Academic) from the web UI.
     for base in (config.concepts_dir, config.source_pages_dir):
-        for branch in ("academic", "non-academic"):
-            ensure_dir(base / branch)
+        ensure_dir(base / "academic")
 
     seeds = {
         config.config_file: CONFIG_TOML,

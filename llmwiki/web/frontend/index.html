@@ -167,24 +167,21 @@
     </section>
 
     <section class="lp-section">
-      <div class="lp-section-head">
-        <h2 class="lp-section-title">Browse by branch</h2>
-        <p class="lp-section-sub">Jump into a part of your knowledge base.</p>
+      <div class="lp-section-head lp-section-head--with-action">
+        <div class="lp-section-headings">
+          <h2 class="lp-section-title">Browse by branch</h2>
+          <p class="lp-section-sub">Jump into a part of your knowledge base — or add a new branch.</p>
+        </div>
+        <button id="lp-new-branch-btn" class="btn lp-section-action" type="button">+ New branch</button>
       </div>
-      <div class="lp-cards lp-cards-2">
-        <a class="lp-card" href="#/section/academic">
-          <span class="lp-card-icon" data-icon="academic"></span>
-          <h3>Academic</h3>
-          <p>All your courses' knowledge. Open a course, ask across every course, or create a new one.</p>
-          <span class="lp-card-go">Open Academic →</span>
-        </a>
-        <a class="lp-card" href="#/section/non-academic">
-          <span class="lp-card-icon" data-icon="non-academic"></span>
-          <h3>Non-Academic</h3>
-          <p>Personal, free-form knowledge — notes and references that don't belong to a course.</p>
-          <span class="lp-card-go">Open Non-Academic →</span>
-        </a>
-      </div>
+      <form id="lp-new-branch-form" class="lp-new-branch-form" hidden>
+        <input id="lp-new-branch-name" type="text" autocomplete="off" placeholder="Branch name…">
+        <button type="submit" class="btn btn-primary">Create</button>
+        <button type="button" id="lp-new-branch-cancel" class="btn">Cancel</button>
+      </form>
+      <div id="lp-new-branch-error"></div>
+      <!-- Branch cards are rendered dynamically (Academic + branches you add). -->
+      <div class="lp-cards" id="lp-branches"></div>
     </section>
   </div>
 

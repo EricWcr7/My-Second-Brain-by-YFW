@@ -80,8 +80,8 @@ def section_dirs(config: Config) -> set[str]:
 
     Sections are folders, so a branch/course is real as soon as its directory
     exists — even before any page is filed there. Listing them (not just pages)
-    lets the seeded ``academic``/``non-academic`` branches and freshly-created
-    courses appear in the UI and persist across restarts.
+    lets the seeded ``academic`` branch and freshly-created branches/courses
+    appear in the UI and persist across restarts.
     """
     out: set[str] = set()
     for base in (config.concepts_dir, config.source_pages_dir):

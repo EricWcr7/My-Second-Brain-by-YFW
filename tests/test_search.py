@@ -31,7 +31,7 @@ def test_section_contains_prefix_rule():
     # A leaf sees only itself; siblings are isolated.
     assert section_contains("academic/calc", "academic/calc")
     assert not section_contains("academic/calc", "academic/stats")
-    assert not section_contains("non-academic", "academic/calc")
+    assert not section_contains("personal", "academic/calc")
     # Matching is on segment boundaries, not raw string prefix.
     assert not section_contains("academic", "academic-archive")
 
@@ -47,13 +47,13 @@ def test_search_ranks_relevant_page_first(vault):
 def test_search_scope_is_prefix_based(vault):
     _add_concept(vault, "academic/calc", "Gradient", "gradient vector field")
     _add_concept(vault, "academic/stats", "Gradient Descent", "gradient based optimization")
-    _add_concept(vault, "non-academic", "Gradient Sky", "the gradient of the sunset sky")
+    _add_concept(vault, "personal", "Gradient Sky", "the gradient of the sunset sky")
 
     # A course sees only itself.
     calc = search(vault, "gradient", section="academic/calc")
     assert {h.ref.section for h in calc} == {"academic/calc"}
 
-    # The Academic branch sees every course, but not the non-academic sibling.
+    # The Academic branch sees every course, but not the personal sibling.
     academic = search(vault, "gradient", section="academic")
     assert {h.ref.section for h in academic} == {"academic/calc", "academic/stats"}
 
@@ -62,7 +62,7 @@ def test_search_scope_is_prefix_based(vault):
     assert {h.ref.section for h in everything} == {
         "academic/calc",
         "academic/stats",
-        "non-academic",
+        "personal",
     }
 
 

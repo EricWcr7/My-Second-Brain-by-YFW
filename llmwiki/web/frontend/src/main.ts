@@ -7,7 +7,7 @@ import { loadPages, renderPageList } from "./sidebar";
 import { initThemeToggle } from "./theme";
 import { initDrawer } from "./drawer";
 import { initRouter, navigate, goToPage } from "./router";
-import { renderLandingStats } from "./landing";
+import { renderLandingStats, renderBranches, wireNewBranch } from "./landing";
 import { updateScopeChip, updateKeyStatus } from "./topbar";
 
 // Sidebar nav buttons map to routes. Landing CTAs/cards/logo are plain
@@ -56,5 +56,7 @@ document.addEventListener("click", (e) => {
   updateKeyStatus();
   updateScopeChip();
   await loadPages();
+  renderBranches(); // landing "Browse by branch" cards (needs pages for counts)
+  wireNewBranch(); // "+ New branch" control on the landing
   initRouter(); // applies the current hash (landing by default)
 })();

@@ -46,17 +46,17 @@ root.
 
 ```
 General (root)            → sees the ENTIRE knowledge base
-├── non-academic (flat)   → only non-academic knowledge
-└── academic              → all courses
-    └── academic/<course> → only that course
+├── academic              → all courses
+│   └── academic/<course> → only that course
+└── <your branch>         → a top-level branch you add (e.g. personal, work)
 ```
 
 Select a scope in the sidebar tree (or open a section's hub), and it obeys one
 **prefix rule**: a scope sees a page iff the scope is a prefix of the page's
 section. General sees everything; `academic` sees every course; a course sees only
 itself. To **widen**, pick a parent scope. Scope *is* access — there's no separate
-"share" mechanism. `academic` / `non-academic` are just seeded conventions; any
-depth works.
+"share" mechanism. `academic` is the one seeded convention; add your own top-level
+branches (siblings of Academic) from the homepage, and any depth works.
 
 ### Getting around
 A persistent **top bar** is your constant frame of reference on every view:
@@ -130,11 +130,12 @@ operation. Re-ingesting an edited file
 theorem/lemma codes, notation, proof ideas, and LaTeX faithfully — see **W12**;
 other branches use the general default.
 
-### W3 — Personal / free-form knowledge (non-academic)
-Select **Non-academic** (or General) and ingest articles, notes, or URLs via the
-Ingest panel. Then ask, e.g. *"what have I read about habit formation?"*
-Non-academic pages use the general schema — citation-aware and wikilinked, without
-course-specific structure.
+### W3 — Personal / free-form knowledge (your own branch)
+On the homepage, under **Browse by branch**, click **+ New branch** to add a
+top-level branch (e.g. `Personal`) beside Academic — it appears as a new card.
+Open it (or General) and ingest articles, notes, or URLs via the Ingest panel.
+Then ask, e.g. *"what have I read about habit formation?"* Such branches use the
+general schema — citation-aware and wikilinked, without course-specific structure.
 
 ### W4 — Ingest any supported source type
 The Ingest panel accepts a **URL** or one-or-more **uploaded files**:
@@ -207,14 +208,15 @@ pass that flags contradictions / missing concepts / stale claims and **suggests
 growth**: missing cross-references, new questions, sources to seek, and data gaps.
 Suggestions only — the app doesn't browse the web itself.
 
-### W8 — Manage courses and sections
-From any section hub: **+ New course / + New section** scaffolds a branch; the **🗑**
-on a card deletes one after a confirmation — a *full* wipe that removes its
-`concepts/` and `sources/` pages **and** everything filed under it (the ingest
-ledger records, their cached/raw source files, and any per-section
-customizations), so re-ingesting the same source later starts clean instead of
-being skipped as unchanged. The seeded `academic` / `non-academic` branches are
-protected. Names keep their casing and non-Latin characters (`example-course`, `线性代数`).
+### W8 — Manage branches, courses and sections
+From the homepage **Browse by branch** section, **+ New branch** adds a top-level
+branch (a sibling of Academic). From any section hub, **+ New course / + New
+section** scaffolds a child; the **🗑** on a card deletes one after a confirmation
+— a *full* wipe that removes its `concepts/` and `sources/` pages **and**
+everything filed under it (the ingest ledger records, their cached/raw source
+files, and any per-section customizations), so re-ingesting the same source later
+starts clean instead of being skipped as unchanged. The seeded `academic` branch
+is protected. Names keep their casing and non-Latin characters (`example-course`, `线性代数`).
 
 ### W9 — Read and navigate in Obsidian
 Open the `wiki/` folder as an Obsidian vault for: the **graph view** (hubs,
@@ -235,7 +237,7 @@ Edit `.llmwiki/config.toml` (then relaunch):
 ```toml
 [settings]
 provider = "anthropic"              # or "openai" (default)
-default_section = "non-academic"
+default_section = ""                # default scope ("" = General root)
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
 rerank = false                      # opt-in: LLM reranks retrieved pages before answering (W5)

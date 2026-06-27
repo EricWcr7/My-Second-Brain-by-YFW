@@ -45,8 +45,8 @@ from ..wiki import (
     section_to_relpath,
 )
 
-# Seeded top-level branches the UI relies on — never deletable via the web API.
-_PROTECTED_SECTIONS = {"academic", "non-academic"}
+# Seeded top-level branch the UI relies on — never deletable via the web API.
+_PROTECTED_SECTIONS = {"academic"}
 
 # Every extension the loaders can ingest — the single source of truth the web UI
 # uses for its upload `accept` filter (mirrors loaders.registry's dispatch).
@@ -187,9 +187,9 @@ def create_app(
         later re-ingest isn't silently skipped and search can't surface dead pages.
         See :func:`purge_section`.
 
-        The seeded ``academic``/``non-academic`` roots are protected. The section
-        is resolved case-insensitively against the dirs on disk, so the URL casing
-        need not match exactly.
+        The seeded ``academic`` root is protected. The section is resolved
+        case-insensitively against the dirs on disk, so the URL casing need not
+        match exactly.
         """
         norm = normalize_section(section)
         if not norm or norm.lower() in _PROTECTED_SECTIONS:

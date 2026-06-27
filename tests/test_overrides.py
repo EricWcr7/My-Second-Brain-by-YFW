@@ -28,7 +28,7 @@ def test_write_read_delete_section_override(vault):
     assert overrides.effective(vault, "academic/calc", "answer") == "CUSTOM ANSWER"
     # A sibling section is unaffected — resolution is general-default-only, no
     # walking up ancestors.
-    assert overrides.effective(vault, "non-academic", "answer") == overrides.general_default(
+    assert overrides.effective(vault, "personal", "answer") == overrides.general_default(
         vault, "answer"
     )
     assert overrides.sections_with_overrides(vault) == {"academic/calc"}
@@ -83,5 +83,5 @@ def test_override_reaches_answer_system_prompt(vault):
     answer(vault, provider, "explain gradient", section="academic/calc")
     assert "MARKER-ANSWER-PROMPT" in captured["system"]
     # A different section falls back to the general answer prompt.
-    answer(vault, provider, "explain gradient", section="non-academic")
+    answer(vault, provider, "explain gradient", section="personal")
     assert "MARKER-ANSWER-PROMPT" not in captured["system"]
