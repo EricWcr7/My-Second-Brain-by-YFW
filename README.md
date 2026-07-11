@@ -49,8 +49,10 @@ bind a different address or skip auto-opening: `llmwiki serve --port 8080 --host
 - **Hardened install** (prebuilt wheels only, no build scripts):
   `pip install --only-binary :all: ".[web]"`.
 - **API key:** `set-key` saves it to `~/.config/llmwiki/.env` and loads it on every
-  run. A `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` exported in your shell still wins
-  over the stored file. `llmwiki set-key --show` lists stored keys (masked). Get or
+  run. The stored key is authoritative — it overrides any `OPENAI_API_KEY` /
+  `ANTHROPIC_API_KEY` already exported in your shell, so a stale export can't
+  shadow it. (To rely on the shell env instead, don't store a key.)
+  `llmwiki set-key --show` lists stored keys (masked). Get or
   rotate keys at platform.openai.com → API keys, or console.anthropic.com →
   Settings → API Keys.
 - A key is only needed for **Ask**, **Ingest**, **deep Lint**, and **semantic

@@ -3,8 +3,10 @@
 Keys still reach the providers through the environment (``OPENAI_API_KEY`` /
 ``ANTHROPIC_API_KEY``, read by the SDK clients at init); this module just lets a
 user store them once in ``~/.config/llmwiki/.env`` and loads that into
-``os.environ`` at startup so they need not be exported in every new shell. A real
-exported env var always wins over the file.
+``os.environ`` at startup so they need not be exported in every new shell. The
+stored key is authoritative: loading overrides any value inherited from the
+shell, so a stale ``export OPENAI_API_KEY=…`` can never shadow the key saved
+with ``set-key``.
 """
 
 from __future__ import annotations
@@ -61,9 +63,14 @@ def _parse(path: Path) -> dict[str, str]:
 
 
 def load_into_env() -> None:
-    """Populate ``os.environ`` from the key file without overriding existing vars."""
+    """Populate ``os.environ`` from the key file, overriding inherited values.
+
+    Overriding (rather than ``setdefault``) makes the stored key authoritative —
+    a stale key exported in an old shell can't shadow it. To use the shell env
+    instead, don't store a key.
+    """
     for key, value in _parse(key_file()).items():
-        os.environ.setdefault(key, value)
+        os.environ[key] = value
 
 
 def stored_keys() -> dict[str, str]:
