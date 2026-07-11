@@ -24,7 +24,7 @@ def test_set_key_replaces_without_duplicating(tmp_path, monkeypatch):
     assert body.count("OPENAI_API_KEY=") == 1
 
 
-def test_load_into_env_respects_existing_and_parses_file(tmp_path, monkeypatch):
+def test_load_into_env_overrides_existing_and_parses_file(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     key_path = tmp_path / "llmwiki" / ".env"
     key_path.parent.mkdir(parents=True)
@@ -40,8 +40,9 @@ def test_load_into_env_respects_existing_and_parses_file(tmp_path, monkeypatch):
 
     import os
 
-    # a real exported var wins; an unset one is filled from the file
-    assert os.environ["OPENAI_API_KEY"] == "sk-already-exported"
+    # the stored key is authoritative: a stale exported var is overridden,
+    # and an unset one is filled from the file
+    assert os.environ["OPENAI_API_KEY"] == "sk-from-file"
     assert os.environ["ANTHROPIC_API_KEY"] == "sk-anth"
 
 
