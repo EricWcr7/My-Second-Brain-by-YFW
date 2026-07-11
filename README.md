@@ -194,8 +194,8 @@ PDFs), Word `.docx`, PowerPoint `.pptx`, images (vision), and web URLs.
 ```toml
 [settings]
 provider = "openai"                 # "openai" (default) or "anthropic"
-# compile_model = "gpt-5.5"         # ingest + answer model (optional; GPT-5.5+)
-# cheap_model = "gpt-5.5"           # reserved for cheap ops (optional)
+# compile_model = "gpt-5.6-sol"     # ingest + answer model (optional; GPT-5.5+)
+# cheap_model = "gpt-5.6-sol"       # reserved for cheap ops (optional)
 default_section = ""                # default scope when none is given ("" = General root)
 search_top_k = 8                    # pages retrieved per question
 context_token_budget = 60000        # max context tokens for Ask/Lint
@@ -223,7 +223,7 @@ endpoint via `embed_base_url`. After changing `embed_model`, run `llmwiki reinde
 to rebuild the vector index.
 
 Both OpenAI and Anthropic support every operation. Leave the models unset to use
-the defaults — OpenAI `gpt-5.5` (a reasoning model run at `high` reasoning effort);
+the defaults — OpenAI `gpt-5.6-sol` (a reasoning model run at `high` reasoning effort);
 Anthropic `claude-opus-4-8` / `claude-haiku-4-5`. If you override the OpenAI model,
 keep it GPT-5.5+ (`high` effort is only valid there). **API keys are read from the
 environment — never put them here.**
@@ -245,9 +245,9 @@ make web-build         # rebuild llmwiki/web/static before committing UI changes
 
 - **App says the API key isn't set** — store it with `llmwiki set-key openai sk-...`
   (or `anthropic`), then relaunch. Check with `llmwiki set-key --show`.
-- **`model_not_found` / no access to `gpt-5.5`** — point `compile_model` (and
+- **`model_not_found` / no access to `gpt-5.6-sol`** — point `compile_model` (and
   `cheap_model`) in `.llmwiki/config.toml` at a GPT-5.5+ reasoning model you do have
-  (e.g. `gpt-5.6`). Keep it 5.5+ — the `high` reasoning effort needs it.
+  (e.g. `gpt-5.5`). Keep it 5.5+ — the `high` reasoning effort needs it.
 - **`command not found: llmwiki`** — your virtualenv isn't active; run
   `source .venv/bin/activate`.
 - **`ModuleNotFoundError: No module named 'llmwiki'`** — you installed editable

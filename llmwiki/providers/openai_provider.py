@@ -4,7 +4,8 @@ Uses the official ``openai`` SDK and its Responses API. The API key is read from
 the environment (``OPENAI_API_KEY``). This is the default backend; switch to
 Claude by setting ``provider = "anthropic"`` in ``.llmwiki/config.toml``.
 
-Every operation runs on a GPT-5.5+ reasoning model at ``high`` reasoning effort.
+Every operation runs on a GPT-5.5+ reasoning model at ``high`` reasoning effort
+(default: ``gpt-5.6-sol``).
 """
 
 from __future__ import annotations
@@ -37,8 +38,8 @@ TRANSCRIBE_INSTRUCTION = (
 
 
 class OpenAIProvider(LLMProvider):
-    DEFAULT_COMPILE_MODEL = "gpt-5.5"
-    DEFAULT_CHEAP_MODEL = "gpt-5.5"
+    DEFAULT_COMPILE_MODEL = "gpt-5.6-sol"
+    DEFAULT_CHEAP_MODEL = "gpt-5.6-sol"
 
     def __init__(self, config: Config):
         try:

@@ -16,9 +16,9 @@ CONFIG_TOML = """\
 provider = "openai"
 # Model IDs are optional; leave unset to use the provider's defaults. OpenAI runs
 # a GPT-5.5+ reasoning model at high reasoning effort; Anthropic uses Claude Opus.
-# (OpenAI: gpt-5.5 / gpt-5.5, Anthropic: claude-opus-4-8 / claude-haiku-4-5).
-# compile_model = "gpt-5.5"        # ingest + answer model (must be gpt-5.5+)
-# cheap_model = "gpt-5.5"          # reserved for cheap ops
+# (OpenAI: gpt-5.6-sol / gpt-5.6-sol, Anthropic: claude-opus-4-8 / claude-haiku-4-5).
+# compile_model = "gpt-5.6-sol"    # ingest + answer model (must be gpt-5.5+)
+# cheap_model = "gpt-5.6-sol"      # reserved for cheap ops
 # Section a source lands in when `--section` is omitted. Sections are `/`-joined
 # paths (e.g. "academic/multivariable-calculus"); "" is the General root and the
 # default — un-sectioned sources land at the top level.

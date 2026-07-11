@@ -49,12 +49,12 @@ def test_get_provider_unknown_raises(vault):
         get_provider(vault)
 
 
-def test_openai_defaults_to_gpt55(monkeypatch):
+def test_openai_defaults_to_gpt56_sol(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "dummy")
     pytest.importorskip("openai")
     provider = op.OpenAIProvider(Config(root=Path("/tmp")))
-    assert provider.compile_model == "gpt-5.5"
-    assert provider.cheap_model == "gpt-5.5"
+    assert provider.compile_model == "gpt-5.6-sol"
+    assert provider.cheap_model == "gpt-5.6-sol"
 
 
 def test_openai_requests_use_high_reasoning(monkeypatch):
@@ -75,7 +75,7 @@ def test_openai_requests_use_high_reasoning(monkeypatch):
     provider.client = type("_Client", (), {"responses": _Responses()})()
     provider.complete("system", "user")
 
-    assert captured["model"] == "gpt-5.5"
+    assert captured["model"] == "gpt-5.6-sol"
     assert captured["reasoning"] == {"effort": "high"}
     assert op.REASONING_EFFORT == "high"
 
