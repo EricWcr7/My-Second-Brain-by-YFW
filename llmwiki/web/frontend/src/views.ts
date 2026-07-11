@@ -17,9 +17,11 @@ import { renderLandingStats, renderBranches } from "./landing";
 import { toast } from "./toast";
 import {
   childSections,
+  scopeNodes,
   sectionAncestors,
   sectionContains,
   sectionLabel,
+  sectionPathLabel,
 } from "./sections";
 
 // The seeded root the UI relies on — not deletable (mirrors the backend guard).
@@ -82,7 +84,13 @@ export async function loadPage(slug: string): Promise<void> {
   mount('<p class="muted">Loading…</p>');
   try {
     const p = await getJSON<PageRef & { content: string }>("/api/page/" + encodeURIComponent(slug));
-    setBreadcrumb(sectionAncestors(p.section), p.title);
+    if (p.section !== state.scope) {
+      state.scope = p.section; // scope follows the page you're reading
+      filterEl.value = ""; // mirrors renderSection: a fresh scope starts unfiltered
+      renderPageList(); // sidebar scope tree + page list reflect the new scope
+      highlightSidebar(slug); // renderPageList rebuilt the anchors — re-highlight
+    }
+    setBreadcrumb(sectionAncestors(p.section), p.title); // also refreshes the scope chip
     const head =
       `<p class="eyebrow">${escapeHtml(p.type)}</p>` +
       `<h1>${escapeHtml(p.title)}</h1>`;
@@ -366,19 +374,38 @@ async function onAsk(e: Event): Promise<void> {
   }
 }
 
-// Ingest view: upload files (or a URL) and compile them into the wiki. Like Ask
-// and Lint it is scoped to `state.scope`, so every section hub reaches the same
-// view and sources land in the branch you're in (General root if scope is "").
+// Ingest view: upload files (or a URL) and compile them into the wiki. The form
+// carries an explicit Destination picker — pre-set to `state.scope` (which
+// follows the section hub or page you're in) and changeable before submitting —
+// so new pages always land exactly where the form says they will.
 function renderIngest(): void {
   setScopedBreadcrumb(state.scope, "Ingest");
   const ok = state.meta.has_api_key;
   const dis = ok ? "" : "disabled";
+  // Every selectable node: the General root, the seeded academic branch (even on
+  // a fresh vault — mirrors renderSection), every known section + ancestors, and
+  // the current scope (so preselection never misses).
+  const nodes = scopeNodes([
+    ...PROTECTED_SECTIONS,
+    ...state.meta.sections,
+    ...(state.scope ? [state.scope] : []),
+  ]);
+  const options = nodes
+    .map(
+      (n) =>
+        `<option value="${escapeHtml(n)}"${n === state.scope ? " selected" : ""}>` +
+        `${escapeHtml(sectionPathLabel(n))}</option>`,
+    )
+    .join("");
   content.innerHTML = `
     <p class="eyebrow eyebrow-ai">Ingest · compile into your wiki</p>
     <h1>Ingest</h1>
     ${ok ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ingest sources.</p>`}
-    <p class="page-meta">New sources are added to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
     <form id="ingest-form">
+      <label class="file-field">
+        <span class="file-field-label">Destination — new pages are filed here</span>
+        <select id="ingest-section" ${dis}>${options}</select>
+      </label>
       <label class="file-field">
         <span class="file-field-label">Choose files</span>
         <input id="ingest-files" type="file" multiple accept="${escapeHtml(acceptAttr())}" ${dis}>
@@ -406,9 +433,11 @@ async function onIngest(e: Event): Promise<void> {
   const url = urlEl.value.trim();
   // Optional guidance steering how every item in this submission is compiled.
   const prompt = promptEl?.value.trim() ?? "";
-  // Every item carries the current scope, so a General ingest files into the
-  // General root, an Academic ingest into academic/, a course into that course.
-  const section = state.scope;
+  // Every item carries the destination chosen on the form (pre-set to the
+  // current scope), so the user always sees — and can correct — where the
+  // compiled pages will land before submitting.
+  const sectionEl = document.getElementById("ingest-section") as HTMLSelectElement | null;
+  const section = sectionEl ? sectionEl.value : state.scope;
   const items: { label: string; fd: FormData }[] = [];
   for (const f of files) {
     const fd = new FormData();

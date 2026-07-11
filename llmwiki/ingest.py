@@ -296,7 +296,10 @@ def ingest(
     force: bool = False,
     user_prompt: str | None = None,
 ) -> IngestResult:
-    section = section if section is not None else config.default_section
+    # Canonicalize once so placement, frontmatter, and section comparisons all
+    # agree — iter_pages returns normalized sections, so a raw caller string
+    # (e.g. "academic//calc notes/") would otherwise miss existing concepts.
+    section = normalize_section(section if section is not None else config.default_section)
     warnings: list[str] = []
 
     # Ingest runs many slow model passes (multi-segment compilation, per-page
@@ -445,12 +448,11 @@ def ingest(
     # extra or embeddings key just leaves the wiki keyword-searchable.
     embedder = make_embedder(config)
     if embedder is not None and touched:
-        norm = normalize_section(section)
         try:
             refs = [
                 r
                 for r in iter_pages(config, "concept")
-                if r.slug in set(touched) and r.section == norm
+                if r.slug in set(touched) and r.section == section
             ]
             index_pages(config, embedder, refs)
         except Exception as e:  # pragma: no cover - resilience path

@@ -22,6 +22,13 @@ export function sectionLabel(section: string): string {
     .join(" ");
 }
 
+// Full-path label for pickers: "" -> "General", "academic/example-course" -> "Academic › example-course".
+export function sectionPathLabel(section: string): string {
+  const segs = sectionSegments(section);
+  if (!segs.length) return "General";
+  return segs.map((seg) => sectionLabel(seg)).join(" › ");
+}
+
 // Selectable scope nodes for the tree: the General root, every section that has
 // pages, and all their ancestors — sorted so parents precede children.
 export function scopeNodes(sections: string[]): string[] {

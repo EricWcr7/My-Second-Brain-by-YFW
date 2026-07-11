@@ -71,8 +71,9 @@ oriented on every view: the logo returns to the home page, a live **breadcrumb**
 shows where you are, and a **scope chip** shows the section your operations run
 over (General sees everything; a course sees only itself) with a one-click **✕ to
 reset to General**. Set the scope by picking a node in the sidebar tree or opening
-a section's hub — the chip and breadcrumb update to match. On narrow screens the
-sidebar collapses into a **☰ menu** in the top bar.
+a section's hub — or just open a page: the scope follows the page's section. The
+chip and breadcrumb update to match. On narrow screens the sidebar collapses into
+a **☰ menu** in the top bar.
 
 - **Browse** — the sidebar shows your section tree and pages; the top-bar
   breadcrumb tracks where you are. Pages render with proper math (KaTeX) and
@@ -87,9 +88,12 @@ sidebar collapses into a **☰ menu** in the top bar.
   rewrites one on demand.
 - **Ingest** — the Ingest panel (sidebar, the General card, and each section hub)
   takes one or more **uploaded files** (Markdown/text, PDF, Word, PowerPoint,
-  images) **or a URL**, and compiles them into the wiki at your current scope. An
-  optional **guidance box** lets you steer how a source is compiled (e.g. "focus on
-  the proofs") without ever overriding source grounding.
+  images) **or a URL**, and compiles them into the wiki. A **Destination** picker
+  on the form shows exactly which section the new pages will be filed under —
+  pre-set to the section you're in (a section hub, or the section of the page
+  you're reading) and changeable before you submit. An optional **guidance box**
+  lets you steer how a source is compiled (e.g. "focus on the proofs") without
+  ever overriding source grounding.
 - **Ask** — ask a question answered only from the wiki, with citations back to the
   pages used. You can attach files as **one-off context** for a single answer;
   attachments are never written to the wiki. If an answer cites a page that isn't in

@@ -51,9 +51,9 @@ General (root)            → sees the ENTIRE knowledge base
 └── <your branch>         → a top-level branch you add (e.g. personal, work)
 ```
 
-Select a scope in the sidebar tree (or open a section's hub), and it obeys one
-**prefix rule**: a scope sees a page iff the scope is a prefix of the page's
-section. General sees everything; `academic` sees every course; a course sees only
+Select a scope in the sidebar tree (or open a section's hub) — or just open any
+page: the scope follows the page's section. It obeys one **prefix rule**: a scope
+sees a page iff the scope is a prefix of the page's section. General sees everything; `academic` sees every course; a course sees only
 itself. To **widen**, pick a parent scope. Scope *is* access — there's no separate
 "share" mechanism. `academic` is the one seeded convention; add your own top-level
 branches (siblings of Academic) from the homepage, and any depth works.
@@ -65,6 +65,8 @@ A persistent **top bar** is your constant frame of reference on every view:
   step is clickable to jump up the tree;
 - the **scope chip** (right) shows the section your operations run over, with **✕**
   to reset to General — so the scope behind Ask / Lint / Ingest is always visible.
+  The chip tracks the page you're reading, not just section hubs: open a course
+  page and the scope becomes that course.
 
 Navigation is uniform: sidebar pages, breadcrumb steps, in-page `[[wikilinks]]`, and
 Lint references all click through the same way. A link to a page that isn't in your
@@ -120,7 +122,8 @@ Run `llmwiki init` in an empty folder, then launch the app. You get an empty vau
 ### W2 — Build up a course (academic branch)
 Open the **Academic** hub and **+ New course** (e.g. `multivariable-calculus`), or
 just ingest into it and it's created on first use. Select the course scope, then use
-the **Ingest** panel to upload lecture PDFs/slides one at a time. Each ingest
+the **Ingest** panel to upload lecture PDFs/slides one at a time — the form's
+**Destination** picker confirms the course before you submit. Each ingest
 writes/merges concept pages, writes the source page, refreshes the section's
 overview (and its parents up to General), regenerates `index.md`, and logs the
 operation. Re-ingesting an edited file
@@ -149,8 +152,9 @@ The Ingest panel accepts a **URL** or one-or-more **uploaded files**:
 | Image | Transcribed by vision; the file is copied into `raw/assets/`, embedded in the source page, and recorded under `assets:` provenance. |
 | Web URL | Fetched and cleaned to Markdown. |
 
-Each source lands in your current scope. Multiple files are processed one at a time
-with a ✓/✗ per file.
+Each source lands in the **Destination** section shown on the form — pre-set to
+your current scope and changeable per submission. Multiple files are processed one
+at a time with a ✓/✗ per file.
 
 **Optional guidance.** Below the file/URL inputs is an optional **guidance box** — type
 a short instruction for how the model should compile the source ("focus on the proofs",

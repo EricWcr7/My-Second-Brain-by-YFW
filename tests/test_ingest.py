@@ -68,6 +68,25 @@ def test_ingest_creates_pages_and_provenance(vault):
     assert "Ingested chain rule notes." in log_text  # gen.log_entry becomes the detail line
 
 
+def test_ingest_normalizes_the_section_argument(vault):
+    # The web UI sends canonical sections, but the CLI can pass raw text. ingest()
+    # canonicalizes once up front, so placement and frontmatter use the normalized
+    # form (iter_pages normalizes on read — a raw string would diverge from disk).
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nbody", "utf-8")
+
+    result = ingest(vault, _provider(), str(src), section="academic//calc notes/")
+    assert result.status == "ingested"
+
+    concept = read_page(concept_path(vault, "academic/calc-notes", "Chain Rule"))
+    assert concept is not None
+    assert concept.metadata["section"] == "academic/calc-notes"
+
+    source = read_page(source_path(vault, "academic/calc-notes", "note"))
+    assert source is not None
+    assert source.metadata["section"] == "academic/calc-notes"
+
+
 def test_ingest_skips_unchanged_source(vault):
     src = vault.root / "note.md"
     src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
@@ -236,6 +255,34 @@ def test_ingest_without_user_prompt_leaves_prompts_and_log_unchanged(vault):
     assert "User instruction" not in provider.user_prompts[0]
     assert "User instruction" not in provider.user_prompts[1]
     assert "guidance:" not in vault.log_file.read_text("utf-8")
+
+
+def test_ingest_sees_existing_concepts_despite_raw_section_spelling(vault):
+    # The existing-concepts context fed to the analysis pass filters pages by
+    # section. iter_pages returns normalized sections, so a raw caller spelling
+    # ("academic//calc") must still match concepts filed under "academic/calc".
+    seed = vault.root / "note.md"
+    seed.write_text("# Chain Rule\n\nThe chain rule.", "utf-8")
+    ingest(vault, _provider(), str(seed), section="academic/calc")
+
+    other = vault.root / "integrals.md"
+    other.write_text("# Integrals\n\nIntegration by parts.", "utf-8")
+    provider = _ScriptedProvider(
+        analyses=[
+            SourceAnalysis(source_title="Integrals", source_summary="s", concept_titles=["Integrals"])
+        ],
+        generations=[
+            GenerationResult(
+                concept_pages=[ConceptDraft(title="Integrals", body="body")],
+                source_page=SourcePageDraft(summary="s", grounds=["Integrals"]),
+            )
+        ],
+    )
+    ingest(vault, provider, str(other), section="academic//calc")
+
+    # The seeded concept is visible to the analysis pass (the source text itself
+    # never mentions it, so this can only come from the existing-concepts block).
+    assert "Chain Rule" in provider.user_prompts[0]
 
 
 def test_ingest_single_segment_unchanged_for_small_source(vault):
