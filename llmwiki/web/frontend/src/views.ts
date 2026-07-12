@@ -92,9 +92,12 @@ export async function loadPage(slug: string): Promise<void> {
     }
     setBreadcrumb(sectionAncestors(p.section), p.title); // also refreshes the scope chip
     const head =
-      `<p class="eyebrow">${escapeHtml(p.type)}</p>` +
+      `<div class="page-head-row"><p class="eyebrow">${escapeHtml(p.type)}</p>` +
+      `<button id="page-del" class="page-del" title="Delete this page" ` +
+      `aria-label="Delete ${escapeHtml(p.title)}">🗑</button></div>` +
       `<h1>${escapeHtml(p.title)}</h1>`;
     mount(head + renderMarkdown(p.content));
+    wirePageDelete(p);
   } catch (err) {
     mount(`<p class="notice">Could not load “${escapeHtml(slug)}”: ${escapeHtml((err as Error).message)}</p>`);
   }
@@ -251,6 +254,48 @@ function wireDeleteButtons(scope: string): void {
         else alert((err as Error).message);
       }
     });
+  });
+}
+
+// Wire the 🗑 on the page reading view: confirm (the message spells out how far a
+// source delete cascades), delete on the server, then refresh counts/sidebar and
+// land on the page's section hub.
+function wirePageDelete(p: PageRef): void {
+  const btn = document.getElementById("page-del") as HTMLButtonElement | null;
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const msg =
+      p.type === "source"
+        ? `Delete source "${p.title}"? This also removes its raw and cached files, ` +
+          `removes it from the provenance of concepts in this section, and deletes ` +
+          `any concept left with no sources. This cannot be undone.`
+        : `Delete concept "${p.title}"? The page and its search-index entries are ` +
+          `removed. This cannot be undone.`;
+    if (!confirm(msg)) return;
+    btn.disabled = true;
+    try {
+      const res = await delJSON<{ scrubbed: string[]; removed_concepts: string[] }>(
+        `/api/page/${encodeURIComponent(p.slug)}?type=${encodeURIComponent(p.type)}` +
+          `&section=${encodeURIComponent(p.section)}`,
+      );
+      try {
+        state.meta = await getJSON<Meta>("/api/meta");
+      } catch {
+        /* keep current meta */
+      }
+      await loadPages(); // state.pages + state.slugSet + sidebar
+      renderLandingStats();
+      renderBranches();
+      const n = res.removed_concepts.length;
+      toast(
+        `Deleted ${p.type} "${p.title}"` +
+          (n ? ` — also deleted ${n} orphaned concept${n === 1 ? "" : "s"}` : ""),
+      );
+      location.hash = "#/section/" + p.section; // like wireRegenOverview's navigation
+    } catch (err) {
+      btn.disabled = false;
+      toast((err as Error).message);
+    }
   });
 }
 
@@ -480,7 +525,7 @@ async function onIngest(e: Event): Promise<void> {
       const n = res.concept_slugs.length;
       const detail =
         res.status === "skipped"
-          ? "skipped (unchanged)"
+          ? `skipped (${res.reason || "unchanged"})`
           : `${n} concept${n === 1 ? "" : "s"}`;
       row.innerHTML =
         `<span class="ingest-item-status ok">✓</span> ` +

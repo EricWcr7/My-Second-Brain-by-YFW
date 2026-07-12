@@ -53,7 +53,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     for warning in result.warnings:
         print(f"warning: {warning}", file=sys.stderr)
     if result.status == "skipped":
-        print(f"skipped (unchanged): {result.source_key}")
+        print(f"skipped ({result.reason or 'unchanged'}): {result.source_key}")
     else:
         print(f"ingested: {result.title}  [source: {result.source_slug}]")
         print(f"  concepts: {', '.join(result.concept_slugs) or '(none)'}")

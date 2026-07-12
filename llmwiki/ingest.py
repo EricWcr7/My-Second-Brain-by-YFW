@@ -3,6 +3,10 @@
 Two LLM passes (per the schema): an analysis pass that decides which concepts the
 source teaches, then a generation pass that writes/merges the pages. File writes
 and index/log updates are deterministic.
+
+A source is skipped only when ``force`` is off, no guidance was given, and an
+intact prior ingest of the same content into the same section still exists in
+the wiki — the pages on disk, not the state ledger, decide.
 """
 
 from __future__ import annotations
@@ -26,7 +30,6 @@ from .overview import refresh_overview
 from .providers.base import LLMProvider
 from .store import (
     ensure_dir,
-    get_source_record,
     load_state,
     read_page,
     save_state,
@@ -112,32 +115,94 @@ def _clean_slug(value: str) -> str:
     return value.strip().strip("[]").split("|", 1)[0].split("#", 1)[0].strip()
 
 
-def _resolve_raw(config: Config, spec: str) -> tuple[Path | None, str, str]:
-    """Return (raw_path, ledger_key, raw_ref). Copies external files into raw/.
+@dataclass
+class _RawPlan:
+    """Where a file source will land under raw/ — decided before any copy.
+
+    Splitting the decision (:func:`_plan_raw`) from the copy
+    (:func:`_materialize_raw`) lets the duplicate check run first, so a skipped
+    source never leaves an orphan file in ``raw/``.
+    """
+
+    src: Path  # resolved existing file (may already live inside raw/)
+    path: Path  # final location under raw/ (== src when already inside)
+    key: str  # ledger key: path relative to the vault root, posix
+    raw_ref: str  # provenance reference recorded on the source page (== key)
+    checksum: str  # sha256 of the source bytes (the ingest checksum)
+    needs_copy: bool
+
+
+def _plan_raw(config: Config, spec: str) -> _RawPlan:
+    """Decide, without copying, where a file source lands in raw/.
 
     Image files land under ``raw/assets/`` so they can be embedded and viewed
     directly; every other source type lands under ``raw/sources/``.
     """
-    if is_url(spec):
-        return None, spec, spec
     src = Path(spec).expanduser()
     if not src.exists():
         raise FileNotFoundError(f"No such file: {src}")
     src = src.resolve()
+    checksum = sha256_file(src)
     raw_dir = config.raw_dir.resolve()
     if raw_dir in src.parents:
-        path = src
+        dest = src
+        needs_copy = False
     else:
         dest_dir = config.assets_dir if src.suffix.lower() in IMAGE_EXTS else config.sources_dir
-        ensure_dir(dest_dir)
         dest = dest_dir / src.name
-        if dest.exists() and sha256_file(dest) != sha256_file(src):
-            dest = dest_dir / f"{src.stem}-{sha256_file(src)[:8]}{src.suffix}"
-        if not dest.exists():
-            shutil.copy2(src, dest)
-        path = dest.resolve()
-    rel = path.relative_to(config.root.resolve()).as_posix()
-    return path, rel, rel
+        if dest.exists() and sha256_file(dest) != checksum:
+            dest = dest_dir / f"{src.stem}-{checksum[:8]}{src.suffix}"
+        needs_copy = not dest.exists()
+        dest = dest.resolve()
+    rel = dest.relative_to(config.root.resolve()).as_posix()
+    return _RawPlan(
+        src=src, path=dest, key=rel, raw_ref=rel, checksum=checksum, needs_copy=needs_copy
+    )
+
+
+def _materialize_raw(plan: _RawPlan) -> Path:
+    """Commit a raw plan: copy the source into raw/ when it isn't there yet."""
+    if plan.needs_copy:
+        ensure_dir(plan.path.parent)
+        shutil.copy2(plan.src, plan.path)
+    return plan.path
+
+
+def _find_intact_duplicate(
+    config: Config, state: dict, checksum: str, section: str, prefer_key: str
+) -> tuple[str, dict] | None:
+    """First ledger record whose exact content is still fully in the wiki.
+
+    The scan is content-based — any record with this ``checksum`` in this
+    ``section`` matches, so a re-download saved under a new filename dedups to
+    the original. "Intact" means the record's source page and every concept
+    page it produced still exist on disk: a record whose pages were deleted (or
+    that is missing fields) never matches, and the safe direction is to
+    re-ingest and let the merge pass reconcile. An empty ``concept_slugs`` is
+    vacuously intact — the source page alone gates the skip. ``prefer_key``
+    (the incoming source's own key) is checked first so a same-key match is
+    reported as "unchanged" rather than "duplicate".
+    """
+    sources = state.get("sources", {})
+    ordered = [prefer_key, *(k for k in sources if k != prefer_key)]
+    for key in ordered:
+        rec = sources.get(key)
+        if not rec or rec.get("checksum") != checksum:
+            continue
+        rec_section = normalize_section(str(rec.get("section", "")))
+        if rec_section != section:
+            continue
+        slug = rec.get("source_slug")
+        if not slug or not source_path(config, rec_section, slug).exists():
+            continue
+        # concept_path slugifies its title argument; slugify is idempotent on
+        # slugs, so the stored slugs resolve to the paths the pipeline wrote.
+        if all(
+            concept_path(config, rec_section, s).exists()
+            for s in (rec.get("concept_slugs") or [])
+        ):
+            return key, rec
+    return None
 
 
 def _instruction_block(user_prompt: str | None) -> str:
@@ -307,29 +372,41 @@ def ingest(
     # the interactive query/lint paths keep the shorter ``request_timeout``.
     provider = provider.with_timeout(config.ingest_request_timeout)
 
-    raw_path, key, raw_ref = _resolve_raw(config, spec)
-    load_spec = spec if is_url(spec) else str(raw_path)
-    loaded = load_source(
-        load_spec, config=config, provider=provider, force_vision=force_vision
-    )
-
+    plan: _RawPlan | None = None
     if is_url(spec):
+        key = raw_ref = spec
+        loaded = load_source(spec, config=config, provider=provider, force_vision=force_vision)
         checksum = sha256_bytes(loaded.markdown.encode("utf-8"))
-        source_slug = slugify(loaded.title)
     else:
-        checksum = sha256_file(raw_path)  # type: ignore[arg-type]
-        source_slug = slugify(raw_path.stem)  # type: ignore[union-attr]
+        plan = _plan_raw(config, spec)
+        key, raw_ref, checksum = plan.key, plan.raw_ref, plan.checksum
 
     state = load_state(config)
-    rec = get_source_record(state, key)
-    if rec and rec.get("checksum") == checksum and not force:
-        return IngestResult(
-            status="skipped",
-            source_key=key,
-            source_slug=rec.get("source_slug"),
-            title=loaded.title,
-            reason="unchanged",
+    if not force and not user_prompt:
+        # Skip only while the wiki still reflects a prior ingest of this exact
+        # content into this section — the pages on disk, not the ledger, are
+        # authoritative. Guidance always re-ingests so the pages get reshaped.
+        match = _find_intact_duplicate(config, state, checksum, section, key)
+        if match is not None:
+            matched_key, rec = match
+            return IngestResult(
+                status="skipped",
+                source_key=matched_key,
+                source_slug=rec.get("source_slug"),
+                title=str(rec.get("title", "")),
+                reason="unchanged" if matched_key == key else "duplicate",
+            )
+
+    if plan is not None:
+        # File sources defer both the raw/ copy and the (possibly vision-priced)
+        # load until after the duplicate check, so a skip writes and costs nothing.
+        raw_path = _materialize_raw(plan)
+        loaded = load_source(
+            str(raw_path), config=config, provider=provider, force_vision=force_vision
         )
+        source_slug = slugify(raw_path.stem)
+    else:
+        source_slug = slugify(loaded.title)
 
     ensure_dir(config.normalized_dir)
     (config.normalized_dir / f"{checksum}.md").write_text(loaded.markdown, "utf-8")

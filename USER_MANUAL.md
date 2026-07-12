@@ -127,7 +127,11 @@ the **Ingest** panel to upload lecture PDFs/slides one at a time — the form's
 writes/merges concept pages, writes the source page, refreshes the section's
 overview (and its parents up to General), regenerates `index.md`, and logs the
 operation. Re-ingesting an edited file
-**merges** new material rather than duplicating it. Then switch to **Ask** to study:
+**merges** new material rather than duplicating it. Re-uploading an *unchanged*
+file is skipped while its pages still exist — even a browser-renamed copy like
+`lecture (1).pdf` is recognized as the same content. To rebuild pages from
+unchanged material, add guidance text (guidance always re-ingests so the pages
+can be reshaped) or delete the pages first. Then switch to **Ask** to study:
 *"state the chain rule and its proof idea."* Proof-heavy courses (like the seeded
 `example-course`) carry their own **Customize** override that preserves definitions,
 theorem/lemma codes, notation, proof ideas, and LaTeX faithfully — see **W12**;
@@ -212,15 +216,26 @@ pass that flags contradictions / missing concepts / stale claims and **suggests
 growth**: missing cross-references, new questions, sources to seek, and data gaps.
 Suggestions only — the app doesn't browse the web itself.
 
-### W8 — Manage branches, courses and sections
+### W8 — Manage branches, courses, sections and pages
 From the homepage **Browse by branch** section, **+ New branch** adds a top-level
 branch (a sibling of Academic). From any section hub, **+ New course / + New
 section** scaffolds a child; the **🗑** on a card deletes one after a confirmation
 — a *full* wipe that removes its `concepts/` and `sources/` pages **and**
 everything filed under it (the ingest ledger records, their cached/raw source
-files, and any per-section customizations), so re-ingesting the same source later
-starts clean instead of being skipped as unchanged. The seeded `academic` branch
+files, and any per-section customizations), so nothing orphaned is left behind.
+Re-ingesting after a delete always works regardless: ingest skips a source only
+while its pages still exist in the wiki. The seeded `academic` branch
 is protected. Names keep their casing and non-Latin characters (`example-course`, `线性代数`).
+
+Single pages can be deleted too: every page's reading view has a **🗑** next to
+its concept/source label. Deleting a **concept** removes the page and its
+search-index entries — its source can then be re-ingested to rebuild it.
+Deleting a **source** is a full teardown: the page, its ingest ledger record,
+and its cached and raw files are all removed, the source is scrubbed from the
+`sources:` provenance of this section's concepts, and any concept left with no
+sources at all is deleted with it (the confirmation dialog and the toast tell
+you when that happens). Wikilinks elsewhere that pointed at a deleted page
+surface later as Lint warnings rather than being rewritten.
 
 ### W9 — Read and navigate in Obsidian
 Open the `wiki/` folder as an Obsidian vault for: the **graph view** (hubs,

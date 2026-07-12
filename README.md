@@ -80,6 +80,11 @@ a **☰ menu** in the top bar.
   clickable `[[wikilinks]]`. Every page/section link behaves the same way —
   sidebar, breadcrumb, wikilinks, and Lint references all navigate consistently,
   and a link to a page that isn't in your wiki tells you instead of doing nothing.
+  Each page's reading view carries a **🗑** to delete that one page: deleting a
+  concept frees its source for re-ingest; deleting a source is a full teardown
+  (its ledger record, cached and raw files go too), removes it from the
+  provenance of this section's concepts, and deletes any concept left with no
+  sources.
 - **Overview** — every section hub (General, each branch, each course) has a
   **Browse overview** that opens an LLM-written orientation to *that* section:
   what it covers and how its ideas connect, with `[[wikilinks]]` into the pages.
@@ -107,7 +112,8 @@ a **☰ menu** in the top bar.
   top-level branch (a sibling of Academic); from a section hub, **+ New course** /
   **+ New section** scaffolds a child, and **🗑** deletes one — a full wipe of its
   pages *and* the sources filed under it (ledger, cached/raw files, customizations),
-  so the same source can be re-ingested cleanly afterward. The seeded `academic`
+  so nothing orphaned accumulates; the same source can always be re-ingested
+  afterward (ingest skips only while a source's pages still exist). The seeded `academic`
   branch is protected. Names keep their exact casing and non-Latin characters
   (`example-course`, `线性代数`).
 - **Customize** — each section hub has a **Customize** view to tailor the LLM
@@ -151,7 +157,11 @@ Three layers (raw sources → LLM-compiled wiki → schema), three operations:
    scanned/math PDFs), it's checksummed and cached, then an *analysis* pass decides
    which concepts it teaches and a *generation* pass writes/merges the concept
    pages and the source page. Optional user **guidance** steers both passes and is
-   journaled to `log.md`. A source larger than `ingest_segment_max_tokens` is
+   journaled to `log.md`. Re-ingesting identical content into the same section is
+   skipped only while all of its pages still exist in the wiki — deleting pages,
+   providing guidance, or `--force` always re-ingests. The check is content-based,
+   so a re-downloaded copy under a new filename (`notes (1).pdf`) is recognized as
+   the same source. A source larger than `ingest_segment_max_tokens` is
    compiled in segments that each merge into the same pages, so very large files
    (e.g. a 1000-page PDF) stay within the model's context window — still one
    source, one provenance record. Segmented compilation is **atomic**: pages are
@@ -185,7 +195,7 @@ page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 | ---- | ---- |
 | `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
 | `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `overviews/<section>.md` (per-section overviews), `index.md`, `log.md`, `overview.md` (General overview), `purpose.md`, `schema.md`. |
-| `.llmwiki/` | Tool state: `config.toml`, `state.json`, normalized cache + `lancedb/` vector index (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
+| `.llmwiki/` | Tool state: `config.toml`, `state.json` (ingest ledger — bookkeeping; the wiki pages, not the ledger, decide re-ingest skips), normalized cache + `lancedb/` vector index (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
 | `llmwiki/` | The Python package (the app itself). |
 
 ## Supported sources

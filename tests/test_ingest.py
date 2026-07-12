@@ -94,9 +94,149 @@ def test_ingest_skips_unchanged_source(vault):
     first = ingest(vault, _provider(), str(src), section="academic/calc")
     assert first.status == "ingested"
 
-    second = ingest(vault, _provider(), str(src), section="academic/calc")
+    provider = _provider()
+    second = ingest(vault, provider, str(src), section="academic/calc")
     assert second.status == "skipped"
     assert second.reason == "unchanged"
+    # The duplicate check runs before any model pass — no compile calls.
+    assert not any(c.startswith("parse:") for c in provider.calls)
+
+
+def test_ingest_reingests_when_concept_page_deleted(vault):
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    concept_path(vault, "academic/calc", "Chain Rule").unlink()
+
+    again = ingest(vault, _provider(), str(src), section="academic/calc")
+    assert again.status == "ingested"
+    assert concept_path(vault, "academic/calc", "Chain Rule").exists()
+
+
+def test_ingest_reingests_when_source_page_deleted(vault):
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    source_path(vault, "academic/calc", "note").unlink()
+
+    again = ingest(vault, _provider(), str(src), section="academic/calc")
+    assert again.status == "ingested"
+    assert source_path(vault, "academic/calc", "note").exists()
+
+
+def test_ingest_skips_duplicate_content_under_new_filename(vault, tmp_path):
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nSame bytes.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    copy = tmp_path.parent / "note (1).md"
+    copy.write_text("# Chain Rule\n\nSame bytes.", "utf-8")
+
+    result = ingest(vault, _provider(), str(copy), section="academic/calc")
+    assert result.status == "skipped"
+    assert result.reason == "duplicate"
+    assert result.source_key == "raw/sources/note.md"
+    assert result.source_slug == "note"
+    # The rejected copy never lands in raw/ and the ledger keeps one record.
+    assert not list(vault.sources_dir.glob("note (1)*"))
+    state = json.loads(vault.state_file.read_text("utf-8"))
+    assert list(state["sources"]) == ["raw/sources/note.md"]
+
+
+def test_ingest_same_content_different_section_proceeds(vault):
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    result = ingest(vault, _provider(), str(src), section="academic/other")
+    assert result.status == "ingested"
+    # The single per-key record follows the latest ingest...
+    state = json.loads(vault.state_file.read_text("utf-8"))
+    assert state["sources"]["raw/sources/note.md"]["section"] == "academic/other"
+    # ...while the earlier section's pages stay on disk.
+    assert source_path(vault, "academic/calc", "note").exists()
+    assert concept_path(vault, "academic/calc", "Chain Rule").exists()
+
+
+def test_ingest_user_prompt_forces_reingest(vault):
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    provider = _provider()
+    result = ingest(
+        vault, provider, str(src), section="academic/calc", user_prompt="reshape the pages"
+    )
+    assert result.status == "ingested"
+    assert any(c.startswith("parse:") for c in provider.calls)
+
+
+def test_ingest_force_bypasses_intact_skip(vault):
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    result = ingest(vault, _provider(), str(src), section="academic/calc", force=True)
+    assert result.status == "ingested"
+
+
+def test_ingest_file_skip_avoids_provider_calls(vault, tmp_path):
+    # For file sources the duplicate check runs before load_source, so a skipped
+    # re-upload of an image never pays for vision transcription.
+    img = tmp_path.parent / "dedup-diagram.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\nfake png bytes")
+    analysis = SourceAnalysis(
+        source_title="Diagram", source_summary="A diagram.", concept_titles=["Diagram Concept"]
+    )
+    generation = GenerationResult(
+        concept_pages=[ConceptDraft(title="Diagram Concept", body="From the diagram.")],
+        source_page=SourcePageDraft(summary="An image source.", grounds=["Diagram Concept"]),
+    )
+    ingest(
+        vault,
+        FakeProvider(analysis=analysis, generation=generation),
+        str(img),
+        section="academic/calc",
+    )
+
+    fresh = FakeProvider(analysis=analysis, generation=generation)
+    result = ingest(vault, fresh, str(img), section="academic/calc")
+    assert result.status == "skipped"
+    assert not any(c.startswith(("parse:", "transcribe")) for c in fresh.calls)
+    # The skip path never loads the source; the title comes from the record.
+    state = json.loads(vault.state_file.read_text("utf-8"))
+    assert result.title == state["sources"]["raw/assets/dedup-diagram.png"]["title"]
+
+
+def test_ingest_reingests_when_record_missing_source_slug(vault):
+    # Degenerate ledger records never match; the safe direction is re-ingest.
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    state = json.loads(vault.state_file.read_text("utf-8"))
+    del state["sources"]["raw/sources/note.md"]["source_slug"]
+    vault.state_file.write_text(json.dumps(state), "utf-8")
+
+    result = ingest(vault, _provider(), str(src), section="academic/calc")
+    assert result.status == "ingested"
+
+
+def test_ingest_skip_tolerates_missing_concept_slugs(vault):
+    # Older records may lack concept_slugs; the source page alone gates the skip.
+    src = vault.root / "note.md"
+    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/calc")
+
+    state = json.loads(vault.state_file.read_text("utf-8"))
+    del state["sources"]["raw/sources/note.md"]["concept_slugs"]
+    vault.state_file.write_text(json.dumps(state), "utf-8")
+
+    result = ingest(vault, _provider(), str(src), section="academic/calc")
+    assert result.status == "skipped"
+    assert result.reason == "unchanged"
 
 
 def test_ingest_copies_external_file_into_raw(vault, tmp_path):

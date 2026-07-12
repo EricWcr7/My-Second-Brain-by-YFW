@@ -223,6 +223,214 @@ def test_delete_section_missing_returns_404(client):
     assert client.delete("/api/sections/academic/nope").status_code == 404
 
 
+def test_delete_concept_page_removes_file_and_ledger_survives(client, vault):
+    # A concept delete removes the page and its index entry but leaves the
+    # ledger alone — the wiki pages, not the ledger, gate re-ingest.
+    state = load_state(vault)
+    set_source_record(
+        state,
+        "raw/sources/lecture-1.md",
+        {"checksum": "feedface", "section": "academic/calc", "source_slug": "lecture-1"},
+    )
+    save_state(vault, state)
+
+    r = client.delete(
+        "/api/page/chain-rule", params={"type": "concept", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["slug"] == "chain-rule" and body["type"] == "concept"
+    assert body["scrubbed"] == [] and body["removed_concepts"] == []
+    assert not concept_path(vault, "academic/calc", "Chain Rule").exists()
+    assert client.get("/api/page/chain-rule").status_code == 404
+    assert "chain-rule" not in vault.index_file.read_text("utf-8")
+    assert "raw/sources/lecture-1.md" in load_state(vault)["sources"]
+    assert "delete |" in vault.log_file.read_text("utf-8")  # journaled
+
+
+def test_delete_concept_purges_vector_index(client, vault):
+    pytest.importorskip("lancedb")
+    from llmwiki.indexing import reindex_all
+    from llmwiki.vectorindex import open_index
+
+    from tests.fakes import FakeEmbedder
+
+    reindex_all(vault, FakeEmbedder())
+
+    def stored_slugs():
+        ids = open_index(vault).existing_hashes(vault.embed_model)
+        return {cid.split("#", 1)[0] for cid in ids}
+
+    assert "chain-rule" in stored_slugs()
+
+    r = client.delete(
+        "/api/page/chain-rule", params={"type": "concept", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+
+    assert "chain-rule" not in stored_slugs()
+
+
+def test_delete_source_page_full_teardown(client, vault):
+    # A source delete takes its ledger record, normalized cache, and raw bytes
+    # with it; a record for another section survives untouched.
+    checksum = "deadbeef"
+    raw_ref = "raw/sources/lecture-1.md"
+    ensure_dir(vault.normalized_dir)
+    (vault.normalized_dir / f"{checksum}.md").write_text("normalized\n", "utf-8")
+    ensure_dir((vault.root / raw_ref).parent)
+    (vault.root / raw_ref).write_text("# Lecture 1\n", "utf-8")
+    keep_checksum = "cafef00d"
+    keep_ref = "raw/sources/keep.pdf"
+    (vault.normalized_dir / f"{keep_checksum}.md").write_text("keep\n", "utf-8")
+    state = load_state(vault)
+    set_source_record(
+        state,
+        raw_ref,
+        {"checksum": checksum, "section": "academic/calc", "raw_ref": raw_ref, "source_slug": "lecture-1"},
+    )
+    set_source_record(
+        state,
+        keep_ref,
+        {"checksum": keep_checksum, "section": "academic/other", "raw_ref": keep_ref, "source_slug": "keep"},
+    )
+    save_state(vault, state)
+
+    r = client.delete(
+        "/api/page/lecture-1", params={"type": "source", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+    assert not source_path(vault, "academic/calc", "lecture-1").exists()
+    assert not (vault.normalized_dir / f"{checksum}.md").exists()
+    assert not (vault.root / raw_ref).exists()
+    remaining = load_state(vault)["sources"]
+    assert raw_ref not in remaining and keep_ref in remaining
+    assert (vault.normalized_dir / f"{keep_checksum}.md").exists()
+
+
+def test_delete_source_scrubs_provenance_keeps_concept(client, vault):
+    # A concept grounded by two sources survives, losing only the deleted entry.
+    write_page(
+        concept_path(vault, "academic/calc", "Chain Rule"),
+        {
+            "title": "Chain Rule",
+            "type": "concept",
+            "section": "academic/calc",
+            "sources": ["lecture-1", "lecture-2"],
+        },
+        "Body stays intact.\n",
+    )
+
+    r = client.delete(
+        "/api/page/lecture-1", params={"type": "source", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+    assert r.json()["scrubbed"] == ["chain-rule"]
+    assert r.json()["removed_concepts"] == []
+    page = read_page(concept_path(vault, "academic/calc", "Chain Rule"))
+    assert page is not None
+    assert page.metadata["sources"] == ["lecture-2"]
+    assert page.metadata["title"] == "Chain Rule"
+    assert "Body stays intact." in page.content
+
+
+def test_delete_source_cascades_orphaned_concept(client, vault):
+    # The seeded chain-rule's only provenance is lecture-1, so deleting the
+    # source deletes the concept too. lecture-1 has no ledger record — proving a
+    # ledger-less source still deletes cleanly.
+    r = client.delete(
+        "/api/page/lecture-1", params={"type": "source", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+    assert r.json()["removed_concepts"] == ["chain-rule"]
+    assert not concept_path(vault, "academic/calc", "Chain Rule").exists()
+    assert not source_path(vault, "academic/calc", "lecture-1").exists()
+    idx = vault.index_file.read_text("utf-8")
+    assert "chain-rule" not in idx and "lecture-1" not in idx
+
+
+def test_delete_source_cascade_purges_vectors(client, vault):
+    # The cascade-deleted concept's chunks must leave the vector index too.
+    pytest.importorskip("lancedb")
+    from llmwiki.indexing import reindex_all
+    from llmwiki.vectorindex import open_index
+
+    from tests.fakes import FakeEmbedder
+
+    reindex_all(vault, FakeEmbedder())
+
+    def stored_slugs():
+        ids = open_index(vault).existing_hashes(vault.embed_model)
+        return {cid.split("#", 1)[0] for cid in ids}
+
+    assert "chain-rule" in stored_slugs()
+
+    r = client.delete(
+        "/api/page/lecture-1", params={"type": "source", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+    assert r.json()["removed_concepts"] == ["chain-rule"]
+
+    assert "chain-rule" not in stored_slugs()
+
+
+def test_delete_source_leaves_other_sections_alone(client, vault):
+    # A same-slug source and its dependent concept in a sibling section are
+    # untouched: sources: entries are bare slugs, so cross-section scrubbing
+    # could hit the wrong reference.
+    write_page(
+        source_path(vault, "academic/other", "lecture-1"),
+        {"title": "Lecture 1 (other)", "type": "source", "section": "academic/other"},
+        "Other course's lecture.\n",
+    )
+    write_page(
+        concept_path(vault, "academic/other", "Gradient"),
+        {
+            "title": "Gradient",
+            "type": "concept",
+            "section": "academic/other",
+            "sources": ["lecture-1"],
+        },
+        "Gradient body.\n",
+    )
+
+    r = client.delete(
+        "/api/page/lecture-1", params={"type": "source", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+    assert source_path(vault, "academic/other", "lecture-1").exists()
+    page = read_page(concept_path(vault, "academic/other", "Gradient"))
+    assert page is not None
+    assert page.metadata["sources"] == ["lecture-1"]
+
+
+def test_delete_page_404_variants(client):
+    params = {"type": "concept", "section": "academic/calc"}
+    assert client.delete("/api/page/nope", params=params).status_code == 404
+    assert (
+        client.delete(
+            "/api/page/chain-rule", params={"type": "concept", "section": "academic/other"}
+        ).status_code
+        == 404
+    )
+    # Type mismatch: chain-rule is a concept, not a source.
+    assert (
+        client.delete(
+            "/api/page/chain-rule", params={"type": "source", "section": "academic/calc"}
+        ).status_code
+        == 404
+    )
+
+
+def test_delete_page_invalid_type_422(client):
+    assert (
+        client.delete(
+            "/api/page/chain-rule", params={"type": "bogus", "section": "academic/calc"}
+        ).status_code
+        == 422
+    )
+
+
 def test_search_section_scope(client):
     # The Academic branch sees the course page; a sibling section does not.
     assert client.get("/api/search", params={"q": "chain rule", "section": "academic"}).json()
@@ -466,6 +674,24 @@ def test_ingest_requires_api_key(client, monkeypatch):
 def test_ingest_requires_file_or_url(client, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     assert client.post("/api/ingest", data={"section": "academic/calc"}).status_code == 422
+
+
+def test_reingest_after_concept_delete(ingest_client, vault, monkeypatch):
+    # Deleting a concept page makes its source re-ingestable: the skip check
+    # follows the wiki, and the page delete left the ledger record in place.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    files = {"file": ("note.md", b"# Chain Rule\n\nbody", "text/markdown")}
+
+    first = ingest_client.post("/api/ingest", data={"section": "academic/calc"}, files=files)
+    assert first.status_code == 200 and first.json()["status"] == "ingested"
+
+    r = ingest_client.delete(
+        "/api/page/chain-rule", params={"type": "concept", "section": "academic/calc"}
+    )
+    assert r.status_code == 200
+
+    again = ingest_client.post("/api/ingest", data={"section": "academic/calc"}, files=files)
+    assert again.status_code == 200 and again.json()["status"] == "ingested"
 
 
 def test_query_attachment_reaches_provider(vault, monkeypatch):
