@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .config import Config
-from .store import Page, ensure_dir, load_state, read_page, save_state
+from .store import Page, ensure_dir, load_state, read_page, save_state, write_page
 from .vectorindex import VectorIndexUnavailable, open_index
 
 WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
@@ -267,13 +267,16 @@ def purge_section(config: Config, section: str) -> list[str]:
     """Tear a section down *completely*; return the ledger keys removed.
 
     Deleting a section must leave nothing behind. Removing only the page
-    directories (the old behavior) stranded three kinds of artifact, so a later
-    re-ingest of the same file was silently skipped as "unchanged" and orphans
-    piled up:
+    directories (the old behavior) stranded three kinds of artifact that piled
+    up as orphans:
 
     1. the ``state.json`` ledger record for each source filed there — dropped
        here along with the bytes it owns: the ``normalized/<checksum>.md`` cache
-       and the ``raw/`` file;
+       and the ``raw/`` file. (The ingest skip check verifies the wiki pages
+       themselves, so a stale record can never block a re-ingest — this cleanup
+       is hygiene, not a correctness fix. A record re-pointed at another section
+       by a later re-ingest of the same file is intentionally left alone, along
+       with the raw/normalized bytes it still owns.);
     2. the concept/source page subtrees, plus the section's own overview page
        and its descendants' overviews under ``wiki/overviews/``;
     3. the per-section override files under ``.llmwiki/sections/``;
@@ -337,6 +340,101 @@ def purge_section(config: Config, section: str) -> list[str]:
             pass
 
     return removed
+
+
+@dataclass
+class PagePurgeResult:
+    scrubbed: list[str]  # concept slugs whose sources: list was edited
+    removed_concepts: list[str]  # concepts cascade-deleted (provenance emptied)
+
+
+def purge_page(config: Config, page_type: str, section: str, slug: str) -> PagePurgeResult:
+    """Tear one concept or source page down thoroughly — :func:`purge_section`
+    at page granularity.
+
+    Concept: unlink the page and drop its vector chunks. The state ledger is
+    intentionally untouched — the wiki pages, not the ledger, gate re-ingest
+    (see ``ingest._find_intact_duplicate``), so deleting a concept makes its
+    source re-ingestable.
+
+    Source: unlink the page; drop the matching ledger record(s) plus the
+    ``normalized/<checksum>.md`` cache and ``raw/`` bytes they own (hygiene,
+    mirroring :func:`purge_section`); scrub ``slug`` from the ``sources:``
+    provenance of concept pages in the *same section only* (a ``sources:``
+    entry is a bare slug, ambiguous across sections — a live same-slug source
+    elsewhere keeps cross-section entries valid); cascade-delete any scrubbed
+    concept whose provenance becomes empty (concept pages must carry a
+    non-empty ``sources:`` list).
+
+    Vector deletion is by slug across every section (a :meth:`delete_page_slugs`
+    property shared with :func:`purge_section`); ``reindex`` restores any
+    same-slug concept elsewhere. Refreshes ``index.md``; callers append their
+    own ``log.md`` entry and must verify the page exists first.
+    """
+    section = normalize_section(section)
+    scrubbed: list[str] = []
+    removed_concepts: list[str] = []
+    doomed_slugs: set[str] = set()
+
+    if page_type == "concept":
+        concept_path(config, section, slug).unlink()
+        doomed_slugs.add(slug)
+    else:
+        source_path(config, section, slug).unlink()
+
+        state = load_state(config)
+        sources = state.get("sources", {})
+        removed = [
+            key
+            for key, rec in sources.items()
+            if normalize_section(str(rec.get("section", ""))) == section
+            and rec.get("source_slug") == slug
+        ]
+        for key in removed:
+            rec = sources.pop(key)
+            checksum = rec.get("checksum")
+            if checksum:
+                (config.normalized_dir / f"{checksum}.md").unlink(missing_ok=True)
+            raw_ref = rec.get("raw_ref")
+            if raw_ref:
+                (config.root / raw_ref).unlink(missing_ok=True)
+        if removed:
+            save_state(config, state)
+
+        for ref in iter_pages(config, "concept"):
+            if ref.section != section:
+                continue
+            page = read_page(ref.path)
+            if page is None:
+                continue
+            prev = page.metadata.get("sources")
+            if not isinstance(prev, list):
+                continue  # malformed provenance is lint's domain, not a blocker
+            cleaned = [s for s in prev if str(s).strip() != slug]
+            if len(cleaned) == len(prev):
+                continue
+            if cleaned:
+                meta = dict(page.metadata)
+                meta["sources"] = cleaned
+                write_page(ref.path, meta, page.content)
+                scrubbed.append(ref.slug)
+            else:
+                ref.path.unlink(missing_ok=True)
+                removed_concepts.append(ref.slug)
+                doomed_slugs.add(ref.slug)
+
+    rebuild_index(config)  # drop the deleted page(s) from index.md
+
+    if doomed_slugs:
+        # Best-effort: a missing search extra / index just means nothing to drop.
+        try:
+            open_index(config).delete_page_slugs(doomed_slugs)
+        except VectorIndexUnavailable:
+            pass
+        except Exception:  # pragma: no cover - resilience path; never block a delete
+            pass
+
+    return PagePurgeResult(scrubbed=scrubbed, removed_concepts=removed_concepts)
 
 
 def read_optional(path: Path) -> str:

@@ -697,6 +697,20 @@ html[data-screen="app"] #landing { display: none; }
 
 /* Article header apparatus: eyebrow (the breadcrumb lives in the top bar) ---- */
 #content .eyebrow { display: block; margin: 0 0 .8em; }
+/* Reading-view header row: eyebrow left, quiet delete right — the same 🗑
+   vocabulary as .hub-card-del, inline instead of card-cornered. */
+#content .page-head-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 0 0 .8em;
+}
+#content .page-head-row .eyebrow { margin: 0; }
+#content .page-del {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 4px; border-radius: 5px;
+  opacity: .4; transition: opacity .2s ease, background-color .2s ease;
+}
+#content .page-del:hover { opacity: 1; background: var(--accent-soft); }
+#content .page-del:disabled { opacity: .25; cursor: default; }
 #content .page-meta {
   margin: -.2em 0 2em;
   font-family: var(--font-mono);

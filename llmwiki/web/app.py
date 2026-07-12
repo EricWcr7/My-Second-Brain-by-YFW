@@ -35,14 +35,17 @@ from ..overview import refresh_overview
 from ..wiki import (
     PageRef,
     append_log,
+    concept_path,
     iter_pages,
     normalize_section,
     overview_path,
+    purge_page,
     purge_section,
     read_optional,
     section_dirs,
     section_slug,
     section_to_relpath,
+    source_path,
 )
 
 # Seeded top-level branch the UI relies on — never deletable via the web API.
@@ -183,9 +186,10 @@ def create_app(
         Removes the ``concepts/<section>`` and ``sources/<section>`` page subtrees
         plus the artifacts the old behavior stranded — the ``state.json`` ledger
         records for sources here (and their normalized cache / ``raw/`` bytes), the
-        per-section overrides, and the deleted concepts' vector-index chunks — so a
-        later re-ingest isn't silently skipped and search can't surface dead pages.
-        See :func:`purge_section`.
+        per-section overrides, and the deleted concepts' vector-index chunks — so
+        orphaned records and bytes don't accumulate and search can't surface dead
+        pages. (Re-ingest never depends on this: the skip check follows the wiki
+        pages themselves.) See :func:`purge_section`.
 
         The seeded ``academic`` root is protected. The section is resolved
         case-insensitively against the dirs on disk, so the URL casing need not
@@ -202,6 +206,57 @@ def create_app(
         purge_section(config, match)  # pages, ledger, cache, raw, overrides, vectors
         append_log(config, "section", match, detail="deleted via web UI")
         return {"section": match}
+
+    @app.delete("/api/page/{slug}")
+    def delete_page(
+        slug: str,
+        page_type: str = Query(..., alias="type"),
+        section: str = Query(""),
+    ) -> dict:
+        """Delete one concept or source page thoroughly.
+
+        The delete keys on slug **plus** type and section — a slug alone is
+        ambiguous (a concept and a source can share one, and the same slug can
+        live in several sections). Deleting a concept leaves the ingest ledger
+        alone on purpose: the skip check follows the wiki pages, so the
+        concept's source becomes re-ingestable. Deleting a source is a full
+        teardown — its ledger record, normalized cache, and ``raw/`` bytes go
+        with it, the slug is scrubbed from same-section concepts' ``sources:``
+        provenance, and concepts left with no sources are deleted too (reported
+        in the response). See :func:`purge_page`.
+        """
+        if page_type not in ("concept", "source"):
+            raise HTTPException(status_code=422, detail="type must be 'concept' or 'source'")
+        # source_path interpolates the slug into a filename verbatim — reject
+        # anything that could escape the pages directory (covers percent-encoded
+        # separators the route decodes back into the single path segment).
+        if "/" in slug or "\\" in slug or slug in {".", ".."}:
+            raise HTTPException(status_code=404, detail=f"no page with slug {slug!r}")
+        norm = normalize_section(section)
+        path = (
+            concept_path(config, norm, slug)
+            if page_type == "concept"
+            else source_path(config, norm, slug)
+        )
+        if not path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"no {page_type} {slug!r} in section {norm or 'General'!r}",
+            )
+        result = purge_page(config, page_type, norm, slug)
+        detail = "deleted via web UI"
+        if result.scrubbed:
+            detail += f"; provenance scrubbed: {', '.join(result.scrubbed)}"
+        if result.removed_concepts:
+            detail += f"; removed empty concepts: {', '.join(result.removed_concepts)}"
+        append_log(config, "delete", f"{page_type} {slug}", detail=detail)
+        return {
+            "slug": slug,
+            "type": page_type,
+            "section": norm,
+            "scrubbed": result.scrubbed,
+            "removed_concepts": result.removed_concepts,
+        }
 
     @app.get("/api/overrides")
     def overrides_list() -> dict:
