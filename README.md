@@ -212,6 +212,44 @@ Every concept page carries `sources:` provenance, so claims trace back to a sour
 page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 **compiled once and kept current**, so answers compound over time.
 
+
+## Evaluation and current limits
+
+The current automated suite is reproducible without an API key because provider
+responses are faked. On July 13, 2026, the repository test suite completed with
+**172 passed and 4 skipped**. Run `pytest` for the full suite and `make eval` for
+the focused grounding checks.
+
+- The answer grounding eval has 6 golden cases and scored **6/6**. It checks that
+  real, aliased, and heading-anchored `[[slug]]` citations are accepted while
+  invented citations are flagged, with reranking both on and off.
+- The multi-turn Solver grounding eval has 6 golden cases and scored **6/6**,
+  including a follow-up-turn case.
+- Unit tests also cover prefix-scope isolation, BM25/vector Reciprocal Rank Fusion,
+  keyword-only fallback, incremental indexing, ingest atomicity, provider
+  behavior, loaders, storage, and web workflows.
+
+These numbers are regression evidence, **not a general LLM-quality benchmark**.
+The golden grounding evals use scripted model answers and test whether cited wiki
+pages exist; they do not yet measure semantic answer correctness, citation
+entailment, retrieval recall on a realistic corpus, latency, or API cost. A useful
+next evaluation is a held-out multi-document set reporting retrieval recall@k,
+answer correctness, citation precision/recall, latency, and cost by source type.
+
+### Design trade-offs
+
+- Compiling sources into persistent Markdown makes knowledge inspectable and
+  reusable, but ingest costs more up front and compiled pages can become stale if
+  sources change without re-ingestion.
+- Source files and the wiki stay on local disk, but LLM-powered operations send the
+  selected source/context content to the configured model provider. “Local-first”
+  is not the same as fully offline.
+- Prefix scopes make branch behavior predictable and testable, but they are an
+  organizational boundary, not a security or multi-user authorization system.
+- Hybrid retrieval can recover semantically related pages with no keyword overlap,
+  but adds an embeddings call and optional vector-index dependency; BM25 fallback
+  is cheaper and offline but may miss those pages.
+
 ## Vault layout
 
 | Path | Role |
