@@ -19,7 +19,21 @@ search, and ask questions of, **all in your browser, all on your machine**.
 > walkthroughs of every workflow in the app (ingesting each source type, asking,
 > searching, linting, managing courses, Obsidian).
 
+
 ---
+
+## Origin and contributions
+
+This project implements [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): immutable raw sources, an LLM-maintained Markdown wiki, a schema/instruction layer, and ingest/query/lint workflows. I did not originate that overall pattern.
+
+My contributions are the product and implementation design around that foundation:
+
+- hierarchical branches and prefix-scoped knowledge access;
+- per-branch purpose, schema, and system-prompt inheritance and overrides;
+- the browser UI/UX and workflows for browsing, ingesting, asking, searching, linting, customizing branches, and solving course problems; and
+- implementation and evaluation of the resulting application, including provenance checks, hybrid retrieval, provider support, and automated tests.
+
+I designed these extensions and directed the implementation with Claude Code.
 
 ## Run the app
 
