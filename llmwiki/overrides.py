@@ -29,9 +29,9 @@ from .config import Config
 from .store import ensure_dir
 from .wiki import normalize_section, read_optional, section_to_relpath
 
-# The four operation prompts share their names with the packaged ``<op>.md``
+# The operation prompts share their names with the packaged ``<op>.md``
 # files; ``purpose``/``schema`` map to the wiki documents.
-OPERATION_COMPONENTS = ("ingest_analysis", "ingest_generation", "answer", "lint")
+OPERATION_COMPONENTS = ("ingest_analysis", "ingest_generation", "answer", "lint", "solve")
 DOC_COMPONENTS = ("purpose", "schema")
 COMPONENTS = OPERATION_COMPONENTS + DOC_COMPONENTS
 

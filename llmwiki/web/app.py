@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import tempfile
 from collections.abc import Callable
+from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -18,7 +19,7 @@ from pydantic import BaseModel
 from starlette.responses import Response
 from starlette.types import Scope
 
-from .. import overrides
+from .. import overrides, solver
 from ..config import Config, load_config
 from ..embeddings import make_embedder
 from ..indexing import reindex_all
@@ -138,6 +139,9 @@ def create_app(
             "has_api_key": _has_api_key(config),
             "api_key_env": _api_key_env(config),
             "supported_exts": SUPPORTED_EXTS,
+            "solver_section": normalize_section(config.solver_section),
+            "solver_enabled": bool(normalize_section(config.solver_section)),
+            "solver_exts": sorted(solver.SOLVER_ATTACHMENT_EXTS),
         }
 
     @app.get("/api/pages")
@@ -526,6 +530,100 @@ def create_app(
             "pages_used": result.pages_used,
             "ungrounded": result.ungrounded,
         }
+
+    # --- Problem Set Solver ---------------------------------------------------
+    # Multi-turn chat sessions scoped to config.solver_section. Sessions are app
+    # data under .llmwiki/solver/ (never wiki pages); uploaded PDFs/images are
+    # sent natively to the model and never ingested.
+
+    _SOLVER_MAX_FILE_BYTES = 30 * 1024 * 1024  # provider request payloads cap ~32 MB
+
+    def _require_solver_section() -> str:
+        section = normalize_section(config.solver_section)
+        if not section:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "solver_section is not set in .llmwiki/config.toml; set it "
+                    '(e.g. "academic/example-course") and restart to use the solver.'
+                ),
+            )
+        return section
+
+    def _get_session(session_id: str) -> solver.SolverSession:
+        session = solver.load_session(config, session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Solver session not found")
+        return session
+
+    @app.get("/api/solver/sessions")
+    def solver_sessions() -> dict:
+        return {
+            "sessions": [
+                {
+                    "id": s.id,
+                    "title": s.title,
+                    "created": s.created,
+                    "updated": s.updated,
+                    "turn_count": len(s.turns),
+                }
+                for s in solver.list_sessions(config)
+            ]
+        }
+
+    @app.post("/api/solver/sessions")
+    def solver_create() -> dict:
+        _require_solver_section()
+        return asdict(solver.create_session(config))
+
+    @app.get("/api/solver/sessions/{session_id}")
+    def solver_get(session_id: str) -> dict:
+        return asdict(_get_session(session_id))
+
+    @app.delete("/api/solver/sessions/{session_id}")
+    def solver_delete(session_id: str) -> dict:
+        _get_session(session_id)
+        solver.delete_session(config, session_id)
+        return {"id": session_id}
+
+    @app.post("/api/solver/sessions/{session_id}/messages")
+    async def solver_message(
+        session_id: str,
+        question: str = Form(...),
+        files: list[UploadFile] = File(default=[]),
+    ) -> dict:
+        _require_solver_section()
+        session = _get_session(session_id)
+        if not _has_api_key(config):
+            env = _api_key_env(config)
+            raise HTTPException(
+                status_code=503,
+                detail=f"{env} is not set; set it and restart to use the solver.",
+            )
+        attachments: list[solver.SolverAttachment] = []
+        for f in files:
+            if not f.filename:
+                continue
+            data = await f.read()
+            if len(data) > _SOLVER_MAX_FILE_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{f.filename} exceeds the 30 MB solver attachment limit.",
+                )
+            try:
+                attachments.append(
+                    solver.save_attachment(config, session, f.filename, data)
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e)) from e
+        # Solver turns run max-effort reasoning over attached files — give them
+        # their own timeout ceiling, not the interactive default.
+        provider = provider_factory(config).with_timeout(config.solver_request_timeout)
+        try:
+            session = solver.solve(config, provider, session, question, attachments)
+        except ProviderError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        return asdict(session)
 
     @app.get("/api/lint")
     def lint_endpoint(section: str | None = None, deep: bool = False) -> list[dict]:

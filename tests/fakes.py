@@ -33,6 +33,11 @@ class FakeProvider(LLMProvider):
         self._findings = findings
         self._rerank_order = rerank_order
         self.calls: list[str] = []
+        # Last chat() invocation, for solver tests to assert history replay,
+        # attachment re-sending, and effort passthrough.
+        self.last_chat_system: str | None = None
+        self.last_chat_messages: list | None = None
+        self.last_chat_effort: str | None = None
 
     def with_timeout(self, timeout: float) -> "FakeProvider":
         # Record the requested timeout so a test can assert ingest scopes its own;
@@ -42,6 +47,13 @@ class FakeProvider(LLMProvider):
 
     def complete(self, system, user, *, model=None, max_tokens=16000) -> str:
         self.calls.append("complete")
+        return self._answer
+
+    def chat(self, system, messages, *, model=None, max_tokens=16000, effort=None) -> str:
+        self.calls.append(f"chat:{len(messages)}")
+        self.last_chat_system = system
+        self.last_chat_messages = messages
+        self.last_chat_effort = effort
         return self._answer
 
     def parse(self, system, user, schema, *, model=None, max_tokens=16000):

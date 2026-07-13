@@ -77,6 +77,18 @@ class Config:
     # the duration of an ingest only, leaving ``request_timeout`` for everything else.
     ingest_request_timeout: float = 3600.0
     max_retries: int = 2
+    # Problem Set Solver: the single section its retrieval is scoped to (e.g.
+    # "academic/example-course"). "" (default) leaves the solver disabled — the web
+    # view stays hidden and its endpoints refuse with a clear message —
+    # because falling back to ``default_section`` would silently un-scope it.
+    solver_section: str = ""
+    # Reasoning effort for solver turns (OpenAI ``reasoning.effort``; the
+    # Anthropic backend runs adaptive thinking and ignores this).
+    solver_reasoning_effort: str = "xhigh"
+    # Per-turn timeout for solver calls: max-effort reasoning over attached
+    # PDFs outlives ``request_timeout``, but an interactive chat turn should
+    # never get ingest's hour-long ceiling.
+    solver_request_timeout: float = 600.0
     extra: dict = field(default_factory=dict)
 
     @property
@@ -128,6 +140,12 @@ class Config:
     @property
     def config_file(self) -> Path:
         return self.state_dir / "config.toml"
+
+    @property
+    def solver_dir(self) -> Path:
+        # Problem Set Solver sessions (chat transcripts + uploaded files).
+        # App data, not wiki pages — lives under .llmwiki/ like the ledger.
+        return self.state_dir / "solver"
 
     @property
     def section_overrides_dir(self) -> Path:
@@ -194,6 +212,9 @@ _SETTING_KEYS = (
     "request_timeout",
     "ingest_request_timeout",
     "max_retries",
+    "solver_section",
+    "solver_reasoning_effort",
+    "solver_request_timeout",
 )
 
 

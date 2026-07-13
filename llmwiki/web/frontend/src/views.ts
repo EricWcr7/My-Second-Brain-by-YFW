@@ -11,6 +11,7 @@ import {
   type SectionOverrides,
 } from "./state";
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
+import { renderSolver } from "./solver";
 import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
 import { setBreadcrumb, setScopedBreadcrumb } from "./topbar";
 import { renderLandingStats, renderBranches } from "./landing";
@@ -35,6 +36,7 @@ export function setView(name: string): void {
   else if (name === "ask") renderAsk();
   else if (name === "lint") renderLint();
   else if (name === "ingest") renderIngest();
+  else if (name === "solver") void renderSolver("");
 }
 
 // Human-readable label for the current scope (drives Ask/Lint copy).
@@ -377,6 +379,26 @@ function renderAsk(): void {
   animateIn();
 }
 
+// Grounding postscript shared by Ask and the Solver: the ungrounded-citations
+// warning plus the numbered References list back to the pages an answer used.
+export function answerExtrasHtml(pages_used?: string[], ungrounded?: string[]): string {
+  let html = "";
+  if (ungrounded && ungrounded.length) {
+    // Grounding check: the answer cited pages that don't exist in the wiki, so
+    // those claims aren't backed by provenance. Surface it rather than hide it.
+    const names = ungrounded.map((s) => `<code>${escapeHtml(s)}</code>`).join(", ");
+    html += `<p class="notice">⚠ This answer cited ${ungrounded.length} page(s) not in your wiki: ${names}. Treat those claims with caution — they aren't grounded in a source.</p>`;
+  }
+  if (pages_used && pages_used.length) {
+    // Numbered footnote-style references back to the pages the answer drew on.
+    const items = pages_used
+      .map((s) => `<li><a class="wikilink" data-nav="page:${escapeHtml(s)}">${escapeHtml(s)}</a></li>`)
+      .join("");
+    html += `<div class="answer-refs"><span class="eyebrow">References</span><ol class="ref-list">${items}</ol></div>`;
+  }
+  return html;
+}
+
 async function onAsk(e: Event): Promise<void> {
   e.preventDefault();
   const q = (document.getElementById("ask-q") as HTMLTextAreaElement).value.trim();
@@ -394,19 +416,7 @@ async function onAsk(e: Event): Promise<void> {
     for (const f of files) fd.append("files", f);
     const res = await postForm<QueryResult>("/api/query", fd);
     let html = `<div class="answer-body">${renderMarkdown(res.answer)}</div>`;
-    if (res.ungrounded && res.ungrounded.length) {
-      // Grounding check: the answer cited pages that don't exist in the wiki, so
-      // those claims aren't backed by provenance. Surface it rather than hide it.
-      const names = res.ungrounded.map((s) => `<code>${escapeHtml(s)}</code>`).join(", ");
-      html += `<p class="notice">⚠ This answer cited ${res.ungrounded.length} page(s) not in your wiki: ${names}. Treat those claims with caution — they aren't grounded in a source.</p>`;
-    }
-    if (res.pages_used && res.pages_used.length) {
-      // Numbered footnote-style references back to the pages the answer drew on.
-      const items = res.pages_used
-        .map((s) => `<li><a class="wikilink" data-nav="page:${escapeHtml(s)}">${escapeHtml(s)}</a></li>`)
-        .join("");
-      html += `<div class="answer-refs"><span class="eyebrow">References</span><ol class="ref-list">${items}</ol></div>`;
-    }
+    html += answerExtrasHtml(res.pages_used, res.ungrounded);
     const prov = providerLabel();
     html += `<p class="answer-by">Answered from your wiki${prov ? " · " + escapeHtml(prov) : ""}</p>`;
     answerEl.innerHTML = html;
@@ -604,6 +614,7 @@ const CUST_COMPONENTS: { key: string; label: string; help: string }[] = [
   { key: "ingest_analysis", label: "Ingest · analysis", help: "How a new source is read to decide which concepts it covers." },
   { key: "ingest_generation", label: "Ingest · generation", help: "How concept and source pages are written from a source." },
   { key: "answer", label: "Answer · Ask", help: "How questions are answered from your wiki pages." },
+  { key: "solve", label: "Solver · problem sets", help: "How the Problem Set Solver works problems: full solutions grounded in this branch's pages." },
   { key: "lint", label: "Lint · deep review", help: "What the deep editorial review looks for." },
 ];
 

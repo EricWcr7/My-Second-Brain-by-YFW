@@ -440,7 +440,7 @@ def test_search_section_scope(client):
 def test_overrides_list_reports_status_and_general(client):
     data = client.get("/api/overrides").json()
     assert set(data["components"]) == {
-        "ingest_analysis", "ingest_generation", "answer", "lint", "purpose", "schema"
+        "ingest_analysis", "ingest_generation", "answer", "lint", "solve", "purpose", "schema"
     }
     assert "knowledge base" in data["general"]["answer"]  # the general default text
     by_section = {s["section"]: s for s in data["sections"]}
