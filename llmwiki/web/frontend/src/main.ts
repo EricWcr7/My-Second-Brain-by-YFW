@@ -16,6 +16,7 @@ import { updateScopeChip, updateKeyStatus } from "./topbar";
 const viewHash: Record<string, string> = {
   home: "#/overview",
   ask: "#/ask",
+  solver: "#/solver",
   lint: "#/lint",
   ingest: "#/ingest",
 };
@@ -52,6 +53,10 @@ document.addEventListener("click", (e) => {
   } catch (err) {
     /* keep defaults */
   }
+  // The Solver nav entry only exists once a solver_section is configured.
+  document
+    .querySelector('#nav [data-view="solver"]')
+    ?.toggleAttribute("hidden", !state.meta.solver_enabled);
   renderLandingStats();
   updateKeyStatus();
   updateScopeChip();

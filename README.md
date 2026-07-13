@@ -103,6 +103,15 @@ a **☰ menu** in the top bar.
   pages used. You can attach files as **one-off context** for a single answer;
   attachments are never written to the wiki. If an answer cites a page that isn't in
   your wiki, the app flags it so you can distrust that claim (provenance you can see).
+- **Solver** — a **Problem Set Solver**: a ChatGPT-style multi-turn chat scoped to
+  one configured course section (`solver_section`, e.g. `academic/example-course`).
+  Each question runs fresh retrieval over that course's pages and answers with
+  **full worked solutions** (rendered math, `[[slug]]` citations, the same
+  ungrounded-citation flags as Ask) at **maximum reasoning effort**. Attach
+  problem-set **PDFs/images per message** — they're sent natively to the model
+  and **never ingested** into the wiki. Sessions persist on disk, are listed in
+  a sidebar (resume/delete), and every turn sees the whole conversation. The
+  Solver nav entry appears only when `solver_section` is set.
 - **Search** — **hybrid** ranking over concept pages: BM25 keyword fused with
   semantic vector search (Reciprocal Rank Fusion), so a query finds the right page
   even with no shared words. Falls back to instant keyword-only ranking offline.
@@ -118,7 +127,7 @@ a **☰ menu** in the top bar.
   (`example-course`, `线性代数`).
 - **Customize** — each section hub has a **Customize** view to tailor the LLM
   instruction set *for that branch*: the prompt for each operation (ingest
-  analysis, ingest generation, answer, lint) plus the branch's **purpose** and
+  analysis, ingest generation, answer, solver, lint) plus the branch's **purpose** and
   **schema**. A branch either carries its own override or inherits the **general
   default**; one Save can fan out to several branches still on the default. This is
   how a proof-heavy course (e.g. `example-course`) keeps math/theorem/proof rules while
@@ -195,7 +204,7 @@ page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 | ---- | ---- |
 | `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
 | `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `overviews/<section>.md` (per-section overviews), `index.md`, `log.md`, `overview.md` (General overview), `purpose.md`, `schema.md`. |
-| `.llmwiki/` | Tool state: `config.toml`, `state.json` (ingest ledger — bookkeeping; the wiki pages, not the ledger, decide re-ingest skips), normalized cache + `lancedb/` vector index (gitignored), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
+| `.llmwiki/` | Tool state: `config.toml`, `state.json` (ingest ledger — bookkeeping; the wiki pages, not the ledger, decide re-ingest skips), normalized cache + `lancedb/` vector index (gitignored), `solver/` — Problem Set Solver sessions (chat transcripts + attached files; app data, never wiki pages), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
 | `llmwiki/` | The Python package (the app itself). |
 
 ## Supported sources
@@ -229,6 +238,9 @@ pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via visio
 request_timeout = 300.0             # seconds before a provider call times out
 ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
+# solver_section = "academic/example-course"  # enable the Problem Set Solver, scoped to this section
+solver_reasoning_effort = "xhigh"   # solver-turn reasoning effort (OpenAI; Anthropic ignores)
+solver_request_timeout = 600.0      # per-turn ceiling for solver calls (max effort runs long)
 ```
 
 Semantic search needs the **`[search]`** extra (`pip install ".[web,search]"`,

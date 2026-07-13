@@ -268,6 +268,9 @@ embed_model = "text-embedding-3-small"  # embedding model used for every section
 request_timeout = 300.0             # seconds before a provider call times out
 ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
+# solver_section = "academic/example-course"  # enable the Problem Set Solver, scoped to this section (W14)
+solver_reasoning_effort = "xhigh"   # solver-turn reasoning effort (OpenAI; Anthropic ignores)
+solver_request_timeout = 600.0      # per-turn ceiling for solver calls (max effort runs long)
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in
 the config. **Semantic search is independent of the chat `provider`** — embeddings
@@ -280,8 +283,8 @@ overrides.
 ### W12 — Customize a branch's LLM instructions
 Every section hub has a **Customize** view (also reachable at `#/customize/<section>`).
 It exposes the LLM instruction set *for that branch*: the prompt for each operation
-— **ingest analysis**, **ingest generation**, **answer**, **lint** — plus the branch's
-**purpose** and **schema**. Each card shows the text currently in effect with an
+— **ingest analysis**, **ingest generation**, **answer**, **solver**, **lint** — plus
+the branch's **purpose** and **schema**. Each card shows the text currently in effect with an
 **Override / Inherited** badge:
 
 - **Save** writes an override for this branch (the badge flips to *Override*).
@@ -312,6 +315,43 @@ and click **Regenerate overview**. From the terminal, `llmwiki overview --sectio
 academic/example-course` does the same (omit `--section` for the General overview). Overviews
 live at `wiki/overview.md` (General) and `wiki/overviews/<section-path>.md`, and are
 LLM-owned like the rest of `wiki/` — don't hand-edit them.
+
+### W14 — Solve problem sets with the Solver
+The **Problem Set Solver** is a multi-turn chat (like ChatGPT) dedicated to one
+course. Enable it by setting the course in `.llmwiki/config.toml` and relaunching:
+
+```toml
+solver_section = "academic/example-course"
+```
+
+A **Solver** entry then appears in the sidebar nav (it stays hidden while
+`solver_section` is unset). Inside:
+
+- **Sessions** — the left rail lists your sessions; **+ New** starts one, clicking
+  one resumes it, and **🗑** deletes it (transcript and attached files). Sessions
+  persist on disk under `.llmwiki/solver/` — they survive restarts, and every
+  question in a session sees the whole conversation, so follow-ups can build on
+  earlier answers ("now do part (c) using the same setup").
+- **Ask a problem** — type the question and optionally attach the problem set as
+  **PDFs or images** (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`; up to
+  30 MB each). Attachments are sent **natively to the model** with your message —
+  best fidelity for math notation and diagrams — and are **never ingested** into
+  the wiki. They stay with the session and are automatically re-sent on follow-up
+  turns.
+- **Worked solutions** — unlike Ask (and unlike the example-course purpose's hints-only
+  study boundary), the Solver gives **complete step-by-step solutions**: theorem
+  hypotheses checked, course notation preserved, math rendered with KaTeX. Each
+  turn retrieves fresh pages from the course wiki and cites them `[[slug]]`-style
+  with the same **References** list and **ungrounded-citation warning** as Ask —
+  if a cited page isn't in your wiki, you'll see the caution note.
+- **Speed & cost** — solver turns run at **maximum reasoning effort**
+  (`solver_reasoning_effort`, default `xhigh` on OpenAI), so an answer can take a
+  few minutes; the turn is bounded by `solver_request_timeout`. Attachments are
+  re-sent each turn, so very long sessions with big PDFs cost more — start a new
+  session per problem set.
+- **Customize it** — the solver's system prompt is the **solver** card in
+  **Customize** (W12): override it for the course (e.g. "always verify with an
+  alternative method") or edit the general default.
 
 ---
 

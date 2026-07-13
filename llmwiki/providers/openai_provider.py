@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from ..config import Config
-from .base import LLMProvider, ProviderError, T, Usage
+from .base import ChatMessage, LLMProvider, ProviderError, T, Usage
 
 logger = logging.getLogger("llmwiki.providers")
 
@@ -114,6 +114,59 @@ class OpenAIProvider(LLMProvider):
             ),
         )
         return response.output_text.strip()
+
+    def chat(
+        self,
+        system: str,
+        messages: list[ChatMessage],
+        *,
+        model: str | None = None,
+        max_tokens: int = 16000,
+        effort: str | None = None,
+    ) -> str:
+        model = model or self.compile_model
+        input_items = [
+            {"role": m.role, "content": self._chat_content(m)} for m in messages
+        ]
+        response = self._invoke(
+            "chat",
+            model,
+            lambda: self.client.responses.create(
+                model=model,
+                max_output_tokens=max_tokens + REASONING_TOKEN_RESERVE,
+                reasoning={"effort": effort or REASONING_EFFORT},
+                instructions=system,
+                input=input_items,
+            ),
+        )
+        return response.output_text.strip()
+
+    def _chat_content(self, message: ChatMessage):
+        # Assistant history replays as a plain string (EasyInputMessage); user
+        # turns carry any attachments (raw bytes, base64) ahead of the text.
+        if message.role == "assistant":
+            return message.text
+        content: list[dict] = []
+        for att in message.attachments:
+            data = base64.standard_b64encode(att.path.read_bytes()).decode("utf-8")
+            if att.kind == "pdf":
+                content.append(
+                    {
+                        "type": "input_file",
+                        "filename": att.name,
+                        "file_data": f"data:application/pdf;base64,{data}",
+                    }
+                )
+            else:
+                media_type = mimetypes.guess_type(att.name)[0] or "image/png"
+                content.append(
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:{media_type};base64,{data}",
+                    }
+                )
+        content.append({"type": "input_text", "text": message.text})
+        return content
 
     def parse(
         self,

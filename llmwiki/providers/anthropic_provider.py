@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from ..config import Config
-from .base import LLMProvider, ProviderError, T, Usage
+from .base import ChatMessage, LLMProvider, ProviderError, T, Usage
 
 logger = logging.getLogger("llmwiki.providers")
 
@@ -111,6 +111,59 @@ class AnthropicProvider(LLMProvider):
                 return stream.get_final_message()
 
         return _text_of(self._invoke("complete", model, _call))
+
+    def chat(
+        self,
+        system: str,
+        messages: list[ChatMessage],
+        *,
+        model: str | None = None,
+        max_tokens: int = 16000,
+        effort: str | None = None,
+    ) -> str:
+        # ``effort`` is ignored: adaptive thinking is already this backend's
+        # maximum-quality mode and has no per-call effort knob.
+        model = model or self.compile_model
+        api_messages = [
+            {"role": m.role, "content": self._chat_content(m)} for m in messages
+        ]
+
+        def _call():
+            with self.client.messages.stream(
+                model=model,
+                max_tokens=max_tokens,
+                system=self._system_blocks(system),
+                thinking={"type": "adaptive"},
+                messages=api_messages,
+            ) as stream:
+                return stream.get_final_message()
+
+        return _text_of(self._invoke("chat", model, _call))
+
+    def _chat_content(self, message: ChatMessage):
+        # Assistant history replays as plain text; user turns carry any
+        # attachments (raw bytes, base64) as document/image blocks ahead of
+        # the text.
+        if message.role == "assistant" or not message.attachments:
+            return message.text
+        content: list[dict] = []
+        for att in message.attachments:
+            if att.kind == "pdf":
+                source = {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.standard_b64encode(att.path.read_bytes()).decode("utf-8"),
+                }
+                content.append({"type": "document", "source": source})
+            else:
+                source = {
+                    "type": "base64",
+                    "media_type": mimetypes.guess_type(att.name)[0] or "image/png",
+                    "data": base64.standard_b64encode(att.path.read_bytes()).decode("utf-8"),
+                }
+                content.append({"type": "image", "source": source})
+        content.append({"type": "text", "text": message.text})
+        return content
 
     def parse(
         self,

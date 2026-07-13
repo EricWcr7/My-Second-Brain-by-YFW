@@ -5,9 +5,11 @@
 //   #/ask            -> app, Ask view
 //   #/lint           -> app, Lint view
 //   #/ingest         -> app, Ingest view
+//   #/solver[/<id>]  -> app, Problem Set Solver (latest session / that session)
 //   #/page/<slug>    -> app, that page
 //   #/section/<path> -> app, that section's hub (branch/course page)
 import { setView, loadPage, renderSection, renderCustomize } from "./views";
+import { renderSolver } from "./solver";
 import { state } from "./state";
 import { renderPageList } from "./sidebar";
 import { toast } from "./toast";
@@ -47,6 +49,9 @@ export function applyRoute(): void {
   else if (route === "/ask") setView("ask");
   else if (route === "/lint") setView("lint");
   else if (route === "/ingest") setView("ingest");
+  else if (route === "/solver") setView("solver");
+  else if (route.startsWith("/solver/"))
+    void renderSolver(decodeURIComponent(route.slice("/solver/".length)));
   else if (route.startsWith("/page/")) loadPage(decodeURIComponent(route.slice("/page/".length)));
   else if (route === "/customize" || route.startsWith("/customize/")) {
     // Per-branch LLM customization. "#/customize/" (empty path) = General root.
