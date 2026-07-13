@@ -229,6 +229,8 @@ __pycache__/
 *.db
 .claude/
 CLAUDE.md
+.agents/
+AGENTS.md
 api_keys.txt
 
 # Web frontend (Vite) — source lives in llmwiki/web/frontend, build output is
