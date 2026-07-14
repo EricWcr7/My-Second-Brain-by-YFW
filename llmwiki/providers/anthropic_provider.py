@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from ..config import Config
-from .base import ChatMessage, ChatResult, LLMProvider, ProviderError, T, Usage
+from .base import LLMProvider, ProviderError, T, Usage
 
 logger = logging.getLogger("llmwiki.providers")
 
@@ -30,15 +30,6 @@ TRANSCRIBE_INSTRUCTION = (
 
 def _text_of(message) -> str:
     return "".join(b.text for b in message.content if b.type == "text").strip()
-
-
-def _thinking_summary_of(message) -> str | None:
-    parts = [
-        block.thinking.strip()
-        for block in message.content
-        if block.type == "thinking" and block.thinking.strip()
-    ]
-    return "\n\n".join(parts) or None
 
 
 class AnthropicProvider(LLMProvider):
@@ -129,72 +120,6 @@ class AnthropicProvider(LLMProvider):
                 return stream.get_final_message()
 
         return _text_of(self._invoke("complete", model, _call))
-
-    def chat(
-        self,
-        system: str,
-        messages: list[ChatMessage],
-        *,
-        model: str | None = None,
-        max_tokens: int = 16000,
-        effort: str | None = None,
-    ) -> ChatResult:
-        model = model or self.compile_model
-        summarized_thinking = model == "claude-fable-5"
-        api_messages = [
-            {"role": m.role, "content": self._chat_content(m)} for m in messages
-        ]
-
-        def _call():
-            kwargs = dict(
-                model=model,
-                max_tokens=max_tokens,
-                system=self._system_blocks(system),
-                thinking=(
-                    {"type": "adaptive", "display": "summarized"}
-                    if summarized_thinking
-                    else {"type": "adaptive"}
-                ),
-                messages=api_messages,
-            )
-            if summarized_thinking and effort:
-                kwargs["output_config"] = {"effort": effort}
-            with self.client.messages.stream(**kwargs) as stream:
-                return stream.get_final_message()
-
-        message = self._invoke("chat", model, _call)
-        return ChatResult(
-            text=_text_of(message),
-            # Non-Fable thinking blocks are raw internal reasoning, not summaries.
-            reasoning_summary=(
-                _thinking_summary_of(message) if summarized_thinking else None
-            ),
-        )
-
-    def _chat_content(self, message: ChatMessage):
-        # Assistant history replays as plain text; user turns carry any
-        # attachments (raw bytes, base64) as document/image blocks ahead of
-        # the text.
-        if message.role == "assistant" or not message.attachments:
-            return message.text
-        content: list[dict] = []
-        for att in message.attachments:
-            if att.kind == "pdf":
-                source = {
-                    "type": "base64",
-                    "media_type": "application/pdf",
-                    "data": base64.standard_b64encode(att.path.read_bytes()).decode("utf-8"),
-                }
-                content.append({"type": "document", "source": source})
-            else:
-                source = {
-                    "type": "base64",
-                    "media_type": mimetypes.guess_type(att.name)[0] or "image/png",
-                    "data": base64.standard_b64encode(att.path.read_bytes()).decode("utf-8"),
-                }
-                content.append({"type": "image", "source": source})
-        content.append({"type": "text", "text": message.text})
-        return content
 
     def parse(
         self,

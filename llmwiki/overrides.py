@@ -11,7 +11,8 @@ for a component or it falls straight back to the general default — there is no
 walking up ancestor sections. All IO here is deterministic (no LLM); the
 pipelines call :func:`effective` to assemble their system prompts.
 
-Layout under ``.llmwiki/`` (git-tracked, alongside ``config.toml``)::
+Local runtime layout under ``.llmwiki/`` (ignored by the public repository,
+alongside ``config.toml``)::
 
     sections/<section-relpath>/<component>.md   # a section's override
     prompts/<op>.md                             # editable general op-prompt baseline
@@ -31,7 +32,7 @@ from .wiki import normalize_section, read_optional, section_to_relpath
 
 # The operation prompts share their names with the packaged ``<op>.md``
 # files; ``purpose``/``schema`` map to the wiki documents.
-OPERATION_COMPONENTS = ("ingest_analysis", "ingest_generation", "answer", "lint", "solve")
+OPERATION_COMPONENTS = ("ingest_analysis", "ingest_generation", "answer", "lint")
 DOC_COMPONENTS = ("purpose", "schema")
 COMPONENTS = OPERATION_COMPONENTS + DOC_COMPONENTS
 

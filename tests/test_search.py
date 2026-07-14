@@ -17,52 +17,62 @@ def _add_concept(vault, section, title, body):
 
 
 def test_tokenize_drops_stopwords_and_short():
-    assert "the" not in tokenize("the gradient is a vector")
-    assert "gradient" in tokenize("the gradient is a vector")
+    assert "the" not in tokenize("the retrieval practice strengthens recall")
+    assert "retrieval" in tokenize("the retrieval practice strengthens recall")
 
 
 def test_section_contains_prefix_rule():
     # General (root) sees everything.
-    assert section_contains("", "academic/calc")
+    assert section_contains("", "projects/learning")
     assert section_contains("", "")
     # A branch sees its whole subtree (and itself).
-    assert section_contains("academic", "academic/calc")
-    assert section_contains("academic", "academic")
+    assert section_contains("projects", "projects/learning")
+    assert section_contains("projects", "projects")
     # A leaf sees only itself; siblings are isolated.
-    assert section_contains("academic/calc", "academic/calc")
-    assert not section_contains("academic/calc", "academic/stats")
-    assert not section_contains("personal", "academic/calc")
+    assert section_contains("projects/learning", "projects/learning")
+    assert not section_contains("projects/learning", "projects/planning")
+    assert not section_contains("archive", "projects/learning")
     # Matching is on segment boundaries, not raw string prefix.
-    assert not section_contains("academic", "academic-archive")
+    assert not section_contains("projects", "projects-archive")
 
 
 def test_search_ranks_relevant_page_first(vault):
-    _add_concept(vault, "academic/calc", "Gradient", "The gradient is the vector of partial derivatives.")
-    _add_concept(vault, "academic/calc", "Continuity", "A function is continuous if limits agree.")
-    hits = search(vault, "gradient vector partial derivatives", section="academic/calc")
+    _add_concept(
+        vault,
+        "projects/learning",
+        "Retrieval Practice",
+        "Retrieval practice strengthens recall and long-term memory.",
+    )
+    _add_concept(
+        vault,
+        "projects/learning",
+        "Spaced Repetition",
+        "A review schedule spaces practice over time.",
+    )
+    hits = search(vault, "retrieval practice recall", section="projects/learning")
     assert hits
-    assert hits[0].ref.title == "Gradient"
+    assert hits[0].ref.title == "Retrieval Practice"
 
 
 def test_search_scope_is_prefix_based(vault):
-    _add_concept(vault, "academic/calc", "Gradient", "gradient vector field")
-    _add_concept(vault, "academic/stats", "Gradient Descent", "gradient based optimization")
-    _add_concept(vault, "personal", "Gradient Sky", "the gradient of the sunset sky")
+    _add_concept(vault, "projects/learning", "Learning Review", "review the learning notes")
+    _add_concept(vault, "projects/planning", "Project Review", "review project milestones")
+    _add_concept(vault, "archive", "Archived Review", "review the archived summary")
 
-    # A course sees only itself.
-    calc = search(vault, "gradient", section="academic/calc")
-    assert {h.ref.section for h in calc} == {"academic/calc"}
+    # A leaf scope sees only itself.
+    learning = search(vault, "review", section="projects/learning")
+    assert {h.ref.section for h in learning} == {"projects/learning"}
 
-    # The Academic branch sees every course, but not the personal sibling.
-    academic = search(vault, "gradient", section="academic")
-    assert {h.ref.section for h in academic} == {"academic/calc", "academic/stats"}
+    # The Projects branch sees both child scopes, but not the archive sibling.
+    projects = search(vault, "review", section="projects")
+    assert {h.ref.section for h in projects} == {"projects/learning", "projects/planning"}
 
     # General (no scope) sees the whole knowledge base.
-    everything = search(vault, "gradient")
+    everything = search(vault, "review")
     assert {h.ref.section for h in everything} == {
-        "academic/calc",
-        "academic/stats",
-        "personal",
+        "projects/learning",
+        "projects/planning",
+        "archive",
     }
 
 
@@ -77,33 +87,37 @@ def test_rrf_rewards_agreement_across_lists():
 
 
 def test_hybrid_fuses_keyword_and_vector(vault, monkeypatch):
-    _add_concept(vault, "academic/calc", "Gradient", "gradient vector partial derivatives")
-    _add_concept(vault, "academic/calc", "Curl", "curl of a vector field")
-    _add_concept(vault, "academic/calc", "Divergence", "divergence theorem and flux")
-
-    # Stub the vector pass (no LanceDB): semantic ranking puts gradient first, then
-    # surfaces divergence — a page with NO keyword overlap with the query.
-    monkeypatch.setattr(
-        search_mod, "_vector_page_list", lambda *a, **k: ["gradient", "divergence"]
+    _add_concept(
+        vault, "projects/learning", "Retrieval Practice", "retrieval practice recall memory"
     )
-    hits = search(vault, "gradient", section="academic/calc", embedder=object())
+    _add_concept(
+        vault, "projects/learning", "Spaced Repetition", "spaced repetition schedule"
+    )
+    _add_concept(vault, "projects/learning", "Feedback Loop", "feedback improves learning")
+
+    # Stub the vector pass (no LanceDB): semantic ranking puts retrieval practice
+    # first, then surfaces a page with no keyword overlap with the query.
+    monkeypatch.setattr(
+        search_mod, "_vector_page_list", lambda *a, **k: ["retrieval-practice", "feedback-loop"]
+    )
+    hits = search(vault, "retrieval", section="projects/learning", embedder=object())
     slugs = [h.ref.slug for h in hits]
 
-    # `gradient` wins (in both keyword + vector lists); `divergence` is recalled by
-    # the vector pass despite zero keyword match — the headline hybrid benefit.
-    assert slugs[0] == "gradient"
-    assert "divergence" in slugs
+    # The first page wins in both lists; feedback is recalled by vectors despite
+    # zero keyword overlap — the headline hybrid benefit.
+    assert slugs[0] == "retrieval-practice"
+    assert "feedback-loop" in slugs
 
 
 def test_search_without_embedder_is_pure_keyword(vault, monkeypatch):
-    _add_concept(vault, "academic/calc", "Gradient", "gradient vector")
+    _add_concept(vault, "projects/learning", "Retrieval Practice", "retrieval practice")
 
     def _boom(*a, **k):  # the vector path must not run when embedder is None
         raise AssertionError("vector path should be skipped without an embedder")
 
     monkeypatch.setattr(search_mod, "_vector_page_list", _boom)
-    hits = search(vault, "gradient", section="academic/calc")
-    assert [h.ref.slug for h in hits] == ["gradient"]
+    hits = search(vault, "retrieval", section="projects/learning")
+    assert [h.ref.slug for h in hits] == ["retrieval-practice"]
 
 
 def test_vector_index_roundtrip_and_hybrid(vault):
@@ -111,10 +125,12 @@ def test_vector_index_roundtrip_and_hybrid(vault):
     from llmwiki.indexing import reindex_all
 
     _add_concept(
-        vault, "academic/calc", "Gradient",
-        "gradient vector partial derivatives of a function",
+        vault,
+        "projects/learning",
+        "Retrieval Practice",
+        "retrieval practice strengthens recall and memory",
     )
-    _add_concept(vault, "academic/calc", "Sky", "the sunset sky colors at dusk")
+    _add_concept(vault, "projects/learning", "Sky", "the sunset sky colors at dusk")
 
     embedder = FakeEmbedder()
     result = reindex_all(vault, embedder)
@@ -122,9 +138,9 @@ def test_vector_index_roundtrip_and_hybrid(vault):
     # Embeddings land in the model's table; embed() ran for the global model only.
     assert all(model == vault.embed_model for model, _ in embedder.calls)
 
-    # A query whose words only overlap the Gradient page ranks it first via vectors.
-    hits = search(vault, "gradient derivative", section="academic/calc", embedder=embedder)
-    assert hits and hits[0].ref.slug == "gradient"
+    # A query whose words only overlap the learning page ranks it first via vectors.
+    hits = search(vault, "retrieval recall", section="projects/learning", embedder=embedder)
+    assert hits and hits[0].ref.slug == "retrieval-practice"
 
     # Incremental reindex re-embeds nothing when content is unchanged.
     again = reindex_all(vault, embedder)

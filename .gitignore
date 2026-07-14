@@ -218,6 +218,9 @@ __marimo__/
 .streamlit/secrets.toml
 
 # LLM Wiki
+/raw/
+/wiki/
+/.llmwiki/
 .venv/
 .env
 __pycache__/
@@ -240,6 +243,3 @@ llmwiki/web/frontend/.vite/
 llmwiki/web/frontend/playwright-report/
 llmwiki/web/frontend/test-results/
 .dev-api.pid
-
-# Obsidian vault config (auto-generated app/UI state; settings sync via Obsidian Sync)
-wiki/.obsidian/

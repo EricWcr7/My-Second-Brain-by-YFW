@@ -22,7 +22,7 @@ export function sectionLabel(section: string): string {
     .join(" ");
 }
 
-// Full-path label for pickers: "" -> "General", "academic/example-course" -> "Academic › example-course".
+// Full-path label for pickers: "" -> "General", "projects/atlas" -> "Projects › Atlas".
 export function sectionPathLabel(section: string): string {
   const segs = sectionSegments(section);
   if (!segs.length) return "General";

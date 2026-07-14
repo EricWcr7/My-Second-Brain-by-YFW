@@ -25,37 +25,37 @@ from tests.fakes import FakeProvider
 GOLDEN: list[dict] = [
     {
         "name": "all-grounded",
-        "pages": ["Gradient"],
-        "answer": "The gradient points uphill. [[gradient]]",
+        "pages": ["Retrieval Practice"],
+        "answer": "Retrieval practice strengthens recall. [[retrieval-practice]]",
         "expect_ungrounded": [],
     },
     {
         "name": "one-invented",
-        "pages": ["Gradient"],
-        "answer": "See [[gradient]] and also [[made-up-page]].",
+        "pages": ["Retrieval Practice"],
+        "answer": "See [[retrieval-practice]] and also [[made-up-page]].",
         "expect_ungrounded": ["made-up-page"],
     },
     {
         "name": "alias-is-grounded",
-        "pages": ["Gradient"],
-        "answer": "Recall [[gradient|the gradient vector]].",
+        "pages": ["Retrieval Practice"],
+        "answer": "Recall [[retrieval-practice|the practice]].",
         "expect_ungrounded": [],
     },
     {
         "name": "heading-anchor-is-grounded",
-        "pages": ["Gradient"],
-        "answer": "As in [[gradient#definition]].",
+        "pages": ["Retrieval Practice"],
+        "answer": "As in [[retrieval-practice#practice]].",
         "expect_ungrounded": [],
     },
     {
         "name": "no-citations-is-clean",
-        "pages": ["Gradient"],
+        "pages": ["Retrieval Practice"],
         "answer": "The pages don't cover this question.",
         "expect_ungrounded": [],
     },
     {
         "name": "all-invented",
-        "pages": ["Gradient"],
+        "pages": ["Retrieval Practice"],
         "answer": "See [[phantom-a]] and [[phantom-b]].",
         "expect_ungrounded": ["phantom-a", "phantom-b"],
     },
@@ -67,12 +67,12 @@ def _run_case(vault, case: dict, *, rerank: bool = False) -> list[str]:
     vault.rerank = rerank
     for title in case["pages"]:
         write_page(
-            concept_path(vault, "academic/calc", title),
-            {"title": title, "type": "concept", "section": "academic/calc", "sources": ["s1"]},
+            concept_path(vault, "projects/learning", title),
+            {"title": title, "type": "concept", "section": "projects/learning", "sources": ["s1"]},
             f"Body of {title}.",
         )
     provider = FakeProvider(answer_text=case["answer"])
-    result = answer(vault, provider, "eval question", section="academic/calc")
+    result = answer(vault, provider, "eval question", section="projects/learning")
     return result.ungrounded
 
 

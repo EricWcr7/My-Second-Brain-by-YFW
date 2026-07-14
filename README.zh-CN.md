@@ -1,39 +1,30 @@
-# My Second Brain
+# Second Brain by YFW
 
 [English →](README.md) · **简体中文**
 
-My Second Brain 是一款本地优先的知识应用。它能将 PDF、笔记、Word 和
-PowerPoint 文件、图像以及网页转换为一个相互连接、可搜索且与
-Obsidian 兼容的 Markdown Wiki。
+Second Brain by YFW 是一款本地优先的知识应用。它把文档、图像和网页转换成相互
+连接、可搜索并兼容 Obsidian 的 Markdown Wiki。来源追踪、链接概念、按范围生成的
+概览和操作日志都保存在磁盘上，因此离开应用后仍能阅读和使用这些知识。
 
-它不会让有用的上下文停留在用完即丢的模型对话中，而是在磁盘上构建一层
-持久的知识：包括原始源文件、相互链接的概念页、来源追溯信息、按知识范围生成的
-概览，以及操作日志。你可以编译新材料、浏览和搜索内容、提出由 Wiki 内容支持的
-问题、审查其结构，还可以选择在持久化对话中求解课程习题。
+> **本地优先不等于完全离线。** 知识库目录和生成的页面保留在本机；AI 驱动的
+> 操作会把完成该操作所需的来源或上下文发送给你配置的 OpenAI 或 Anthropic
+> 模型服务提供方。
 
-> **本地优先不等于完全离线。** 你的知识库目录和生成的页面会保留在本机上。
-> AI 驱动的操作会把该操作所需的源材料或上下文发送给你配置的 OpenAI 或
-> Anthropic 模型服务提供方。
+浏览器工作流、配置、存储、隐私和故障排除请参阅[用户手册](USER_MANUAL.zh-CN.md)。
 
-如需了解完整用法、配置、删除行为、隐私指南和故障排除，请查看
-[用户手册](USER_MANUAL.zh-CN.md)。
+## 主要能力
 
-## 应用提供的能力
-
-- **持久的 Markdown 知识** —— YAML frontmatter、`[[wikilinks]]` 和 LaTeX
-  数学公式即使离开本应用也依然可读。
-- **感知来源的编译** —— 每次导入都会创建或更新概念页，并保留指向来源页和
-  原始材料的追溯信息。
-- **层级化的知识范围** —— 你可以在整个知识库目录中工作，也可以将 **Search**、
-  **Ask**、**Review** 和 **Add source** 限定到某个分支或课程。
-- **有知识库依据的回答** —— 回答会引用 Wiki 页面；如果引用的页面不存在，系统会
-  显示警告，而不会默默接受该引用。
-- **混合检索** —— 默认使用本地 BM25 关键词搜索；可选的 LanceDB 向量可增加
-  语义搜索能力。
-- **可检查的指令** —— 每个知识范围都可以覆盖编译、回答、审查和 **Solver** 所使用的
-  `prompt`（提示词）、`purpose`（用途说明）和 `schema`（结构规范）。
-- **Web 和 CLI 工作流** —— 日常工作可以使用浏览器；初始设置、脚本化、保存回答和
-  维护则可以使用 `llmwiki`。
+- **持久的 Markdown** —— YAML frontmatter、`[[wikilinks]]` 和 LaTeX 数学公式可在
+  文本编辑器或 Obsidian 中继续使用。
+- **感知来源的导入** —— 导入会创建来源记录、合并可复用概念，并保留来源追踪。
+- **按范围组织知识** —— Search、Ask、Review、概览和导入都可以针对整个知识库目录
+  或某个分支执行。
+- **有依据的回答** —— 回答会引用 Wiki 页面；不存在的页面引用会被报告。
+- **混合检索** —— 本地 BM25 关键词搜索默认可用；可选的 LanceDB 向量可增加语义检索。
+- **可检查的指令** —— General 基线和范围级覆盖可控制用途说明、结构规范、导入、Ask
+  以及深度 Review 的提示词。
+- **浏览器与 CLI 工作流** —— 日常操作使用浏览器；初始化、脚本、保存回答和维护使用
+  `llmwiki`。
 
 ## 快速开始
 
@@ -41,135 +32,129 @@ Obsidian 兼容的 Markdown Wiki。
 
 - Python 3.11 或更高版本
 - Git
-- 用于 AI 驱动功能的 OpenAI 或 Anthropic API 密钥
+- 用于 AI 驱动操作的 OpenAI 或 Anthropic API 密钥
 
-运行本应用不需要 Node.js。只有修改前端时才需要它。
+只有开发前端时才需要 Node.js。
 
-### 启动仓库中附带的示例知识库目录
+### macOS 或 Linux
 
-本仓库已包含一个有内容的 example-course 示例知识库目录。克隆仓库、安装包，然后从仓库
-根目录启动：
+按顺序克隆仓库、创建环境、从检出目录安装、初始化一个已忽略的知识库目录、配置密钥并
+启动应用：
 
 ```bash
-git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
-cd My-Second-Brain-by-YFW
+git clone https://github.com/EricWcr7/second-brain-by-yfw.git
+cd second-brain-by-yfw
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install ".[web]"
+llmwiki init .
 llmwiki set-key openai YOUR_OPENAI_API_KEY
 llmwiki
 ```
 
-在 Windows PowerShell 中，使用已安装的 Python 3.11+ 创建并激活环境：
+### Windows PowerShell
 
 ```powershell
+git clone https://github.com/EricWcr7/second-brain-by-yfw.git
+cd second-brain-by-yfw
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install ".[web]"
+llmwiki init .
 llmwiki set-key openai YOUR_OPENAI_API_KEY
 llmwiki
 ```
 
-将 `YOUR_OPENAI_API_KEY` 替换为真实密钥；不要提交该密钥。如果设置了
-`XDG_CONFIG_HOME`，密钥会存储在知识库目录之外的
-`$XDG_CONFIG_HOME/llmwiki/.env`；否则存储在 `~/.config/llmwiki/.env`。
-把密钥直接作为命令行参数传入可能会将其留在 shell 历史记录中；如有需要，请使用
-shell 提供的受保护密钥输入或临时环境变量流程。如果想改用 Anthropic 作为主应用的
-模型服务，请参阅 [中文用户手册](USER_MANUAL.zh-CN.md)。
+请把占位符替换为真实密钥，并且不要提交密钥。持久化密钥位于知识库目录之外的
+`${XDG_CONFIG_HOME:-~/.config}/llmwiki/.env`。直接在命令行中传入密钥可能会把它留在
+shell 历史记录中；如有需要，请改用环境变量或 shell 的受保护密钥流程。Anthropic
+配置见[模型服务密钥与模型](USER_MANUAL.zh-CN.md#模型服务密钥与模型)。
 
-服务器会打开 `http://127.0.0.1:8000`。在 Welcome 页面上选择 **Enter workspace**（进入工作区）。
-使用 `Ctrl+C` 停止服务器。
+服务器会打开 `http://127.0.0.1:8000`。选择 **Enter workspace** 进入工作区，使用
+`Ctrl+C` 停止服务器。浏览已有页面、运行 BM25 Search 或结构 Review 不需要密钥。
 
-如果只想浏览附带的 Wiki、运行关键词 **Search**，或使用结构 **Review**，可以省略密钥命令。
+### 第一次工作流
 
-### 创建干净的个人知识库目录
+1. 打开 **Scope → Manage scopes**，创建或选择目标范围。
+2. 选择 **Add source**，选择文件或输入 URL，然后执行编译。
+3. 使用 **Workspace** 或 **Search**（`Cmd/Ctrl+K`）打开生成的页面。
+4. 使用 **Ask** 获取有 Wiki 依据的综合回答。
+5. 使用 **Review** 检查来源追踪和链接。
 
-从克隆的仓库安装 `llmwiki` 后，初始化另一个目录：
+`llmwiki init .` 具有幂等性：它只补齐缺失文件，不会替换已有内容。如果希望仓库检出目录
+始终不含数据，可以另建目录：
 
 ```bash
-llmwiki init ~/my-second-brain
-cd ~/my-second-brain
+mkdir my-vault
+cd my-vault
+llmwiki init .
 llmwiki
 ```
 
-`llmwiki init` 具有幂等性：它会创建缺失的知识库目录文件，不会覆盖现有内容。
-新的空白知识库目录包含受保护的 `Academic` 知识范围，但不包含示例课程，也不会启用
-**Solver**。
+## 支持的来源
 
-### 开始使用后的前五分钟
-
-1. 选择 **Enter workspace**（进入工作区）。
-2. 如需操作整个知识库目录，保持 `General` 知识范围；也可以打开
-   **Scope → Manage scopes**（知识范围 → 管理知识范围）来创建或选择更窄的范围。
-3. 选择 **Add source**（添加源材料），选择一个或多个文件，或输入 URL，确认目标范围后
-   执行编译。
-4. 使用 **Workspace** 输入框或 **Search**（`Cmd/Ctrl+K`）打开生成的概念页和来源页。
-5. 打开 **Ask**（提问）以获取综合回答，或打开 **Review**（审查）来检查来源追溯信息和
-   链接。
+导入管道支持 Markdown、纯文本、PDF、DOCX、PPTX、常见图像格式以及 HTTP(S) 网页。
+应用会先在本机提取文本；图像和文字稀少的扫描 PDF 会使用模型服务的视觉输入。因此，
+模型服务可能收到文档文本或原始图像/PDF 字节。
 
 ## 可选的语义搜索
 
-从克隆的仓库安装 `search` 扩展依赖：
+从仓库检出目录安装搜索扩展依赖，配置嵌入模型密钥或兼容 OpenAI 的端点，然后在知识库
+目录中构建向量：
 
 ```bash
 python -m pip install ".[web,search]"
-```
-
-然后在知识库目录内部重建向量：
-
-```bash
 llmwiki reindex
 ```
 
-语义搜索还需要嵌入模型密钥，或一个与 OpenAI 兼容的本地端点。如果没有它，或者没有安装
-`search` 扩展依赖，应用将回退到 BM25 关键词搜索。
+缺少扩展依赖、嵌入密钥或向量索引时，Search 会回退到本地 BM25 排序。
 
-## 知识范围模型
+## 范围模型
 
-一个知识范围可以看到其自身分区以及所有后代分区中的页面。因此，`General` 可以看到整个
-知识库目录；而一门课程只能看到该课程的内容。
+一个范围可以看到自身分区和所有后代分区。`General` 可以看到整个知识库目录；子范围只能
+看到自己的分支。
 
 ```text
 General
 ├── Academic
-│   └── example-course
-├── Research
-└── Personal
+│   └── Example Course
+└── Projects
+    └── Learning Notes
 ```
 
-知识范围用于组织检索；它们不是用户账户或安全边界。本应用面向单用户设计，没有身份验证层。
+范围用于组织检索，不是账户、权限或安全边界。本应用面向单用户设计，没有身份验证层。
 
 ## 知识库目录布局
+
+公开仓库只包含应用代码。运行 `llmwiki init .` 后会创建以下已被 Git 忽略的运行时目录：
 
 | 路径 | 用途 |
 | --- | --- |
 | `raw/` | 已导入文件和图像资源的本地副本 |
 | `wiki/` | 生成的概念页、来源页、概览、索引、日志、用途说明和结构规范 |
-| `.llmwiki/` | 知识库目录配置、导入状态、标准化缓存、可选向量、提示词覆盖和 **Solver** 会话 |
+| `.llmwiki/` | 配置、导入状态、标准化缓存、可选向量和提示词覆盖 |
 
-Wiki 仍然是纯 Markdown，因此可以用 Git、文本编辑器或 Obsidian 检查。
-[中文用户手册](USER_MANUAL.zh-CN.md)说明了应打开哪个目录以及
-应备份哪些内容。
+如需精确恢复，请备份整个知识库目录。仅备份 `wiki/` 也可得到便于携带的阅读副本。
 
-## 命令行入口
+## 命令行概览
 
 ```text
-llmwiki init       Create or complete a vault
-llmwiki ingest     Compile one file or URL
-llmwiki query      Ask from the terminal; optionally save the answer
-llmwiki search     Search concept pages
-llmwiki lint       Run structural or deep review
-llmwiki overview   Regenerate an overview
-llmwiki reindex    Rebuild semantic vectors
-llmwiki set-key    Store or inspect provider keys
-llmwiki             Launch the web app
+llmwiki init       创建或补齐知识库目录
+llmwiki ingest     编译一个文件或 URL
+llmwiki query      在终端中提问，并可选择保存回答
+llmwiki search     搜索概念页
+llmwiki lint       运行结构或深度审查
+llmwiki overview   重新生成概览
+llmwiki reindex    重建语义向量
+llmwiki set-key    存储或检查模型服务密钥
+llmwiki            启动 Web 应用
 ```
 
-有关选项和示例，请参阅 [中文用户手册中的 CLI 参考](USER_MANUAL.zh-CN.md)。
+选项和示例见[命令行参考](USER_MANUAL.zh-CN.md#命令行参考)。
 
 ## 开发
 
-安装测试依赖并运行 Python 测试套件：
+安装开发依赖并运行 Python 测试和依据评估：
 
 ```bash
 python -m pip install ".[dev]"
@@ -177,7 +162,7 @@ make test
 make eval
 ```
 
-如需进行前端开发：
+开发前端：
 
 ```bash
 make web-install
@@ -185,14 +170,16 @@ make dev
 ```
 
 `make dev` 会在端口 8000 上运行 FastAPI，并在端口 5173 上运行 Vite。修改前端源码后，
-运行 `make web-build` 以重新构建 `llmwiki/web/static/` 下已提交的生产资源。
+运行 `make web-build`，并提交 `llmwiki/web/static/` 下刷新后的生产构建。
 
-## 起源与许可证
+## 起源、插图与许可证
 
 本项目实现并扩展了
 [Andrej Karpathy 的 LLM Wiki 模式](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)：
-不可变的源材料、由 LLM 维护的 Markdown Wiki、指令/结构规范层，以及
-导入/查询/审查工作流。本实现还增加了层级化知识范围、分支特定指令、混合检索、
-浏览器体验、模型服务提供方支持、持久化 **Solver** 会话和自动依据校验。
+不可变的来源材料、由 LLM 维护的 Markdown Wiki、指令/结构规范层，以及导入、查询和审查
+工作流。
 
-本项目采用 [MIT 许可证](LICENSE) 发布。
+仓库中的 `brain-network.png` 插图由 EricWcr7 为本项目创作，并按仓库的
+[MIT 许可证](LICENSE)发布。第三方字体和库保留各自的许可证，详见
+[第三方声明](THIRD_PARTY_NOTICES.md)。尤其是在重新分发应用或用于商业产品之前，请查看
+PyMuPDF 的当前许可条款。

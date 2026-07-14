@@ -1,6 +1,5 @@
 import { closeDrawer } from "./drawer";
 import { setActiveScope } from "./scope-state";
-import { renderSolver } from "./solver";
 import { toast } from "./toast";
 import { loadPage, renderCustomize, renderIngestSheet, setView } from "./views";
 import { renderWorkspace } from "./workspace";
@@ -37,9 +36,7 @@ export function applyRoute(): void {
   else if (route === "/ingest") {
     renderWorkspace();
     renderIngestSheet();
-  } else if (route === "/solver") setView("solver");
-  else if (route.startsWith("/solver/")) void renderSolver(decodeURIComponent(route.slice("/solver/".length)));
-  else if (route.startsWith("/page/")) void loadPage(decodeURIComponent(route.slice("/page/".length)));
+  } else if (route.startsWith("/page/")) void loadPage(decodeURIComponent(route.slice("/page/".length)));
   else if (route === "/customize" || route.startsWith("/customize/")) {
     void renderCustomize(decodeURIComponent(route.replace(/^\/customize\/?/, "")));
   } else if (route.startsWith("/section/")) {

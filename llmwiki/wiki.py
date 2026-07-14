@@ -41,8 +41,9 @@ def section_slug(text: str) -> str:
 
     Keeps CJK and other letters/digits; collapses runs of whitespace/punctuation
     to hyphens. Unlike :func:`slugify` (used for page filenames and wikilinks),
-    this is NOT lowercased or ASCII-folded, so course codes like ``example-course`` keep
-    their casing and names like ``线性代数`` survive instead of becoming ``untitled``.
+    this is NOT lowercased or ASCII-folded, so identifiers like ``ProjectAtlas``
+    keep their casing and names like ``学习方法`` survive instead of becoming
+    ``untitled``.
     """
     text = unicodedata.normalize("NFKC", text).strip()
     text = re.sub(r"[^\w]+", "-", text, flags=re.UNICODE)  # \w is Unicode-aware
@@ -67,7 +68,8 @@ def normalize_section(section: str) -> str:
 def section_ancestry(section: str) -> list[str]:
     """The General root down to ``section``: ``["", …parents…, section]``.
 
-    e.g. ``"academic/example-course"`` -> ``["", "academic", "academic/example-course"]``.
+    e.g. ``"projects/ProjectAtlas"`` ->
+    ``["", "projects", "projects/ProjectAtlas"]``.
     Mirrors the frontend ``sectionAncestors``; used to refresh a section's
     overview together with every ancestor that summarizes it.
     """

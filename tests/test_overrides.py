@@ -14,27 +14,27 @@ from tests.fakes import FakeProvider
 
 def test_fresh_vault_inherits_general(vault):
     for component in overrides.COMPONENTS:
-        assert overrides.read_override(vault, "academic/calc", component) is None
-        assert overrides.effective(vault, "academic/calc", component) == overrides.general_default(
+        assert overrides.read_override(vault, "projects/learning", component) is None
+        assert overrides.effective(vault, "projects/learning", component) == overrides.general_default(
             vault, component
         )
-    assert set(overrides.override_status(vault, "academic/calc").values()) == {"general"}
+    assert set(overrides.override_status(vault, "projects/learning").values()) == {"general"}
 
 
 def test_write_read_delete_section_override(vault):
-    overrides.write_override(vault, "academic/calc", "answer", "CUSTOM ANSWER")
-    assert overrides.is_overridden(vault, "academic/calc", "answer")
-    assert overrides.read_override(vault, "academic/calc", "answer") == "CUSTOM ANSWER"
-    assert overrides.effective(vault, "academic/calc", "answer") == "CUSTOM ANSWER"
+    overrides.write_override(vault, "projects/learning", "answer", "CUSTOM ANSWER")
+    assert overrides.is_overridden(vault, "projects/learning", "answer")
+    assert overrides.read_override(vault, "projects/learning", "answer") == "CUSTOM ANSWER"
+    assert overrides.effective(vault, "projects/learning", "answer") == "CUSTOM ANSWER"
     # A sibling section is unaffected — resolution is general-default-only, no
     # walking up ancestors.
-    assert overrides.effective(vault, "personal", "answer") == overrides.general_default(
+    assert overrides.effective(vault, "projects/garden", "answer") == overrides.general_default(
         vault, "answer"
     )
-    assert overrides.sections_with_overrides(vault) == {"academic/calc"}
+    assert overrides.sections_with_overrides(vault) == {"projects/learning"}
 
-    assert overrides.delete_override(vault, "academic/calc", "answer") is True
-    assert overrides.read_override(vault, "academic/calc", "answer") is None
+    assert overrides.delete_override(vault, "projects/learning", "answer") is True
+    assert overrides.read_override(vault, "projects/learning", "answer") is None
     assert overrides.sections_with_overrides(vault) == set()
 
 
@@ -43,7 +43,7 @@ def test_general_baseline_edit_affects_all_sections(vault):
     # uncustomized section inherits.
     overrides.write_override(vault, "", "answer", "BASELINE")
     assert overrides.general_default(vault, "answer") == "BASELINE"
-    assert overrides.effective(vault, "academic/calc", "answer") == "BASELINE"
+    assert overrides.effective(vault, "projects/learning", "answer") == "BASELINE"
     # Resetting an op baseline re-exposes the packaged default.
     assert overrides.delete_override(vault, "", "answer") is True
     assert overrides.general_default(vault, "answer") != "BASELINE"
@@ -61,16 +61,16 @@ def test_purpose_general_default_is_wiki_file(vault):
 
 def test_unknown_component_raises(vault):
     with pytest.raises(ValueError):
-        overrides.write_override(vault, "academic/calc", "nope", "x")
+        overrides.write_override(vault, "projects/learning", "nope", "x")
 
 
 def test_override_reaches_answer_system_prompt(vault):
     write_page(
-        concept_path(vault, "academic/calc", "Gradient"),
-        {"title": "Gradient", "type": "concept", "section": "academic/calc", "sources": ["s1"]},
-        "gradient content",
+        concept_path(vault, "projects/learning", "Retrieval Practice"),
+        {"title": "Retrieval Practice", "type": "concept", "section": "projects/learning", "sources": ["s1"]},
+        "retrieval practice content",
     )
-    overrides.write_override(vault, "academic/calc", "answer", "MARKER-ANSWER-PROMPT")
+    overrides.write_override(vault, "projects/learning", "answer", "MARKER-ANSWER-PROMPT")
 
     captured: dict[str, str] = {}
 
@@ -79,9 +79,9 @@ def test_override_reaches_answer_system_prompt(vault):
             captured["system"] = system
             return super().complete(system, user, model=model, max_tokens=max_tokens)
 
-    provider = CapturingProvider(answer_text="see [[gradient]]")
-    answer(vault, provider, "explain gradient", section="academic/calc")
+    provider = CapturingProvider(answer_text="see [[retrieval-practice]]")
+    answer(vault, provider, "explain retrieval practice", section="projects/learning")
     assert "MARKER-ANSWER-PROMPT" in captured["system"]
     # A different section falls back to the general answer prompt.
-    answer(vault, provider, "explain gradient", section="personal")
+    answer(vault, provider, "explain retrieval practice", section="projects/garden")
     assert "MARKER-ANSWER-PROMPT" not in captured["system"]

@@ -19,53 +19,53 @@ from tests.fakes import FakeProvider
 
 def _provider():
     analysis = SourceAnalysis(
-        source_title="Chain Rule Notes",
-        source_summary="Notes on the chain rule.",
-        concept_titles=["Chain Rule"],
+        source_title="Learning Notes",
+        source_summary="Notes on retrieval practice.",
+        concept_titles=["Retrieval Practice"],
     )
     generation = GenerationResult(
         concept_pages=[
             ConceptDraft(
-                title="Chain Rule",
-                tags=["derivatives"],
-                body="## Definition\n\nIf $h=f\\circ g$ then $h'=f'(g)\\,g'$.\n\n"
-                "## Related\n\nbuilds on [[derivative]].",
+                title="Retrieval Practice",
+                tags=["learning"],
+                body="## Practice\n\nRecall an idea before checking the source.\n\n"
+                "## Related\n\nbuilds on [[feedback-loop]].",
             )
         ],
-        source_page=SourcePageDraft(summary="A short note.", grounds=["Chain Rule"]),
-        log_entry="Ingested chain rule notes.",
+        source_page=SourcePageDraft(summary="A short note.", grounds=["Retrieval Practice"]),
+        log_entry="Ingested retrieval practice notes.",
     )
     return FakeProvider(analysis=analysis, generation=generation)
 
 
 def test_ingest_creates_pages_and_provenance(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nThe chain rule differentiates compositions.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nRetrieval practice strengthens long-term recall.", "utf-8")
 
     provider = _provider()
-    result = ingest(vault, provider, str(src), section="academic/calc")
+    result = ingest(vault, provider, str(src), section="academic/learning")
 
     assert result.status == "ingested"
     assert result.source_slug == "note"
-    assert result.concept_slugs == ["chain-rule"]
+    assert result.concept_slugs == ["retrieval-practice"]
 
-    concept = read_page(concept_path(vault, "academic/calc", "Chain Rule"))
+    concept = read_page(concept_path(vault, "academic/learning", "Retrieval Practice"))
     assert concept is not None
     assert concept.metadata["type"] == "concept"
-    assert concept.metadata["section"] == "academic/calc"
+    assert concept.metadata["section"] == "academic/learning"
     assert "note" in concept.metadata["sources"]  # provenance back to the source
 
-    source = read_page(source_path(vault, "academic/calc", "note"))
+    source = read_page(source_path(vault, "academic/learning", "note"))
     assert source is not None
     assert source.metadata["type"] == "source"
     assert source.metadata["path"] == "raw/sources/note.md"
 
-    assert "chain-rule" in vault.index_file.read_text("utf-8")
+    assert "retrieval-practice" in vault.index_file.read_text("utf-8")
 
     # The operation is journaled as a greppable log entry.
     log_text = vault.log_file.read_text("utf-8")
     assert any(line.startswith("## [") and "ingest |" in line for line in log_text.splitlines())
-    assert "Ingested chain rule notes." in log_text  # gen.log_entry becomes the detail line
+    assert "Ingested retrieval practice notes." in log_text  # gen.log_entry becomes the detail line
 
 
 def test_ingest_normalizes_the_section_argument(vault):
@@ -73,29 +73,29 @@ def test_ingest_normalizes_the_section_argument(vault):
     # canonicalizes once up front, so placement and frontmatter use the normalized
     # form (iter_pages normalizes on read — a raw string would diverge from disk).
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nbody", "utf-8")
+    src.write_text("# Retrieval Practice\n\nbody", "utf-8")
 
-    result = ingest(vault, _provider(), str(src), section="academic//calc notes/")
+    result = ingest(vault, _provider(), str(src), section="academic//learning notes/")
     assert result.status == "ingested"
 
-    concept = read_page(concept_path(vault, "academic/calc-notes", "Chain Rule"))
+    concept = read_page(concept_path(vault, "academic/learning-notes", "Retrieval Practice"))
     assert concept is not None
-    assert concept.metadata["section"] == "academic/calc-notes"
+    assert concept.metadata["section"] == "academic/learning-notes"
 
-    source = read_page(source_path(vault, "academic/calc-notes", "note"))
+    source = read_page(source_path(vault, "academic/learning-notes", "note"))
     assert source is not None
-    assert source.metadata["section"] == "academic/calc-notes"
+    assert source.metadata["section"] == "academic/learning-notes"
 
 
 def test_ingest_skips_unchanged_source(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
 
-    first = ingest(vault, _provider(), str(src), section="academic/calc")
+    first = ingest(vault, _provider(), str(src), section="academic/learning")
     assert first.status == "ingested"
 
     provider = _provider()
-    second = ingest(vault, provider, str(src), section="academic/calc")
+    second = ingest(vault, provider, str(src), section="academic/learning")
     assert second.status == "skipped"
     assert second.reason == "unchanged"
     # The duplicate check runs before any model pass — no compile calls.
@@ -104,37 +104,37 @@ def test_ingest_skips_unchanged_source(vault):
 
 def test_ingest_reingests_when_concept_page_deleted(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
-    concept_path(vault, "academic/calc", "Chain Rule").unlink()
+    concept_path(vault, "academic/learning", "Retrieval Practice").unlink()
 
-    again = ingest(vault, _provider(), str(src), section="academic/calc")
+    again = ingest(vault, _provider(), str(src), section="academic/learning")
     assert again.status == "ingested"
-    assert concept_path(vault, "academic/calc", "Chain Rule").exists()
+    assert concept_path(vault, "academic/learning", "Retrieval Practice").exists()
 
 
 def test_ingest_reingests_when_source_page_deleted(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
-    source_path(vault, "academic/calc", "note").unlink()
+    source_path(vault, "academic/learning", "note").unlink()
 
-    again = ingest(vault, _provider(), str(src), section="academic/calc")
+    again = ingest(vault, _provider(), str(src), section="academic/learning")
     assert again.status == "ingested"
-    assert source_path(vault, "academic/calc", "note").exists()
+    assert source_path(vault, "academic/learning", "note").exists()
 
 
 def test_ingest_skips_duplicate_content_under_new_filename(vault, tmp_path):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nSame bytes.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nSame bytes.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
     copy = tmp_path.parent / "note (1).md"
-    copy.write_text("# Chain Rule\n\nSame bytes.", "utf-8")
+    copy.write_text("# Retrieval Practice\n\nSame bytes.", "utf-8")
 
-    result = ingest(vault, _provider(), str(copy), section="academic/calc")
+    result = ingest(vault, _provider(), str(copy), section="academic/learning")
     assert result.status == "skipped"
     assert result.reason == "duplicate"
     assert result.source_key == "raw/sources/note.md"
@@ -147,8 +147,8 @@ def test_ingest_skips_duplicate_content_under_new_filename(vault, tmp_path):
 
 def test_ingest_same_content_different_section_proceeds(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
     result = ingest(vault, _provider(), str(src), section="academic/other")
     assert result.status == "ingested"
@@ -156,18 +156,18 @@ def test_ingest_same_content_different_section_proceeds(vault):
     state = json.loads(vault.state_file.read_text("utf-8"))
     assert state["sources"]["raw/sources/note.md"]["section"] == "academic/other"
     # ...while the earlier section's pages stay on disk.
-    assert source_path(vault, "academic/calc", "note").exists()
-    assert concept_path(vault, "academic/calc", "Chain Rule").exists()
+    assert source_path(vault, "academic/learning", "note").exists()
+    assert concept_path(vault, "academic/learning", "Retrieval Practice").exists()
 
 
 def test_ingest_user_prompt_forces_reingest(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
     provider = _provider()
     result = ingest(
-        vault, provider, str(src), section="academic/calc", user_prompt="reshape the pages"
+        vault, provider, str(src), section="academic/learning", user_prompt="reshape the pages"
     )
     assert result.status == "ingested"
     assert any(c.startswith("parse:") for c in provider.calls)
@@ -175,10 +175,10 @@ def test_ingest_user_prompt_forces_reingest(vault):
 
 def test_ingest_force_bypasses_intact_skip(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
-    result = ingest(vault, _provider(), str(src), section="academic/calc", force=True)
+    result = ingest(vault, _provider(), str(src), section="academic/learning", force=True)
     assert result.status == "ingested"
 
 
@@ -198,11 +198,11 @@ def test_ingest_file_skip_avoids_provider_calls(vault, tmp_path):
         vault,
         FakeProvider(analysis=analysis, generation=generation),
         str(img),
-        section="academic/calc",
+        section="academic/learning",
     )
 
     fresh = FakeProvider(analysis=analysis, generation=generation)
-    result = ingest(vault, fresh, str(img), section="academic/calc")
+    result = ingest(vault, fresh, str(img), section="academic/learning")
     assert result.status == "skipped"
     assert not any(c.startswith(("parse:", "transcribe")) for c in fresh.calls)
     # The skip path never loads the source; the title comes from the record.
@@ -213,28 +213,28 @@ def test_ingest_file_skip_avoids_provider_calls(vault, tmp_path):
 def test_ingest_reingests_when_record_missing_source_slug(vault):
     # Degenerate ledger records never match; the safe direction is re-ingest.
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
     state = json.loads(vault.state_file.read_text("utf-8"))
     del state["sources"]["raw/sources/note.md"]["source_slug"]
     vault.state_file.write_text(json.dumps(state), "utf-8")
 
-    result = ingest(vault, _provider(), str(src), section="academic/calc")
+    result = ingest(vault, _provider(), str(src), section="academic/learning")
     assert result.status == "ingested"
 
 
 def test_ingest_skip_tolerates_missing_concept_slugs(vault):
     # Older records may lack concept_slugs; the source page alone gates the skip.
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nUnchanged content.", "utf-8")
-    ingest(vault, _provider(), str(src), section="academic/calc")
+    src.write_text("# Retrieval Practice\n\nUnchanged content.", "utf-8")
+    ingest(vault, _provider(), str(src), section="academic/learning")
 
     state = json.loads(vault.state_file.read_text("utf-8"))
     del state["sources"]["raw/sources/note.md"]["concept_slugs"]
     vault.state_file.write_text(json.dumps(state), "utf-8")
 
-    result = ingest(vault, _provider(), str(src), section="academic/calc")
+    result = ingest(vault, _provider(), str(src), section="academic/learning")
     assert result.status == "skipped"
     assert result.reason == "unchanged"
 
@@ -243,7 +243,7 @@ def test_ingest_copies_external_file_into_raw(vault, tmp_path):
     external = tmp_path.parent / "external_note.md"
     external.write_text("# Topic\n\nbody", "utf-8")
 
-    ingest(vault, _provider(), str(external), section="academic/calc")
+    ingest(vault, _provider(), str(external), section="academic/learning")
     copied = vault.sources_dir / "external_note.md"
     assert copied.exists()
 
@@ -263,13 +263,13 @@ def test_ingest_image_stores_asset_and_embeds(vault, tmp_path):
     )
     provider = FakeProvider(analysis=analysis, generation=generation)
 
-    ingest(vault, provider, str(img), section="academic/calc")
+    ingest(vault, provider, str(img), section="academic/learning")
 
     # Images are stored under raw/assets/, not raw/sources/.
     assert (vault.assets_dir / "diagram.png").exists()
     assert not (vault.sources_dir / "diagram.png").exists()
 
-    source = read_page(source_path(vault, "academic/calc", "diagram"))
+    source = read_page(source_path(vault, "academic/learning", "diagram"))
     assert source is not None
     assert source.metadata["kind"] == "image"
     assert source.metadata.get("assets") == ["raw/assets/diagram.png"]
@@ -300,68 +300,68 @@ def test_ingest_segments_large_source_into_one_provenance(vault):
     # A source larger than the per-pass budget is compiled segment by segment and
     # merged into ONE source / provenance record, with concepts accumulating.
     vault.ingest_segment_max_tokens = 50  # ~200 chars/segment, forces a split
-    page1 = "<!-- page 1 -->\n" + "Open sets are defined here. " * 12
-    page2 = "<!-- page 2 -->\n" + "Compact sets are defined here. " * 12
+    page1 = "<!-- page 1 -->\n" + "Active recall is described here. " * 12
+    page2 = "<!-- page 2 -->\n" + "Spaced repetition is described here. " * 12
     src = vault.root / "book.md"
     src.write_text(page1 + "\n\n" + page2, "utf-8")
 
     provider = _ScriptedProvider(
         analyses=[
-            SourceAnalysis(source_title="Book", source_summary="Part 1.", concept_titles=["Open Sets"]),
-            SourceAnalysis(source_title="Book", source_summary="Part 2.", concept_titles=["Compact Sets"]),
+            SourceAnalysis(source_title="Guide", source_summary="Part 1.", concept_titles=["Active Recall"]),
+            SourceAnalysis(source_title="Guide", source_summary="Part 2.", concept_titles=["Spaced Repetition"]),
         ],
         generations=[
             GenerationResult(
-                concept_pages=[ConceptDraft(title="Open Sets", body="Open sets body.")],
-                source_page=SourcePageDraft(summary="Covers open sets.", grounds=["Open Sets"]),
+                concept_pages=[ConceptDraft(title="Active Recall", body="Active recall body.")],
+                source_page=SourcePageDraft(summary="Covers active recall.", grounds=["Active Recall"]),
             ),
             GenerationResult(
-                concept_pages=[ConceptDraft(title="Compact Sets", body="Compact sets body.")],
-                source_page=SourcePageDraft(summary="Covers compact sets.", grounds=["Compact Sets"]),
+                concept_pages=[ConceptDraft(title="Spaced Repetition", body="Spaced repetition body.")],
+                source_page=SourcePageDraft(summary="Covers spaced repetition.", grounds=["Spaced Repetition"]),
             ),
         ],
     )
-    result = ingest(vault, provider, str(src), section="academic/calc")
+    result = ingest(vault, provider, str(src), section="academic/learning")
 
     # Two segments => two analysis + two generation passes.
     assert provider.calls.count("parse:SourceAnalysis") == 2
     assert provider.calls.count("parse:GenerationResult") == 2
 
     # Both concepts written, under one source slug.
-    assert set(result.concept_slugs) == {"open-sets", "compact-sets"}
-    assert read_page(concept_path(vault, "academic/calc", "Open Sets")) is not None
-    assert read_page(concept_path(vault, "academic/calc", "Compact Sets")) is not None
+    assert set(result.concept_slugs) == {"active-recall", "spaced-repetition"}
+    assert read_page(concept_path(vault, "academic/learning", "Active Recall")) is not None
+    assert read_page(concept_path(vault, "academic/learning", "Spaced Repetition")) is not None
 
     # ONE provenance record for the whole source.
     sources = json.loads(vault.state_file.read_text("utf-8"))["sources"]
     assert list(sources) == ["raw/sources/book.md"]
-    assert set(sources["raw/sources/book.md"]["concept_slugs"]) == {"open-sets", "compact-sets"}
+    assert set(sources["raw/sources/book.md"]["concept_slugs"]) == {"active-recall", "spaced-repetition"}
 
     # ONE source page, summarizing both parts and linking both concepts.
-    source = read_page(source_path(vault, "academic/calc", "book"))
+    source = read_page(source_path(vault, "academic/learning", "book"))
     assert source is not None
-    assert "Covers open sets." in source.content and "Covers compact sets." in source.content
-    assert "[[open-sets" in source.content and "[[compact-sets" in source.content
+    assert "Covers active recall." in source.content and "Covers spaced repetition." in source.content
+    assert "[[active-recall" in source.content and "[[spaced-repetition" in source.content
 
-    # Accumulation wiring: the 2nd segment's analysis was told "Open Sets" already
+    # Accumulation wiring: the 2nd segment's analysis was told "Active Recall" already
     # exists (it was written by segment 1). Call order: a1, g1, a2, g2.
-    assert "Open Sets" in provider.user_prompts[2]
+    assert "Active Recall" in provider.user_prompts[2]
 
 
 def _single_segment_provider() -> "_ScriptedProvider":
     return _ScriptedProvider(
         analyses=[
             SourceAnalysis(
-                source_title="Chain Rule Notes",
-                source_summary="Notes on the chain rule.",
-                concept_titles=["Chain Rule"],
+                source_title="Learning Notes",
+                source_summary="Notes on retrieval practice.",
+                concept_titles=["Retrieval Practice"],
             )
         ],
         generations=[
             GenerationResult(
-                concept_pages=[ConceptDraft(title="Chain Rule", body="Chain rule body.")],
-                source_page=SourcePageDraft(summary="Covers the chain rule.", grounds=["Chain Rule"]),
-                log_entry="Ingested chain rule notes.",
+                concept_pages=[ConceptDraft(title="Retrieval Practice", body="Retrieval practice body.")],
+                source_page=SourcePageDraft(summary="Covers retrieval practice.", grounds=["Retrieval Practice"]),
+                log_entry="Ingested retrieval practice notes.",
             )
         ],
     )
@@ -371,26 +371,26 @@ def test_ingest_threads_user_prompt_into_both_passes(vault):
     # An optional user instruction rides into BOTH compile passes (analysis at
     # index 0, generation at index 1) and is journaled for provenance.
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nThe chain rule differentiates compositions.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nRetrieval practice strengthens long-term recall.", "utf-8")
 
     provider = _single_segment_provider()
-    ingest(vault, provider, str(src), section="academic/calc", user_prompt="focus on the proofs")
+    ingest(vault, provider, str(src), section="academic/learning", user_prompt="focus on practical examples")
 
     assert "User instruction" in provider.user_prompts[0]
-    assert "focus on the proofs" in provider.user_prompts[0]
-    assert "focus on the proofs" in provider.user_prompts[1]
+    assert "focus on practical examples" in provider.user_prompts[0]
+    assert "focus on practical examples" in provider.user_prompts[1]
 
-    assert "guidance: focus on the proofs" in vault.log_file.read_text("utf-8")
+    assert "guidance: focus on practical examples" in vault.log_file.read_text("utf-8")
 
 
 def test_ingest_without_user_prompt_leaves_prompts_and_log_unchanged(vault):
     # The default (no guidance) path must be byte-for-byte unchanged: no
     # instruction block in the prompts and no guidance line in the log.
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nThe chain rule differentiates compositions.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nRetrieval practice strengthens long-term recall.", "utf-8")
 
     provider = _single_segment_provider()
-    ingest(vault, provider, str(src), section="academic/calc")
+    ingest(vault, provider, str(src), section="academic/learning")
 
     assert "User instruction" not in provider.user_prompts[0]
     assert "User instruction" not in provider.user_prompts[1]
@@ -400,46 +400,46 @@ def test_ingest_without_user_prompt_leaves_prompts_and_log_unchanged(vault):
 def test_ingest_sees_existing_concepts_despite_raw_section_spelling(vault):
     # The existing-concepts context fed to the analysis pass filters pages by
     # section. iter_pages returns normalized sections, so a raw caller spelling
-    # ("academic//calc") must still match concepts filed under "academic/calc".
+    # ("academic//learning") must still match concepts filed under the canonical scope.
     seed = vault.root / "note.md"
-    seed.write_text("# Chain Rule\n\nThe chain rule.", "utf-8")
-    ingest(vault, _provider(), str(seed), section="academic/calc")
+    seed.write_text("# Retrieval Practice\n\nRetrieval practice.", "utf-8")
+    ingest(vault, _provider(), str(seed), section="academic/learning")
 
-    other = vault.root / "integrals.md"
-    other.write_text("# Integrals\n\nIntegration by parts.", "utf-8")
+    other = vault.root / "reflection.md"
+    other.write_text("# Weekly Reflection\n\nReview what worked.", "utf-8")
     provider = _ScriptedProvider(
         analyses=[
-            SourceAnalysis(source_title="Integrals", source_summary="s", concept_titles=["Integrals"])
+            SourceAnalysis(source_title="Reflection", source_summary="s", concept_titles=["Weekly Reflection"])
         ],
         generations=[
             GenerationResult(
-                concept_pages=[ConceptDraft(title="Integrals", body="body")],
-                source_page=SourcePageDraft(summary="s", grounds=["Integrals"]),
+                concept_pages=[ConceptDraft(title="Weekly Reflection", body="body")],
+                source_page=SourcePageDraft(summary="s", grounds=["Weekly Reflection"]),
             )
         ],
     )
-    ingest(vault, provider, str(other), section="academic//calc")
+    ingest(vault, provider, str(other), section="academic//learning")
 
     # The seeded concept is visible to the analysis pass (the source text itself
     # never mentions it, so this can only come from the existing-concepts block).
-    assert "Chain Rule" in provider.user_prompts[0]
+    assert "Retrieval Practice" in provider.user_prompts[0]
 
 
 def test_ingest_single_segment_unchanged_for_small_source(vault):
     # A source within budget still compiles in exactly one analysis + generation
     # pass (no behavior change for the common case).
     src = vault.root / "small.md"
-    src.write_text("# Chain Rule\n\nShort note.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nShort note.", "utf-8")
     provider = _ScriptedProvider(
-        analyses=[SourceAnalysis(source_title="N", source_summary="s", concept_titles=["Chain Rule"])],
+        analyses=[SourceAnalysis(source_title="N", source_summary="s", concept_titles=["Retrieval Practice"])],
         generations=[
             GenerationResult(
-                concept_pages=[ConceptDraft(title="Chain Rule", body="body")],
-                source_page=SourcePageDraft(summary="one part", grounds=["Chain Rule"]),
+                concept_pages=[ConceptDraft(title="Retrieval Practice", body="body")],
+                source_page=SourcePageDraft(summary="one part", grounds=["Retrieval Practice"]),
             )
         ],
     )
-    ingest(vault, provider, str(src), section="academic/calc")
+    ingest(vault, provider, str(src), section="academic/learning")
     # One analysis + one generation pass for the single segment...
     assert provider.calls[:3] == [
         f"with_timeout:{vault.ingest_request_timeout}",
@@ -449,7 +449,7 @@ def test_ingest_single_segment_unchanged_for_small_source(vault):
     # ...then a best-effort overview refresh for the section and its two ancestors
     # (General + academic), each a `complete` call.
     assert provider.calls.count("complete") == 3
-    source = read_page(source_path(vault, "academic/calc", "small"))
+    source = read_page(source_path(vault, "academic/learning", "small"))
     assert source is not None and "one part" in source.content
     assert "compiled in" not in source.content  # no multi-part preamble
 
@@ -459,9 +459,9 @@ def test_ingest_scopes_the_ingest_request_timeout(vault):
     # call (so multi-segment compilation + vision transcription get the headroom),
     # leaving the interactive request_timeout untouched for query/lint.
     src = vault.root / "n.md"
-    src.write_text("# Chain Rule\n\nShort.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nShort.", "utf-8")
     provider = _provider()
-    ingest(vault, provider, str(src), section="academic/calc")
+    ingest(vault, provider, str(src), section="academic/learning")
     assert provider.calls[0] == f"with_timeout:{vault.ingest_request_timeout}"
 
 
@@ -470,8 +470,8 @@ def test_ingest_segment_failure_leaves_wiki_untouched(vault):
     # concept pages an earlier segment produced must NOT be on disk, and there must
     # be no source page, ledger record, or log entry — nothing half-written.
     vault.ingest_segment_max_tokens = 50  # force a 2-segment split (~200 chars each)
-    page1 = "<!-- page 1 -->\n" + "Open sets are defined here. " * 12
-    page2 = "<!-- page 2 -->\n" + "Compact sets are defined here. " * 12
+    page1 = "<!-- page 1 -->\n" + "Active recall is described here. " * 12
+    page2 = "<!-- page 2 -->\n" + "Spaced repetition is described here. " * 12
     src = vault.root / "book.md"
     src.write_text(page1 + "\n\n" + page2, "utf-8")
 
@@ -485,13 +485,13 @@ def test_ingest_segment_failure_leaves_wiki_untouched(vault):
 
     provider = _FailSecondSegment(
         analyses=[
-            SourceAnalysis(source_title="Book", source_summary="Part 1.", concept_titles=["Open Sets"]),
-            SourceAnalysis(source_title="Book", source_summary="Part 2.", concept_titles=["Compact Sets"]),
+            SourceAnalysis(source_title="Guide", source_summary="Part 1.", concept_titles=["Active Recall"]),
+            SourceAnalysis(source_title="Guide", source_summary="Part 2.", concept_titles=["Spaced Repetition"]),
         ],
         generations=[
             GenerationResult(
-                concept_pages=[ConceptDraft(title="Open Sets", body="Open sets body.")],
-                source_page=SourcePageDraft(summary="Covers open sets.", grounds=["Open Sets"]),
+                concept_pages=[ConceptDraft(title="Active Recall", body="Active recall body.")],
+                source_page=SourcePageDraft(summary="Covers active recall.", grounds=["Active Recall"]),
             ),
         ],
     )
@@ -499,11 +499,11 @@ def test_ingest_segment_failure_leaves_wiki_untouched(vault):
     log_before = vault.log_file.read_text("utf-8") if vault.log_file.exists() else ""
 
     with pytest.raises(ProviderError):
-        ingest(vault, provider, str(src), section="academic/calc")
+        ingest(vault, provider, str(src), section="academic/learning")
 
     # Segment 1's concept was compiled but never written — the wiki is untouched.
-    assert read_page(concept_path(vault, "academic/calc", "Open Sets")) is None
-    assert read_page(source_path(vault, "academic/calc", "book")) is None
+    assert read_page(concept_path(vault, "academic/learning", "Active Recall")) is None
+    assert read_page(source_path(vault, "academic/learning", "book")) is None
     # No ledger commit at all: the state file is never written when ingest aborts.
     sources = (
         json.loads(vault.state_file.read_text("utf-8")).get("sources", {})

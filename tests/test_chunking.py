@@ -10,9 +10,9 @@ from llmwiki.wiki import PageRef
 
 def _ref() -> PageRef:
     return PageRef(
-        slug="gradient",
-        title="Gradient",
-        section="academic/calc",
+        slug="retrieval-practice",
+        title="Retrieval Practice",
+        section="projects/learning",
         page_type="concept",
         path=Path("x.md"),
     )
@@ -21,14 +21,21 @@ def _ref() -> PageRef:
 def test_splits_on_headings_with_lede():
     content = (
         "Intro lede before any heading.\n\n"
-        "## Definition\nThe gradient is a vector.\n\n"
-        "## Properties\nPoints toward steepest ascent.\n"
+        "## Practice\nRecall an idea before checking the source.\n\n"
+        "## Benefits\nStrengthens long-term memory.\n"
     )
     chunks = chunk_page(_ref(), content, max_chars=1500)
-    assert [c.heading for c in chunks] == ["", "Definition", "Properties"]
-    assert [c.id for c in chunks] == ["gradient#0", "gradient#1", "gradient#2"]
+    assert [c.heading for c in chunks] == ["", "Practice", "Benefits"]
+    assert [c.id for c in chunks] == [
+        "retrieval-practice#0",
+        "retrieval-practice#1",
+        "retrieval-practice#2",
+    ]
     # Every chunk carries page identity for citation aggregation.
-    assert all(c.page_slug == "gradient" and c.section == "academic/calc" for c in chunks)
+    assert all(
+        c.page_slug == "retrieval-practice" and c.section == "projects/learning"
+        for c in chunks
+    )
 
 
 def test_content_hash_changes_with_text():

@@ -20,7 +20,6 @@ const viewHash: Record<string, string> = {
   workspace: "#/",
   home: "#/overview",
   ask: "#/ask",
-  solver: "#/solver",
   lint: "#/lint",
   ingest: "#/ingest",
 };
@@ -56,8 +55,6 @@ document.addEventListener("click", (event) => {
     // The readiness control explains that only local shell content is available.
   }
   restoreScope();
-  document.querySelectorAll<HTMLElement>('[data-view="solver"]').forEach((item) =>
-    item.toggleAttribute("hidden", !state.meta.solver_enabled));
   updateKeyStatus();
   updateScopeChip();
   renderLandingStats();

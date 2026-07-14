@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import tempfile
 from collections.abc import Callable
-from dataclasses import asdict, replace
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -19,7 +18,7 @@ from pydantic import BaseModel
 from starlette.responses import Response
 from starlette.types import Scope
 
-from .. import overrides, solver
+from .. import overrides
 from ..config import Config, load_config
 from ..embeddings import make_embedder
 from ..indexing import reindex_all
@@ -79,10 +78,6 @@ class OverrideUpdate(BaseModel):
     reset: list[str] = []
 
 
-class SolverSessionCreate(BaseModel):
-    model: str = solver.DEFAULT_SOLVER_MODEL
-
-
 class _SPAStaticFiles(StaticFiles):
     """Serve the Vite build. Vite fingerprints JS/CSS/font filenames, so those
     may be cached freely; only ``index.html`` (unhashed) must always revalidate
@@ -111,20 +106,6 @@ def _has_api_key(config: Config) -> bool:
     return bool(os.environ.get(_api_key_env(config)))
 
 
-def _has_key_env(env: str) -> bool:
-    return bool(os.environ.get(env))
-
-
-def _solver_models_meta() -> list[dict]:
-    return [
-        {
-            **asdict(spec),
-            "available": _has_key_env(spec.api_key_env),
-        }
-        for spec in solver.SOLVER_MODELS.values()
-    ]
-
-
 def _page_index(config: Config) -> dict[str, PageRef]:
     """Map slug -> PageRef across concepts then sources (first match wins)."""
     index: dict[str, PageRef] = {}
@@ -138,7 +119,7 @@ def create_app(
     provider_factory: ProviderFactory = get_provider,
 ) -> FastAPI:
     config = config or load_config()
-    app = FastAPI(title="My Second Brain", docs_url=None, redoc_url=None)
+    app = FastAPI(title="Second Brain by YFW", docs_url=None, redoc_url=None)
 
     @app.get("/api/meta")
     def meta() -> dict:
@@ -157,11 +138,6 @@ def create_app(
             "has_api_key": _has_api_key(config),
             "api_key_env": _api_key_env(config),
             "supported_exts": SUPPORTED_EXTS,
-            "solver_section": normalize_section(config.solver_section),
-            "solver_enabled": bool(normalize_section(config.solver_section)),
-            "solver_exts": sorted(solver.SOLVER_ATTACHMENT_EXTS),
-            "solver_models": _solver_models_meta(),
-            "solver_default_model": solver.DEFAULT_SOLVER_MODEL,
         }
 
     @app.get("/api/pages")
@@ -182,7 +158,7 @@ def create_app(
         Creates the matching ``concepts/<section>`` and ``sources/<section>``
         directories, mirroring ``scaffold_vault``. Each segment goes through
         ``section_slug`` (case- and Unicode-preserving), so traversal is impossible
-        while course codes (``example-course``) and non-Latin names keep their form. The
+        while course codes (``CS101``) and non-Latin names keep their form. The
         UI sends ``parent`` = the current scope.
         """
         slug = section_slug(name)
@@ -193,7 +169,7 @@ def create_app(
         rel = section_to_relpath(section)
         targets = [config.concepts_dir / rel, config.source_pages_dir / rel]
         # Case-insensitive dup check so behavior matches on case-sensitive (Linux)
-        # and case-insensitive (macOS) filesystems, and "example-course"/"example-course" can't
+        # and case-insensitive (macOS) filesystems, and "CS101"/"cs101" can't
         # both exist.
         existing = {s.lower() for s in section_dirs(config)}
         if section.lower() in existing or any(t.exists() for t in targets):
@@ -550,144 +526,6 @@ def create_app(
             "pages_used": result.pages_used,
             "ungrounded": result.ungrounded,
         }
-
-    # --- Problem Set Solver ---------------------------------------------------
-    # Multi-turn chat sessions scoped to config.solver_section. Sessions are app
-    # data under .llmwiki/solver/ (never wiki pages); uploaded PDFs/images are
-    # sent natively to the model and never ingested.
-
-    _SOLVER_MAX_FILE_BYTES = 30 * 1024 * 1024  # provider request payloads cap ~32 MB
-
-    def _require_solver_section() -> str:
-        section = normalize_section(config.solver_section)
-        if not section:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "solver_section is not set in .llmwiki/config.toml; set it "
-                    '(e.g. "academic/example-course") and restart to use the solver.'
-                ),
-            )
-        return section
-
-    def _get_session(session_id: str) -> solver.SolverSession:
-        session = solver.load_session(config, session_id)
-        if session is None:
-            raise HTTPException(status_code=404, detail="Solver session not found")
-        return session
-
-    @app.get("/api/solver/sessions")
-    def solver_sessions() -> dict:
-        return {
-            "sessions": [
-                {
-                    "id": s.id,
-                    "title": s.title,
-                    "created": s.created,
-                    "updated": s.updated,
-                    "turn_count": len(s.turns),
-                    "model": s.model,
-                }
-                for s in solver.list_sessions(config)
-            ]
-        }
-
-    @app.post("/api/solver/sessions")
-    def solver_create(payload: SolverSessionCreate | None = None) -> dict:
-        _require_solver_section()
-        model = payload.model if payload else solver.DEFAULT_SOLVER_MODEL
-        spec = solver.SOLVER_MODELS.get(model)
-        if spec is None:
-            raise HTTPException(status_code=422, detail=f"Unknown solver model: {model!r}")
-        if not _has_key_env(spec.api_key_env):
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"{spec.api_key_env} is not set; set it and restart to create "
-                    f"a {spec.label} solver session."
-                ),
-            )
-        return asdict(solver.create_session(config, model=model))
-
-    @app.get("/api/solver/sessions/{session_id}")
-    def solver_get(session_id: str) -> dict:
-        return asdict(_get_session(session_id))
-
-    @app.delete("/api/solver/sessions/{session_id}")
-    def solver_delete(session_id: str) -> dict:
-        _get_session(session_id)
-        solver.delete_session(config, session_id)
-        return {"id": session_id}
-
-    @app.post("/api/solver/sessions/{session_id}/messages")
-    async def solver_message(
-        session_id: str,
-        question: str = Form(...),
-        files: list[UploadFile] = File(default=[]),
-    ) -> dict:
-        _require_solver_section()
-        session = _get_session(session_id)
-        spec = solver.SOLVER_MODELS.get(session.model) if session.model else None
-        if session.model and spec is None:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"This session is locked to unsupported model {session.model!r}; "
-                    "start a new solver session."
-                ),
-            )
-        env = spec.api_key_env if spec else _api_key_env(config)
-        if not _has_key_env(env):
-            raise HTTPException(
-                status_code=503,
-                detail=f"{env} is not set; set it and restart to use the solver.",
-            )
-        attachments: list[solver.SolverAttachment] = []
-        for f in files:
-            if not f.filename:
-                continue
-            data = await f.read()
-            if len(data) > _SOLVER_MAX_FILE_BYTES:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{f.filename} exceeds the 30 MB solver attachment limit.",
-                )
-            try:
-                attachments.append(
-                    solver.save_attachment(config, session, f.filename, data)
-                )
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e)) from e
-        # Explicit-model sessions get a request-scoped config. The shared config
-        # still controls every non-solver feature and all legacy solver sessions.
-        runtime_config = (
-            replace(
-                config,
-                provider=spec.provider,
-                compile_model=spec.id,
-                solver_reasoning_effort=spec.effort,
-            )
-            if spec
-            else config
-        )
-        effort = spec.effort if spec else config.solver_reasoning_effort
-        max_tokens = spec.max_tokens if spec else 16_000
-        provider = provider_factory(runtime_config).with_timeout(
-            config.solver_request_timeout
-        )
-        try:
-            session = solver.solve(
-                runtime_config,
-                provider,
-                session,
-                question,
-                attachments,
-                effort=effort,
-                max_tokens=max_tokens,
-            )
-        except ProviderError as e:
-            raise HTTPException(status_code=503, detail=str(e)) from e
-        return asdict(session)
 
     @app.get("/api/lint")
     def lint_endpoint(section: str | None = None, deep: bool = False) -> list[dict]:

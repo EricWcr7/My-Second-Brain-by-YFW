@@ -18,7 +18,6 @@ response raises rather than corrupting the wiki.
 | Prompt | Used by | Provider call | Output shape |
 | --- | --- | --- | --- |
 | `answer.md` | [`query.py`](../query.py) | `complete` | free-form Markdown |
-| `solve.md` | [`solver.py`](../solver.py) | `chat` | free-form Markdown |
 | `ingest_analysis.md` | [`ingest.py`](../ingest.py) pass 1 | `parse` | `SourceAnalysis` |
 | `ingest_generation.md` | [`ingest.py`](../ingest.py) pass 2 | `parse` | `GenerationResult` |
 | `lint.md` | [`lint.py`](../lint.py) `--deep` | `parse` | `LintFindings` |
@@ -40,24 +39,6 @@ response raises rather than corrupting the wiki.
   `ungrounded`); citing a real page it wasn't shown; over-summarizing the
   material (the prompt pushes for fidelity, preserving math/code/quotations as
   written).
-
-## `solve.md`
-- **Purpose:** the Problem Set Solver's system prompt — full worked solutions in
-  a multi-turn chat, grounded in the retrieved wiki pages of the configured
-  `solver_section`, with inline `[[slug]]` citations.
-- **Inputs:** the conversation history (with native PDF/image attachments) plus
-  the current question and its freshly retrieved pages as the final user
-  message; `purpose.md` + `schema.md` as system.
-- **Output shape:** Markdown prose with LaTeX math. No schema.
-- **Refusal/failure behavior:** explicitly overrides a Purpose "hints-only"
-  boundary (the solver exists to produce full solutions) while keeping every
-  other Purpose rule; names uncovered results plainly instead of inventing a
-  citation.
-- **Eval method:** `tests/eval/test_solver_grounding.py` (`make eval`) — the
-  same grounding check as Ask, applied per assistant turn.
-- **Known failure modes:** inventing a `[[slug]]` (caught + surfaced as
-  `ungrounded`); citing the attached problem set as a wiki page; drifting from
-  course notation on follow-up turns.
 
 ## `ingest_analysis.md`
 - **Purpose:** pass 1 of ingest — decide which **concepts** a new source covers, a

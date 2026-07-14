@@ -41,7 +41,6 @@ export function updateKeyStatus(): void {
   const popover = document.getElementById("readiness-popover");
   if (!button || !popover) return;
   const apiReady = state.meta.has_api_key;
-  const solverReady = Boolean(state.meta.solver_enabled && state.meta.solver_models?.some((model) => model.available));
   button.dataset.state = apiReady ? "ready" : "limited";
   const label = button.querySelector(".readiness-label");
   if (label) label.textContent = apiReady ? "AI ready" : "Local only";
@@ -56,7 +55,6 @@ export function updateKeyStatus(): void {
     <div class="readiness-list">
       ${statusRow("Local vault", true, "Compiled and indexed on this machine")}
       ${statusRow("Ask & compile", apiReady, apiReady ? "Provider key detected" : `Requires ${state.meta.api_key_env || "OPENAI_API_KEY"}`)}
-      ${statusRow("Problem solver", solverReady, state.meta.solver_enabled ? (solverReady ? "Configured model available" : "Configured models unavailable") : "No solver scope configured")}
     </div>`;
 }
 

@@ -34,13 +34,13 @@ def test_overview_path_maps_general_and_sections(vault):
     assert overview_path(vault, "") == vault.overview_file
     assert overview_path(vault, "academic") == vault.overviews_dir / "academic.md"
     assert (
-        overview_path(vault, "academic/example-course")
-        == vault.overviews_dir / "academic" / "example-course.md"
+        overview_path(vault, "academic/LearningLab")
+        == vault.overviews_dir / "academic" / "LearningLab.md"
     )
 
 
 def test_section_ancestry():
-    assert section_ancestry("academic/example-course") == ["", "academic", "academic/example-course"]
+    assert section_ancestry("academic/LearningLab") == ["", "academic", "academic/LearningLab"]
     assert section_ancestry("academic") == ["", "academic"]
     assert section_ancestry("") == [""]
 
@@ -49,13 +49,13 @@ def test_section_ancestry():
 
 
 def test_refresh_overview_writes_model_output(vault):
-    _concept(vault, "academic/calc", "Chain Rule")
-    provider = FakeProvider(answer_text="# Calc\n\nCovers [[chain-rule]].")
+    _concept(vault, "academic/learning", "Retrieval Practice")
+    provider = FakeProvider(answer_text="# Learning\n\nCovers [[retrieval-practice]].")
 
-    path = refresh_overview(vault, provider, "academic/calc")
+    path = refresh_overview(vault, provider, "academic/learning")
 
-    assert path == overview_path(vault, "academic/calc")
-    assert "Covers [[chain-rule]]" in path.read_text("utf-8")
+    assert path == overview_path(vault, "academic/learning")
+    assert "Covers [[retrieval-practice]]" in path.read_text("utf-8")
     assert provider.calls == ["complete"]  # exactly one model call
 
 
@@ -70,15 +70,15 @@ def test_refresh_overview_empty_section_writes_stub_without_model_call(vault):
 
 
 def test_build_overview_input_scopes_to_section_and_descendants(vault):
-    _concept(vault, "academic/calc", "Chain Rule")
-    _concept(vault, "personal", "Cooking")
+    _concept(vault, "academic/learning", "Retrieval Practice")
+    _concept(vault, "projects", "Launch Checklist")
 
     catalog, slugs = build_overview_input(vault, "academic")
 
     # Only the academic subtree is in scope (prefix rule); the sibling branch isn't.
-    assert "chain-rule" in slugs
-    assert "cooking" not in slugs
-    assert "[[chain-rule]]" in catalog
+    assert "retrieval-practice" in slugs
+    assert "launch-checklist" not in slugs
+    assert "[[retrieval-practice]]" in catalog
 
 
 # --- triggers: ingest + delete ----------------------------------------------
@@ -86,32 +86,32 @@ def test_build_overview_input_scopes_to_section_and_descendants(vault):
 
 def test_ingest_refreshes_section_and_ancestor_overviews(vault):
     src = vault.root / "note.md"
-    src.write_text("# Chain Rule\n\nThe chain rule.", "utf-8")
+    src.write_text("# Retrieval Practice\n\nRecall strengthens memory.", "utf-8")
     provider = FakeProvider(
         analysis=SourceAnalysis(
-            source_title="N", source_summary="s", concept_titles=["Chain Rule"]
+            source_title="N", source_summary="s", concept_titles=["Retrieval Practice"]
         ),
         generation=GenerationResult(
-            concept_pages=[ConceptDraft(title="Chain Rule", body="body")],
-            source_page=SourcePageDraft(summary="sum", grounds=["Chain Rule"]),
+            concept_pages=[ConceptDraft(title="Retrieval Practice", body="body")],
+            source_page=SourcePageDraft(summary="sum", grounds=["Retrieval Practice"]),
         ),
     )
 
-    ingest(vault, provider, str(src), section="academic/calc")
+    ingest(vault, provider, str(src), section="academic/learning")
 
     # The ingested section AND every ancestor up to General are refreshed.
-    assert "Fake answer" in overview_path(vault, "academic/calc").read_text("utf-8")
+    assert "Fake answer" in overview_path(vault, "academic/learning").read_text("utf-8")
     assert "Fake answer" in overview_path(vault, "academic").read_text("utf-8")
     assert "Fake answer" in vault.overview_file.read_text("utf-8")  # General
     assert provider.calls.count("complete") == 3
 
 
 def test_purge_section_removes_own_and_descendant_overviews(vault):
-    section = "academic/topo"
-    _concept(vault, section, "Open Sets")
-    _concept(vault, section + "/sub", "Basis")
-    own = overview_path(vault, section)  # overviews/academic/topo.md
-    desc = overview_path(vault, section + "/sub")  # overviews/academic/topo/sub.md
+    section = "projects/learning"
+    _concept(vault, section, "Review Schedule")
+    _concept(vault, section + "/sub", "Weekly Check-in")
+    own = overview_path(vault, section)
+    desc = overview_path(vault, section + "/sub")
     own.parent.mkdir(parents=True, exist_ok=True)
     own.write_text("# overview\n", "utf-8")
     desc.parent.mkdir(parents=True, exist_ok=True)

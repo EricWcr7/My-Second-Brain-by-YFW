@@ -9,13 +9,6 @@ export interface Meta {
   has_api_key: boolean;
   api_key_env: string;
   supported_exts?: string[];
-  // Problem Set Solver: the section it's scoped to ("" = unconfigured → the
-  // Solver nav stays hidden) and the attachment types it accepts.
-  solver_section?: string;
-  solver_enabled?: boolean;
-  solver_exts?: string[];
-  solver_models?: SolverModel[];
-  solver_default_model?: string;
 }
 
 export interface PageRef {
@@ -46,53 +39,6 @@ export interface IngestResult {
   reason: string;
   warnings: string[];
   section: string;
-}
-
-// --- Problem Set Solver (GET/POST /api/solver/sessions…) --------------------
-
-export interface SolverAttachment {
-  name: string;
-  file: string;
-  kind: string; // "pdf" | "image"
-}
-
-export interface SolverTurn {
-  role: string; // "user" | "assistant"
-  text: string;
-  created: string;
-  attachments: SolverAttachment[];
-  pages_used: string[]; // assistant turns
-  ungrounded: string[];
-  reasoning_summary?: string | null;
-}
-
-export interface SolverModel {
-  id: string;
-  label: string;
-  provider: string;
-  api_key_env: string;
-  effort: string;
-  max_tokens: number;
-  available: boolean;
-}
-
-export interface SolverSession {
-  id: string;
-  title: string;
-  section: string;
-  created: string;
-  updated: string;
-  model?: string | null;
-  turns: SolverTurn[];
-}
-
-export interface SolverSessionRow {
-  id: string;
-  title: string;
-  created: string;
-  updated: string;
-  turn_count: number;
-  model?: string | null;
 }
 
 // --- per-section LLM customization (GET/POST /api/overrides) ----------------

@@ -13,7 +13,7 @@ from llmwiki.ingest import (
     SourcePageDraft,
 )
 from llmwiki.lint import LintFindings
-from llmwiki.providers.base import ChatResult, LLMProvider
+from llmwiki.providers.base import LLMProvider
 from llmwiki.rerank import RerankResult
 
 
@@ -24,23 +24,15 @@ class FakeProvider(LLMProvider):
         analysis: SourceAnalysis | None = None,
         generation: GenerationResult | None = None,
         answer_text: str = "Fake answer [[concept]].",
-        reasoning_summary: str | None = None,
         findings: LintFindings | None = None,
         rerank_order: list[str] | None = None,
     ):
         self._analysis = analysis
         self._generation = generation
         self._answer = answer_text
-        self._reasoning_summary = reasoning_summary
         self._findings = findings
         self._rerank_order = rerank_order
         self.calls: list[str] = []
-        # Last chat() invocation, for solver tests to assert history replay,
-        # attachment re-sending, and effort passthrough.
-        self.last_chat_system: str | None = None
-        self.last_chat_messages: list | None = None
-        self.last_chat_effort: str | None = None
-        self.last_chat_max_tokens: int | None = None
 
     def with_timeout(self, timeout: float) -> "FakeProvider":
         # Record the requested timeout so a test can assert ingest scopes its own;
@@ -51,14 +43,6 @@ class FakeProvider(LLMProvider):
     def complete(self, system, user, *, model=None, max_tokens=16000) -> str:
         self.calls.append("complete")
         return self._answer
-
-    def chat(self, system, messages, *, model=None, max_tokens=16000, effort=None) -> ChatResult:
-        self.calls.append(f"chat:{len(messages)}")
-        self.last_chat_system = system
-        self.last_chat_messages = messages
-        self.last_chat_effort = effort
-        self.last_chat_max_tokens = max_tokens
-        return ChatResult(self._answer, self._reasoning_summary)
 
     def parse(self, system, user, schema, *, model=None, max_tokens=16000):
         self.calls.append(f"parse:{schema.__name__}")
@@ -91,14 +75,14 @@ class FakeEmbedder:
     """Deterministic bag-of-words embedder for tests (no network, no key).
 
     Each text becomes an L2-normalized count vector over a small fixed vocabulary
-    (prefix-matched, so ``derivatives`` hits ``derivative``), plus a constant
+    (prefix-matched, so ``reviews`` hits ``review``), plus a constant
     baseline dimension so a vector is never all-zero. Texts sharing vocabulary get
     high cosine similarity, which is enough to assert hybrid ranking deterministically.
     """
 
     DEFAULT_VOCAB = (
-        "gradient", "vector", "derivative", "partial", "curl", "divergence",
-        "flux", "sunset", "sky", "color", "limit", "continuity",
+        "retrieval", "practice", "recall", "memory", "review", "spaced",
+        "repetition", "feedback", "learning", "schedule", "sunset", "sky",
     )
 
     def __init__(self, vocab: tuple[str, ...] = DEFAULT_VOCAB):

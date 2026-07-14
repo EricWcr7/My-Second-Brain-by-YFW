@@ -14,11 +14,11 @@ def test_is_url():
 
 def test_markdown_loader_uses_h1_title(tmp_path):
     f = tmp_path / "note.md"
-    f.write_text("# Chain Rule\n\nThe derivative...", "utf-8")
+    f.write_text("# Retrieval Practice\n\nRecall strengthens memory.", "utf-8")
     result = markdown_loader.load(f)
     assert result.kind == "markdown"
-    assert result.title == "Chain Rule"
-    assert "derivative" in result.markdown
+    assert result.title == "Retrieval Practice"
+    assert "memory" in result.markdown
 
 
 def test_load_source_unsupported_extension(tmp_path, vault):

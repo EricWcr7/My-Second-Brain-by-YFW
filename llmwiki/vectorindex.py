@@ -33,8 +33,8 @@ def _import_lancedb():
         import lancedb
     except ImportError as e:  # pragma: no cover - exercised only without the extra
         raise VectorIndexUnavailable(
-            "LanceDB is not installed. Install the search extra: "
-            "`pip install 'llmwiki[search]'`."
+            "LanceDB is not installed. From the repository root, reinstall with "
+            "the search extra: `pip install '.[search]'`."
         ) from e
     return lancedb
 

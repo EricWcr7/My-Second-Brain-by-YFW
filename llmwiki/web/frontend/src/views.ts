@@ -11,7 +11,6 @@ import {
   type SectionOverrides,
 } from "./state";
 import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
-import { renderSolver } from "./solver";
 import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
 import { setBreadcrumb, setScopedBreadcrumb } from "./topbar";
 import { renderLandingStats } from "./landing";
@@ -39,7 +38,6 @@ export function setView(name: string): void {
   else if (name === "ask") renderAsk();
   else if (name === "lint") renderLint();
   else if (name === "ingest") renderIngest();
-  else if (name === "solver") void renderSolver("");
 }
 
 // Human-readable label for the current scope (drives Ask/Lint copy).
@@ -393,8 +391,8 @@ function renderAsk(): void {
   animateIn();
 }
 
-// Grounding postscript shared by Ask and the Solver: the ungrounded-citations
-// warning plus the numbered References list back to the pages an answer used.
+// Grounding postscript: the ungrounded-citations warning plus the numbered
+// References list back to the pages an answer used.
 export function answerExtrasHtml(pages_used?: string[], ungrounded?: string[]): string {
   let html = "";
   if (ungrounded && ungrounded.length) {
@@ -515,7 +513,7 @@ function paintIngest(target: HTMLElement, sheet: boolean): void {
             <label>Source URL<input id="ingest-url" type="url" placeholder="https://…" autocomplete="off" ${dis}></label>
           </div>
           <label class="guidance-field">Compilation guidance <span>(optional)</span>
-            <textarea id="ingest-prompt" placeholder="Focus on definitions and theorems; include examples and key proofs." ${dis}></textarea>
+            <textarea id="ingest-prompt" placeholder="Focus on the main ideas; include practical examples and useful connections." ${dis}></textarea>
           </label>
         </section>
         <aside class="source-destination-panel">
@@ -726,7 +724,6 @@ const CUST_COMPONENTS: { key: string; label: string; help: string }[] = [
   { key: "ingest_analysis", label: "Ingest · analysis", help: "How a new source is read to decide which concepts it covers." },
   { key: "ingest_generation", label: "Ingest · generation", help: "How concept and source pages are written from a source." },
   { key: "answer", label: "Answer · Ask", help: "How questions are answered from your wiki pages." },
-  { key: "solve", label: "Solver · problem sets", help: "How the Problem Set Solver works problems: full solutions grounded in this branch's pages." },
   { key: "lint", label: "Lint · deep review", help: "What the deep editorial review looks for." },
 ];
 
