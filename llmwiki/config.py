@@ -82,8 +82,8 @@ class Config:
     # view stays hidden and its endpoints refuse with a clear message —
     # because falling back to ``default_section`` would silently un-scope it.
     solver_section: str = ""
-    # Reasoning effort for solver turns (OpenAI ``reasoning.effort``; the
-    # Anthropic backend runs adaptive thinking and ignores this).
+    # Reasoning effort for legacy solver sessions that predate the per-session
+    # model chooser. New sessions use their catalog model's fixed max effort.
     solver_reasoning_effort: str = "xhigh"
     # Per-turn timeout for solver calls: max-effort reasoning over attached
     # PDFs outlives ``request_timeout``, but an interactive chat turn should

@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import tempfile
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -79,6 +79,10 @@ class OverrideUpdate(BaseModel):
     reset: list[str] = []
 
 
+class SolverSessionCreate(BaseModel):
+    model: str = solver.DEFAULT_SOLVER_MODEL
+
+
 class _SPAStaticFiles(StaticFiles):
     """Serve the Vite build. Vite fingerprints JS/CSS/font filenames, so those
     may be cached freely; only ``index.html`` (unhashed) must always revalidate
@@ -105,6 +109,20 @@ def _api_key_env(config: Config) -> str:
 
 def _has_api_key(config: Config) -> bool:
     return bool(os.environ.get(_api_key_env(config)))
+
+
+def _has_key_env(env: str) -> bool:
+    return bool(os.environ.get(env))
+
+
+def _solver_models_meta() -> list[dict]:
+    return [
+        {
+            **asdict(spec),
+            "available": _has_key_env(spec.api_key_env),
+        }
+        for spec in solver.SOLVER_MODELS.values()
+    ]
 
 
 def _page_index(config: Config) -> dict[str, PageRef]:
@@ -142,6 +160,8 @@ def create_app(
             "solver_section": normalize_section(config.solver_section),
             "solver_enabled": bool(normalize_section(config.solver_section)),
             "solver_exts": sorted(solver.SOLVER_ATTACHMENT_EXTS),
+            "solver_models": _solver_models_meta(),
+            "solver_default_model": solver.DEFAULT_SOLVER_MODEL,
         }
 
     @app.get("/api/pages")
@@ -566,15 +586,28 @@ def create_app(
                     "created": s.created,
                     "updated": s.updated,
                     "turn_count": len(s.turns),
+                    "model": s.model,
                 }
                 for s in solver.list_sessions(config)
             ]
         }
 
     @app.post("/api/solver/sessions")
-    def solver_create() -> dict:
+    def solver_create(payload: SolverSessionCreate | None = None) -> dict:
         _require_solver_section()
-        return asdict(solver.create_session(config))
+        model = payload.model if payload else solver.DEFAULT_SOLVER_MODEL
+        spec = solver.SOLVER_MODELS.get(model)
+        if spec is None:
+            raise HTTPException(status_code=422, detail=f"Unknown solver model: {model!r}")
+        if not _has_key_env(spec.api_key_env):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"{spec.api_key_env} is not set; set it and restart to create "
+                    f"a {spec.label} solver session."
+                ),
+            )
+        return asdict(solver.create_session(config, model=model))
 
     @app.get("/api/solver/sessions/{session_id}")
     def solver_get(session_id: str) -> dict:
@@ -594,8 +627,17 @@ def create_app(
     ) -> dict:
         _require_solver_section()
         session = _get_session(session_id)
-        if not _has_api_key(config):
-            env = _api_key_env(config)
+        spec = solver.SOLVER_MODELS.get(session.model) if session.model else None
+        if session.model and spec is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"This session is locked to unsupported model {session.model!r}; "
+                    "start a new solver session."
+                ),
+            )
+        env = spec.api_key_env if spec else _api_key_env(config)
+        if not _has_key_env(env):
             raise HTTPException(
                 status_code=503,
                 detail=f"{env} is not set; set it and restart to use the solver.",
@@ -616,11 +658,33 @@ def create_app(
                 )
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e)) from e
-        # Solver turns run max-effort reasoning over attached files — give them
-        # their own timeout ceiling, not the interactive default.
-        provider = provider_factory(config).with_timeout(config.solver_request_timeout)
+        # Explicit-model sessions get a request-scoped config. The shared config
+        # still controls every non-solver feature and all legacy solver sessions.
+        runtime_config = (
+            replace(
+                config,
+                provider=spec.provider,
+                compile_model=spec.id,
+                solver_reasoning_effort=spec.effort,
+            )
+            if spec
+            else config
+        )
+        effort = spec.effort if spec else config.solver_reasoning_effort
+        max_tokens = spec.max_tokens if spec else 16_000
+        provider = provider_factory(runtime_config).with_timeout(
+            config.solver_request_timeout
+        )
         try:
-            session = solver.solve(config, provider, session, question, attachments)
+            session = solver.solve(
+                runtime_config,
+                provider,
+                session,
+                question,
+                attachments,
+                effort=effort,
+                max_tokens=max_tokens,
+            )
         except ProviderError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
         return asdict(session)

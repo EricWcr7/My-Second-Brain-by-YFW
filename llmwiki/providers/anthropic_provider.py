@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from ..config import Config
-from .base import ChatMessage, LLMProvider, ProviderError, T, Usage
+from .base import ChatMessage, ChatResult, LLMProvider, ProviderError, T, Usage
 
 logger = logging.getLogger("llmwiki.providers")
 
@@ -30,6 +30,15 @@ TRANSCRIBE_INSTRUCTION = (
 
 def _text_of(message) -> str:
     return "".join(b.text for b in message.content if b.type == "text").strip()
+
+
+def _thinking_summary_of(message) -> str | None:
+    parts = [
+        block.thinking.strip()
+        for block in message.content
+        if block.type == "thinking" and block.thinking.strip()
+    ]
+    return "\n\n".join(parts) or None
 
 
 class AnthropicProvider(LLMProvider):
@@ -93,6 +102,15 @@ class AnthropicProvider(LLMProvider):
             self.last_usage.output_tokens,
             time.perf_counter() - start,
         )
+        if getattr(result, "stop_reason", None) == "refusal":
+            details = getattr(result, "stop_details", None)
+            category = (
+                details.get("category")
+                if isinstance(details, dict)
+                else getattr(details, "category", None)
+            )
+            suffix = f" (category: {category})" if category else ""
+            raise ProviderError(f"Anthropic {op} refused the request{suffix}.")
         return result
 
     def complete(
@@ -120,25 +138,38 @@ class AnthropicProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 16000,
         effort: str | None = None,
-    ) -> str:
-        # ``effort`` is ignored: adaptive thinking is already this backend's
-        # maximum-quality mode and has no per-call effort knob.
+    ) -> ChatResult:
         model = model or self.compile_model
+        summarized_thinking = model == "claude-fable-5"
         api_messages = [
             {"role": m.role, "content": self._chat_content(m)} for m in messages
         ]
 
         def _call():
-            with self.client.messages.stream(
+            kwargs = dict(
                 model=model,
                 max_tokens=max_tokens,
                 system=self._system_blocks(system),
-                thinking={"type": "adaptive"},
+                thinking=(
+                    {"type": "adaptive", "display": "summarized"}
+                    if summarized_thinking
+                    else {"type": "adaptive"}
+                ),
                 messages=api_messages,
-            ) as stream:
+            )
+            if summarized_thinking and effort:
+                kwargs["output_config"] = {"effort": effort}
+            with self.client.messages.stream(**kwargs) as stream:
                 return stream.get_final_message()
 
-        return _text_of(self._invoke("chat", model, _call))
+        message = self._invoke("chat", model, _call)
+        return ChatResult(
+            text=_text_of(message),
+            # Non-Fable thinking blocks are raw internal reasoning, not summaries.
+            reasoning_summary=(
+                _thinking_summary_of(message) if summarized_thinking else None
+            ),
+        )
 
     def _chat_content(self, message: ChatMessage):
         # Assistant history replays as plain text; user turns carry any

@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = { file = "LICENSE" }
 dependencies = [
     "openai>=1.66",
-    "anthropic>=0.40",
+    "anthropic>=0.79.0",
     "tiktoken>=0.7",
     "pydantic>=2.6",
     "pymupdf>=1.24",

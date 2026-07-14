@@ -46,6 +46,15 @@ class ChatMessage:
     attachments: list[ChatAttachment] = field(default_factory=list)  # user turns only
 
 
+@dataclass
+class ChatResult:
+    """Provider-neutral result for one multi-turn chat completion."""
+
+    text: str
+    # Provider-generated summary of hidden reasoning, never raw chain of thought.
+    reasoning_summary: str | None = None
+
+
 class LLMProvider(ABC):
     # Token usage from the last call, for observability. Concrete providers set
     # this; the base default keeps fakes and key-less paths safe to read.
@@ -88,12 +97,12 @@ class LLMProvider(ABC):
         model: str | None = None,
         max_tokens: int = 16000,
         effort: str | None = None,
-    ) -> str:
+    ) -> ChatResult:
         """Multi-turn completion over ``messages`` (oldest first, ending on a
         user turn). Attachments are sent natively as document/image blocks,
         never transcribed. ``effort`` requests a reasoning effort where the
-        backend supports it (OpenAI ``reasoning.effort``); backends without an
-        equivalent knob ignore it."""
+        backend supports it. The result may include a provider-generated
+        reasoning summary; raw reasoning is never exposed."""
 
     @abstractmethod
     def transcribe_pdf(self, path: Path) -> str:

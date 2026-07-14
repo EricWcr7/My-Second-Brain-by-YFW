@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..config import Config
-from .base import LLMProvider, ProviderError
+from .base import ChatResult, LLMProvider, ProviderError
 
 
 def get_provider(config: Config) -> LLMProvider:
@@ -22,4 +22,4 @@ def get_provider(config: Config) -> LLMProvider:
     )
 
 
-__all__ = ["LLMProvider", "ProviderError", "get_provider"]
+__all__ = ["ChatResult", "LLMProvider", "ProviderError", "get_provider"]
