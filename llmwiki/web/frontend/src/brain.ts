@@ -4,21 +4,25 @@ interface Point {
 }
 
 const NODES: Point[] = [
-  { x: 80, y: 95 }, { x: 78, y: 125 }, { x: 82, y: 155 },
-  { x: 115, y: 80 }, { x: 113, y: 110 }, { x: 117, y: 140 },
-  { x: 150, y: 72 }, { x: 160, y: 118 }, { x: 150, y: 162 },
-  { x: 190, y: 78 }, { x: 188, y: 108 }, { x: 192, y: 138 },
-  { x: 190, y: 166 }, { x: 225, y: 92 }, { x: 223, y: 124 },
-  { x: 227, y: 154 },
+  { x: 380, y: 407 }, { x: 500, y: 357 }, { x: 490, y: 454 },
+  { x: 349, y: 506 }, { x: 472, y: 567 }, { x: 356, y: 601 },
+  { x: 382, y: 705 }, { x: 548, y: 747 }, { x: 613, y: 319 },
+  { x: 745, y: 336 }, { x: 745, y: 439 }, { x: 679, y: 504 },
+  { x: 853, y: 391 }, { x: 940, y: 433 }, { x: 636, y: 569 },
+  { x: 873, y: 505 }, { x: 965, y: 535 }, { x: 940, y: 613 },
+  { x: 786, y: 641 }, { x: 884, y: 686 }, { x: 795, y: 721 },
+  { x: 854, y: 773 }, { x: 696, y: 760 },
 ];
 
 const EDGES: [number, number][] = [
-  [0, 3], [0, 4], [1, 4], [1, 5], [2, 5], [3, 6], [4, 7], [5, 7],
-  [6, 7], [7, 8], [6, 9], [7, 10], [7, 11], [8, 12], [9, 13], [10, 13],
-  [11, 14], [12, 15], [13, 14], [14, 15],
+  [0, 1], [0, 2], [0, 3], [1, 2], [1, 8], [2, 4], [3, 5], [3, 4],
+  [4, 6], [4, 14], [6, 7], [7, 22], [8, 9], [8, 14], [9, 10], [10, 11],
+  [10, 12], [11, 14], [12, 13], [12, 15], [13, 16], [14, 15], [14, 17],
+  [14, 18], [14, 20], [15, 16], [16, 17], [17, 19], [18, 19], [18, 20],
+  [19, 21], [20, 21], [20, 22],
 ];
 
-const HUB = 7;
+const HUB = 14;
 const WAKE_RADIUS = 180;
 const MAX_PARTICLES = 8;
 
@@ -55,10 +59,9 @@ export function initBrainField(): void {
   };
 
   const toCanvas = (node: Point): Point => {
-    const scale = Math.min((width * 0.72) / 320, (height * 0.49) / 240);
     return {
-      x: width * 0.5 + (node.x - 160) * scale,
-      y: height * 0.47 + (node.y - 120) * scale,
+      x: (node.x / 1254) * width,
+      y: (node.y / 1254) * height,
     };
   };
 
@@ -101,18 +104,20 @@ export function initBrainField(): void {
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.quadraticCurveTo(controlX, controlY, to.x, to.y);
-      ctx.strokeStyle = strength > 0 ? rgba(palette.accent, 0.32 + strength * 0.62) : rgba(palette.blue, 0.28);
-      ctx.lineWidth = strength > 0 ? 1 + strength : 0.75;
-      ctx.setLineDash(strength > 0 ? [] : [4, 7]);
-      ctx.stroke();
+      if (strength > 0) {
+        ctx.strokeStyle = rgba(palette.accent, 0.12 + strength * 0.7);
+        ctx.lineWidth = 0.8 + strength * 1.2;
+        ctx.setLineDash([]);
+        ctx.stroke();
+      }
     }
     ctx.setLineDash([]);
 
     points.forEach((point, index) => {
       const p = active.get(index) || 0;
       const d = displaced(point);
-      const radius = index === HUB ? 8 : 4.2 + p * 2.5;
-      if (p > 0 || index === HUB) {
+      const radius = index === HUB ? 10 : 5 + p * 3;
+      if (p > 0) {
         const glow = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, radius * 4.5);
         glow.addColorStop(0, rgba(palette.accent, index === HUB ? 0.8 : p * 0.7));
         glow.addColorStop(1, rgba(palette.accent, 0));
@@ -121,13 +126,15 @@ export function initBrainField(): void {
         ctx.arc(d.x, d.y, radius * 4.5, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = index === HUB || p > 0.52 ? palette.accent : palette.surface;
-      ctx.fill();
-      ctx.lineWidth = 1.4;
-      ctx.strokeStyle = p > 0 ? rgba(palette.accent, 0.8 + p * 0.2) : rgba(palette.blue, 0.72);
-      ctx.stroke();
+      if (p > 0) {
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = rgba(palette.accent, 0.26 + p * 0.52);
+        ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = rgba(palette.accent, 0.72 + p * 0.28);
+        ctx.stroke();
+      }
     });
 
     const activeEdges = EDGES.filter(([a, b]) => active.has(a) || active.has(b));
