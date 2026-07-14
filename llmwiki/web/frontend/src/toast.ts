@@ -6,11 +6,14 @@ let timer: number | undefined;
 
 export function toast(message: string): void {
   if (!el) {
-    el = document.createElement("div");
-    el.id = "toast";
-    el.setAttribute("role", "status");
-    el.setAttribute("aria-live", "polite");
-    document.body.appendChild(el);
+    el = document.getElementById("toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "toast";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
+      document.body.appendChild(el);
+    }
   }
   el.textContent = message;
   // restart the enter animation even if a toast is already showing
