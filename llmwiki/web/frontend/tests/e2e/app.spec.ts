@@ -238,15 +238,41 @@ test("add source summarizes success, skip, warning, and failure per item", async
   await expect(page.locator("#ingest-results")).toContainText("failure.txt — Unsupported file type");
 });
 
-test("welcome brain wakes, relaxes, and never navigates", async ({ page }) => {
+test("welcome brain flows, wakes, relaxes, and never navigates", async ({ page }) => {
   await mockApp(page);
   await page.goto("/#/welcome");
   const field = page.locator("#brain-field");
   await expect(page.locator(".brain-art")).toHaveAttribute("src", "/brain-network.png");
   await expect(field).toHaveAttribute("data-brain-state", "idle");
+  await expect.poll(() => field.evaluate((element) => {
+    const canvas = element.querySelector("canvas");
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return 0;
+    const x = Math.round((636 / 1254) * canvas.width);
+    const y = Math.round((569 / 1254) * canvas.height);
+    return context.getImageData(x, y, 1, 1).data[3];
+  })).toBeGreaterThan(0);
+  await expect.poll(() => field.evaluate((element) => {
+    const canvas = element.querySelector("canvas");
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return false;
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const hubX = (636 / 1254) * canvas.width;
+    const hubY = (569 / 1254) * canvas.height;
+    const hubRadius = (70 / element.clientWidth) * canvas.width;
+    for (let y = 0; y < canvas.height; y += 3) {
+      for (let x = 0; x < canvas.width; x += 3) {
+        if (Math.hypot(x - hubX, y - hubY) <= hubRadius) continue;
+        if (pixels[((y * canvas.width) + x) * 4 + 3] > 0) return true;
+      }
+    }
+    return false;
+  })).toBe(true);
   const box = await field.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width * .68, box!.y + box!.height * .48);
+  await expect(field).toHaveAttribute("data-brain-state", "awake");
+  await page.waitForTimeout(1_100);
   await expect(field).toHaveAttribute("data-brain-state", "awake");
   await expect(page).toHaveURL(/#\/welcome$/);
   await page.mouse.move(1, 1);

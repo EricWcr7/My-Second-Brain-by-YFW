@@ -3,6 +3,12 @@ interface Point {
   y: number;
 }
 
+interface Signal {
+  fromIndex: number;
+  toIndex: number;
+  phase: number;
+}
+
 const NODES: Point[] = [
   { x: 380, y: 407 }, { x: 500, y: 357 }, { x: 490, y: 454 },
   { x: 349, y: 506 }, { x: 472, y: 567 }, { x: 356, y: 601 },
@@ -22,9 +28,16 @@ const EDGES: [number, number][] = [
   [19, 21], [20, 21], [20, 22],
 ];
 
+const IDLE_PATHS: number[][] = [
+  [0, 1, 8, 9, 10, 12, 15, 16, 17, 19, 21],
+  [6, 7, 22, 20, 18, 14, 11, 10],
+  [5, 3, 4, 6, 7],
+];
+
 const HUB = 14;
 const WAKE_RADIUS = 180;
 const MAX_PARTICLES = 8;
+const IDLE_SEGMENT_MS = 1_700;
 
 export function initBrainField(): void {
   const field = document.getElementById("brain-field");
@@ -40,7 +53,8 @@ export function initBrainField(): void {
   let visible = false;
   let frame = 0;
   let previous = performance.now();
-  let lastInteraction = -Infinity;
+  let pointerInside = false;
+  let touchUntil = -Infinity;
   let wake = 0;
   let pointer: Point = { x: 0, y: 0 };
   let palette = readPalette();
@@ -89,6 +103,23 @@ export function initBrainField(): void {
       .sort((a, b) => b.strength - a.strength)
       .slice(0, 5);
     const active = new Map(strongest.filter((item) => item.strength > 0).map((item) => [item.index, item.strength]));
+    const ambientNodes = new Map<number, number>();
+    const ambientSignals: Signal[] = reduced || active.size
+      ? []
+      : IDLE_PATHS.map((path, index) => {
+        const progress = ((now / IDLE_SEGMENT_MS) + index * 1.7) % (path.length - 1);
+        const segment = Math.floor(progress);
+        const phase = progress - segment;
+        const fromIndex = path[segment];
+        const toIndex = path[segment + 1];
+        if (phase < 0.24) {
+          ambientNodes.set(fromIndex, Math.max(ambientNodes.get(fromIndex) || 0, 0.42 * (1 - phase / 0.24)));
+        }
+        if (phase > 0.76) {
+          ambientNodes.set(toIndex, Math.max(ambientNodes.get(toIndex) || 0, 0.42 * ((phase - 0.76) / 0.24)));
+        }
+        return { fromIndex, toIndex, phase };
+      });
 
     ctx.lineCap = "round";
     for (const [fromIndex, toIndex] of EDGES) {
@@ -114,7 +145,7 @@ export function initBrainField(): void {
     ctx.setLineDash([]);
 
     points.forEach((point, index) => {
-      const p = active.get(index) || 0;
+      const p = index === HUB ? 1 : Math.max(active.get(index) || 0, ambientNodes.get(index) || 0);
       const d = displaced(point);
       const radius = index === HUB ? 10 : 5 + p * 3;
       if (p > 0) {
@@ -138,21 +169,39 @@ export function initBrainField(): void {
     });
 
     const activeEdges = EDGES.filter(([a, b]) => active.has(a) || active.has(b));
-    const signalEdges = activeEdges.length ? activeEdges.slice(0, MAX_PARTICLES) : [EDGES[Math.floor(now / 4000) % EDGES.length]];
+    const signalEdges = activeEdges.slice(0, MAX_PARTICLES);
     signalEdges.forEach(([a, b], index) => {
-      const fromIndex = activeEdges.length && b !== HUB && a !== HUB ? (distanceToHub(a) < distanceToHub(b) ? b : a) : a;
+      const fromIndex = b !== HUB && a !== HUB ? (distanceToHub(a) < distanceToHub(b) ? b : a) : a;
       const toIndex = fromIndex === a ? b : a;
       const from = displaced(points[fromIndex]);
       const to = displaced(points[toIndex]);
-      const phase = ((now / (activeEdges.length ? 1150 : 3600)) + index / signalEdges.length) % 1;
+      const phase = ((now / 1150) + index / signalEdges.length) % 1;
       const x = from.x + (to.x - from.x) * phase;
       const y = from.y + (to.y - from.y) * phase;
       ctx.beginPath();
-      ctx.arc(x, y, activeEdges.length ? 2.2 : 1.6, 0, Math.PI * 2);
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
       ctx.fillStyle = palette.accent;
       ctx.shadowColor = palette.accent;
-      ctx.shadowBlur = activeEdges.length ? 10 : 5;
+      ctx.shadowBlur = 10;
       ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    ambientSignals.forEach(({ fromIndex, toIndex, phase }) => {
+      const from = points[fromIndex];
+      const to = points[toIndex];
+      for (let trail = 4; trail >= 0; trail -= 1) {
+        const trailPhase = Math.max(0, phase - trail * 0.045);
+        const strength = 1 - trail / 5;
+        const x = from.x + (to.x - from.x) * trailPhase;
+        const y = from.y + (to.y - from.y) * trailPhase;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.1 + strength * 1.2, 0, Math.PI * 2);
+        ctx.fillStyle = rgba(palette.accent, 0.08 + strength * 0.5);
+        ctx.shadowColor = palette.accent;
+        ctx.shadowBlur = trail === 0 ? 9 : 4;
+        ctx.fill();
+      }
       ctx.shadowBlur = 0;
     });
   };
@@ -160,10 +209,11 @@ export function initBrainField(): void {
   const tick = (now: number) => {
     const elapsed = Math.min(64, now - previous);
     previous = now;
-    const awake = now - lastInteraction < 900;
+    const awake = pointerInside || now < touchUntil;
     const target = awake ? 1 : 0;
     wake += (target - wake) * Math.min(1, elapsed / 600);
     field.dataset.brainState = wake > 0.08 ? "awake" : "idle";
+    field.style.setProperty("--brain-wake-radius", `${WAKE_RADIUS * wake}px`);
     const px = ((pointer.x / width) - 0.5) * 8 * wake;
     const py = ((pointer.y / height) - 0.5) * 8 * wake;
     field.style.setProperty("--brain-shift-x", `${Math.max(-4, Math.min(4, px))}px`);
@@ -175,7 +225,14 @@ export function initBrainField(): void {
   const wakeAt = (event: PointerEvent) => {
     const rect = field.getBoundingClientRect();
     pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    lastInteraction = performance.now();
+    field.style.setProperty("--brain-pointer-x", `${pointer.x}px`);
+    field.style.setProperty("--brain-pointer-y", `${pointer.y}px`);
+    if (event.pointerType === "touch") touchUntil = performance.now() + 900;
+    else pointerInside = true;
+  };
+
+  const relax = () => {
+    pointerInside = false;
   };
 
   const start = () => {
@@ -192,6 +249,7 @@ export function initBrainField(): void {
       stop();
       field.dataset.brainState = "reduced";
       wake = 0;
+      field.style.setProperty("--brain-wake-radius", "0px");
       draw(performance.now(), true);
     } else {
       field.dataset.brainState = "idle";
@@ -210,8 +268,10 @@ export function initBrainField(): void {
     if (motion.matches) draw(performance.now(), true);
   });
 
+  field.addEventListener("pointerenter", wakeAt);
   field.addEventListener("pointermove", wakeAt);
   field.addEventListener("pointerdown", wakeAt);
+  field.addEventListener("pointerleave", relax);
   motion.addEventListener("change", onMotion);
   observer.observe(field);
   resizeObserver.observe(field);
