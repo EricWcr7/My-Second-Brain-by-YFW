@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "second-brain-by-yfw"
+version = "1.0.0"
+description = "Local-first knowledge app that compiles documents into a connected, searchable Markdown wiki."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = [
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+]
+authors = [{ name = "EricWcr7" }]
+dependencies = [
+    "openai>=1.66",
+    "anthropic>=0.79.0",
+    "tiktoken>=0.7",
+    "pydantic>=2.6",
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
+    "python-pptx>=0.6.23",
+    "httpx>=0.27",
+    "trafilatura>=1.8",
+    "python-frontmatter>=1.1",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
+# Hybrid (keyword + vector) retrieval. Optional: without it, search degrades to
+# BM25-only and the faked test suite still runs. LanceDB pulls pyarrow + numpy.
+search = ["lancedb>=0.13", "pyarrow>=15", "numpy>=1.26"]
+
+[project.scripts]
+llmwiki = "llmwiki.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/EricWcr7/second-brain-by-yfw"
+Repository = "https://github.com/EricWcr7/second-brain-by-yfw"
+Issues = "https://github.com/EricWcr7/second-brain-by-yfw/issues"
+
+[tool.setuptools.packages.find]
+include = ["llmwiki*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+llmwiki = ["prompts/*.md"]
+"llmwiki.web" = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
