@@ -1,363 +1,210 @@
-# My-Second-Brain-by-YFW
+# My Second Brain
 
-A local-first **LLM Wiki web app**. Drop in your materials — Markdown, PDFs,
-slides, Word docs, images, or web URLs — and an LLM compiles them into a
-persistent, interlinked, **Obsidian-compatible** Markdown wiki that you browse,
-search, and ask questions of, **all in your browser, all on your machine**.
+**English** · [简体中文 →](README.zh-CN.md)
 
-- **Concept-centric** — one page per concept (definition, theorems, notation,
-  formulas, proof ideas, examples) plus one page per source.
-- **Hierarchical scope** — General → Academic (+ your own top-level branches) →
-  courses; every scope runs the same operations over its slice (see
-  [Hierarchy & scope](#hierarchy--scope)).
-- **Obsidian-native** — `[[wikilinks]]`, YAML frontmatter, `$…$` / `$$…$$` math.
-- **Local-first** — no cloud, single-user, your files stay on disk. **Hybrid
-  search** (BM25 keyword ⊕ on-disk semantic vectors) + an LLM compiler (OpenAI by
-  default; Anthropic/Claude is a one-line config switch).
+My Second Brain is a local-first knowledge app that turns PDFs, notes, Word and
+PowerPoint files, images, and web pages into a connected, searchable,
+Obsidian-compatible Markdown wiki.
 
-> 📖 **New here? Start with the [User Manual](USER_MANUAL.md)** — task-based
-> walkthroughs of every workflow in the app (ingesting each source type, asking,
-> searching, linting, managing courses, Obsidian).
+Instead of leaving useful context inside disposable model conversations, the app
+builds a durable knowledge layer on disk: raw source files, linked concept pages,
+source provenance, scoped overviews, and an operation log. You can compile new
+material, browse and search it, ask questions grounded in the wiki, review its
+structure, and optionally solve course problems in a persistent chat.
 
+> **Local-first is not fully offline.** Your vault and generated pages remain on
+> your machine. AI-powered operations send the source or context needed for that
+> operation to the OpenAI or Anthropic provider you configure.
 
----
+For complete usage, configuration, deletion behavior, privacy guidance, and
+troubleshooting, open the [User Manual](USER_MANUAL.md).
 
-## Origin and contributions
+## What the app provides
 
-This project implements [Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): immutable raw sources, an LLM-maintained Markdown wiki, a schema/instruction layer, and ingest/query/lint workflows. I did not originate that overall pattern.
+- **Durable Markdown knowledge** — YAML frontmatter, `[[wikilinks]]`, and LaTeX
+  math stay readable outside the app.
+- **Source-aware compilation** — each import creates or updates concept pages and
+  keeps provenance back to a source page and raw material.
+- **Hierarchical scopes** — work across the entire vault or narrow Search, Ask,
+  Review, and Add source to a branch or course.
+- **Grounded answers** — answers cite wiki pages; citations to nonexistent pages
+  are shown as warnings instead of being silently accepted.
+- **Hybrid retrieval** — local BM25 keyword search works by default; optional
+  LanceDB vectors add semantic search.
+- **Inspectable instructions** — each scope can override the prompts, purpose,
+  and schema used for compilation, answering, review, and Solver.
+- **Web and CLI workflows** — use the browser for daily work and `llmwiki` for
+  setup, scripting, saved answers, and maintenance.
 
-My contributions are the product and implementation design around that foundation:
+## Quick start
 
-- hierarchical branches and prefix-scoped knowledge access;
-- per-branch purpose, schema, and system-prompt inheritance and overrides;
-- the browser UI/UX and workflows for browsing, ingesting, asking, searching, linting, customizing branches, and solving course problems; and
-- implementation and evaluation of the resulting application, including provenance checks, hybrid retrieval, provider support, and automated tests.
+### Requirements
 
-I designed these extensions and directed the implementation with Claude Code.
+- Python 3.11 or newer
+- Git
+- An OpenAI or Anthropic API key for AI-powered features
 
-## Run the app
+Node.js is not required to run the app. It is needed only when changing the
+frontend.
 
-You need **Python 3.11+** and an **API key** for your provider (`OPENAI_API_KEY`
-by default, or `ANTHROPIC_API_KEY`). Set both keys if you want both models in the
-Solver chooser. From the repo root:
+### Launch the included sample vault
+
+This repository already contains a populated example-course sample vault. Clone it,
+install the package, and launch from the repository root:
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install ".[web]"                # installs the app (FastAPI + the runtime)
-llmwiki set-key openai sk-...        # store your key once (~/.config/llmwiki/.env, mode 600)
-# llmwiki set-key anthropic sk-ant-...  # optional: enable Claude Fable 5 in Solver
-llmwiki init                         # create a vault here (raw/, wiki/, .llmwiki/)
-llmwiki                              # launch → opens http://127.0.0.1:8000
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install ".[web]"
+llmwiki set-key openai YOUR_OPENAI_API_KEY
+llmwiki
 ```
 
-That's the whole setup — after this, **everything happens in the browser.** To
-bind a different address or skip auto-opening: `llmwiki serve --port 8080 --host
-0.0.0.0 --no-open`.
+On Windows PowerShell, create and activate the environment with a Python 3.11+
+installation:
 
-<details>
-<summary>Install notes (editable installs, offline wheels, key persistence)</summary>
-
-- **Don't use `pip install -e .` (editable).** Some Python builds — including the
-  python.org macOS framework build — don't load the editable `.pth`, giving
-  `ModuleNotFoundError: No module named 'llmwiki'`. A regular install copies the
-  package in so it always imports. After changing the tool's own source, re-apply
-  with `pip install --force-reinstall --no-deps .`.
-- **Hardened install** (prebuilt wheels only, no build scripts):
-  `pip install --only-binary :all: ".[web]"`.
-- **API key:** `set-key` saves it to `~/.config/llmwiki/.env` and loads it on every
-  run. The stored key is authoritative — it overrides any `OPENAI_API_KEY` /
-  `ANTHROPIC_API_KEY` already exported in your shell, so a stale export can't
-  shadow it. (To rely on the shell env instead, don't store a key.)
-  `llmwiki set-key --show` lists stored keys (masked). Get or
-  rotate keys at platform.openai.com → API keys, or console.anthropic.com →
-  Settings → API Keys.
-- A key is only needed for **Ask**, **Ingest**, **deep Lint**, and **semantic
-  search**. Browsing, **keyword** search, and structural lint work offline —
-  hybrid search simply falls back to BM25 keyword ranking when no embeddings key
-  (or the `[search]` extra) is present.
-
-</details>
-
----
-
-## Using the app
-
-Everything below happens in the browser. A **persistent top bar** keeps you
-oriented on every view: the logo returns to the home page, a live **breadcrumb**
-shows where you are, and a **scope chip** shows the section your operations run
-over (General sees everything; a course sees only itself) with a one-click **✕ to
-reset to General**. Set the scope by picking a node in the sidebar tree or opening
-a section's hub — or just open a page: the scope follows the page's section. The
-chip and breadcrumb update to match. On narrow screens the sidebar collapses into
-a **☰ menu** in the top bar.
-
-- **Browse** — the sidebar shows your section tree and pages; the top-bar
-  breadcrumb tracks where you are. Pages render with proper math (KaTeX) and
-  clickable `[[wikilinks]]`. Every page/section link behaves the same way —
-  sidebar, breadcrumb, wikilinks, and Lint references all navigate consistently,
-  and a link to a page that isn't in your wiki tells you instead of doing nothing.
-  Each page's reading view carries a **🗑** to delete that one page: deleting a
-  concept frees its source for re-ingest; deleting a source is a full teardown
-  (its ledger record, cached and raw files go too), removes it from the
-  provenance of this section's concepts, and deletes any concept left with no
-  sources.
-- **Overview** — every section hub (General, each branch, each course) has a
-  **Browse overview** that opens an LLM-written orientation to *that* section:
-  what it covers and how its ideas connect, with `[[wikilinks]]` into the pages.
-  Overviews stay current automatically — each ingest refreshes the section you
-  added to **and its parents up to General** — and a **Regenerate overview** button
-  rewrites one on demand.
-- **Ingest** — the Ingest panel (sidebar, the General card, and each section hub)
-  takes one or more **uploaded files** (Markdown/text, PDF, Word, PowerPoint,
-  images) **or a URL**, and compiles them into the wiki. A **Destination** picker
-  on the form shows exactly which section the new pages will be filed under —
-  pre-set to the section you're in (a section hub, or the section of the page
-  you're reading) and changeable before you submit. An optional **guidance box**
-  lets you steer how a source is compiled (e.g. "focus on the proofs") without
-  ever overriding source grounding.
-- **Ask** — ask a question answered only from the wiki, with citations back to the
-  pages used. You can attach files as **one-off context** for a single answer;
-  attachments are never written to the wiki. If an answer cites a page that isn't in
-  your wiki, the app flags it so you can distrust that claim (provenance you can see).
-- **Solver** — a **Problem Set Solver**: a ChatGPT-style multi-turn chat scoped to
-  one configured course section (`solver_section`, e.g. `academic/example-course`).
-  Each new session locks in either **GPT-5.6 Sol** or **Claude Fable 5**; GPT is
-  preselected when its key is available, otherwise the first available model is.
-  Each question runs fresh retrieval over that course's pages and answers with
-  **full worked solutions** (rendered math, `[[slug]]` citations, the same
-  ungrounded-citation flags as Ask) at **maximum reasoning effort**. Provider-made
-  reasoning summaries arrive with the completed solution in a collapsed panel;
-  raw chain-of-thought and live reasoning are never shown. Attach
-  problem-set **PDFs/images per message** — they're sent natively to the model
-  and **never ingested** into the wiki. Sessions persist on disk, are listed in
-  a sidebar (resume/delete), and every turn sees the whole conversation. The
-  Solver nav entry appears only when `solver_section` is set.
-- **Search** — **hybrid** ranking over concept pages: BM25 keyword fused with
-  semantic vector search (Reciprocal Rank Fusion), so a query finds the right page
-  even with no shared words. Falls back to instant keyword-only ranking offline.
-- **Lint** — structural checks, plus an optional **deep** LLM review that flags
-  contradictions and suggests what to read next.
-- **Branches, courses & sections** — from the homepage, **+ New branch** adds a
-  top-level branch (a sibling of Academic); from a section hub, **+ New course** /
-  **+ New section** scaffolds a child, and **🗑** deletes one — a full wipe of its
-  pages *and* the sources filed under it (ledger, cached/raw files, customizations),
-  so nothing orphaned accumulates; the same source can always be re-ingested
-  afterward (ingest skips only while a source's pages still exist). The seeded `academic`
-  branch is protected. Names keep their exact casing and non-Latin characters
-  (`example-course`, `线性代数`).
-- **Customize** — each section hub has a **Customize** view to tailor the LLM
-  instruction set *for that branch*: the prompt for each operation (ingest
-  analysis, ingest generation, answer, solver, lint) plus the branch's **purpose** and
-  **schema**. A branch either carries its own override or inherits the **general
-  default**; one Save can fan out to several branches still on the default. This is
-  how a proof-heavy course (e.g. `example-course`) keeps math/theorem/proof rules while
-  everything else stays general.
-
-Prefer Obsidian for reading? Open the `wiki/` folder as a vault — you get the graph
-view, backlinks, Marp decks, and Dataview tables for free, since the pages already
-carry the right frontmatter. Full workflows are in the **[User Manual](USER_MANUAL.md)**.
-
----
-
-## Hierarchy & scope
-
-Knowledge lives in a tree of **sections** — a `/`-joined path like
-`academic/multivariable-calculus`; the empty path is the **General** root.
-
-```
-General (root)            → can access the ENTIRE knowledge base
-├── Academic              → all courses' knowledge
-│   └── <course>          → only that course (default)
-└── <your branch>         → a top-level branch you add (e.g. Personal, Work)
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+py -m pip install ".[web]"
+llmwiki set-key openai YOUR_OPENAI_API_KEY
+llmwiki
 ```
 
-Access follows one **prefix rule**: a scope sees a page iff the scope is a prefix
-of the page's section. Pick a scope in the sidebar; to widen, pick a parent
-(Academic, or General for everything). Scope *is* access — there's no separate
-sharing mechanism.
+Replace `YOUR_OPENAI_API_KEY` with the real key; do not commit it. The key is
+stored outside the vault at `$XDG_CONFIG_HOME/llmwiki/.env` when
+`XDG_CONFIG_HOME` is set, or `~/.config/llmwiki/.env` otherwise. Passing a key as
+a command-line argument may leave it in shell history; use your shell's protected
+secret-input or environment-variable workflow when that matters. To use
+Anthropic for the main app instead, see
+[Provider setup](USER_MANUAL.md#provider-keys-and-models).
 
----
+The server opens `http://127.0.0.1:8000`. Select **Enter workspace** on the
+Welcome screen. Stop the server with `Ctrl+C`.
 
-## How it works
+You may omit the key command if you only want to browse the included wiki, run
+keyword Search, or use structural Review.
 
-Three layers (raw sources → LLM-compiled wiki → schema), three operations:
+### Create a clean personal vault
 
-1. **Ingest** — a loader normalizes the source to Markdown (vision for images and
-   scanned/math PDFs), it's checksummed and cached, then an *analysis* pass decides
-   which concepts it teaches and a *generation* pass writes/merges the concept
-   pages and the source page. Optional user **guidance** steers both passes and is
-   journaled to `log.md`. Re-ingesting identical content into the same section is
-   skipped only while all of its pages still exist in the wiki — deleting pages,
-   providing guidance, or `--force` always re-ingests. The check is content-based,
-   so a re-downloaded copy under a new filename (`notes (1).pdf`) is recognized as
-   the same source. A source larger than `ingest_segment_max_tokens` is
-   compiled in segments that each merge into the same pages, so very large files
-   (e.g. a 1000-page PDF) stay within the model's context window — still one
-   source, one provenance record. Segmented compilation is **atomic**: pages are
-   written only after every segment succeeds, so a failure partway leaves the wiki
-   unchanged and safe to retry (ingest runs under the longer
-   `ingest_request_timeout`). `index.md` is regenerated and `log.md` appended,
-   deterministically.
-2. **Ask** — hybrid (keyword ⊕ vector) search retrieves candidate pages; an
-   optional LLM **rerank** pass (`rerank`, off by default) reorders the top
-   `rerank_candidates` by relevance; a token-budgeted context is assembled, and the
-   model answers with citations to wiki pages (which point back to sources, which
-   point back to your raw files).
-3. **Lint** — structural checks plus an optional model review.
+After installing `llmwiki` from the cloned repository, initialize a different
+directory:
 
-Ingesting a source also **embeds** the new pages into the on-disk vector index;
-`llmwiki reindex` rebuilds it from scratch (e.g. after installing the `[search]`
-extra or changing `embed_model`).
+```bash
+llmwiki init ~/my-second-brain
+cd ~/my-second-brain
+llmwiki
+```
 
-Each operation's system prompt is the packaged **general default** plus the
-wiki's `purpose.md` / `schema.md` — unless the section being operated on has its
-own override (see **Customize** above), which replaces the default for that branch
-only.
+`llmwiki init` is idempotent: it creates missing vault files without overwriting
+existing content. A clean vault includes the protected `Academic` scope, but it
+does not include the sample course or enable Solver.
 
-Every concept page carries `sources:` provenance, so claims trace back to a source
-page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
-**compiled once and kept current**, so answers compound over time.
+### Your first five minutes
 
+1. Select **Enter workspace**.
+2. Keep the `General` scope for the whole vault, or open **Scope → Manage scopes**
+   to create or select a narrower scope.
+3. Select **Add source**, choose one or more files or a URL, confirm the
+   destination, and compile.
+4. Use the Workspace field or **Search** (`Cmd/Ctrl+K`) to open the generated
+   concepts and source pages.
+5. Open **Ask** for a synthesized answer or **Review** to check provenance and
+   links.
 
-## Evaluation and current limits
+## Optional semantic search
 
-The current automated suite is reproducible without an API key because provider
-responses are faked. On July 13, 2026, the repository test suite completed with
-**189 passed**. Run `pytest` for the full suite and `make eval` for
-the focused grounding checks.
+Install the search extra from the cloned repository:
 
-- The answer grounding eval has 6 golden cases and scored **6/6**. It checks that
-  real, aliased, and heading-anchored `[[slug]]` citations are accepted while
-  invented citations are flagged, with reranking both on and off.
-- The multi-turn Solver grounding eval has 6 golden cases and scored **6/6**,
-  including a follow-up-turn case.
-- Unit tests also cover prefix-scope isolation, BM25/vector Reciprocal Rank Fusion,
-  keyword-only fallback, incremental indexing, ingest atomicity, provider
-  behavior, loaders, storage, and web workflows.
+```bash
+python -m pip install ".[web,search]"
+```
 
-These numbers are regression evidence, **not a general LLM-quality benchmark**.
-The golden grounding evals use scripted model answers and test whether cited wiki
-pages exist; they do not yet measure semantic answer correctness, citation
-entailment, retrieval recall on a realistic corpus, latency, or API cost. A useful
-next evaluation is a held-out multi-document set reporting retrieval recall@k,
-answer correctness, citation precision/recall, latency, and cost by source type.
+Then rebuild vectors from inside the vault:
 
-### Design trade-offs
+```bash
+llmwiki reindex
+```
 
-- Compiling sources into persistent Markdown makes knowledge inspectable and
-  reusable, but ingest costs more up front and compiled pages can become stale if
-  sources change without re-ingestion.
-- Source files and the wiki stay on local disk, but LLM-powered operations send the
-  selected source/context content to the configured model provider. “Local-first”
-  is not the same as fully offline.
-- Prefix scopes make branch behavior predictable and testable, but they are an
-  organizational boundary, not a security or multi-user authorization system.
-- Hybrid retrieval can recover semantically related pages with no keyword overlap,
-  but adds an embeddings call and optional vector-index dependency; BM25 fallback
-  is cheaper and offline but may miss those pages.
+Semantic search also needs an embeddings key or an OpenAI-compatible local
+endpoint. Without it—or without the search extra—the app falls back to BM25
+keyword search.
+
+## Scope model
+
+A scope sees pages in its own section and every descendant section. `General`
+therefore sees the entire vault; a course sees only that course.
+
+```text
+General
+├── Academic
+│   └── example-course
+├── Research
+└── Personal
+```
+
+Scopes organize retrieval; they are not user accounts or security boundaries.
+The app is designed for one user and has no authentication layer.
 
 ## Vault layout
 
-| Path | Role |
-| ---- | ---- |
-| `raw/` | Source of truth — your ingested files (`sources/`, `assets/`). Immutable. |
-| `wiki/` | Generated layer: `concepts/<section>/`, `sources/<section>/`, `queries/`, `overviews/<section>.md` (per-section overviews), `index.md`, `log.md`, `overview.md` (General overview), `purpose.md`, `schema.md`. |
-| `.llmwiki/` | Tool state: `config.toml`, `state.json` (ingest ledger — bookkeeping; the wiki pages, not the ledger, decide re-ingest skips), normalized cache + `lancedb/` vector index (gitignored), `solver/` — Problem Set Solver sessions (chat transcripts + attached files; app data, never wiki pages), and `sections/<section>/<component>.md` — per-branch LLM instruction overrides. |
-| `llmwiki/` | The Python package (the app itself). |
+| Path | Purpose |
+| --- | --- |
+| `raw/` | Local copies of ingested files and image assets |
+| `wiki/` | Generated concept pages, source pages, overviews, index, log, purpose, and schema |
+| `.llmwiki/` | Vault configuration, ingest state, normalized cache, optional vectors, prompt overrides, and Solver sessions |
 
-## Supported sources
+The wiki remains plain Markdown, so it can be inspected with Git, a text editor,
+or Obsidian. The [User Manual](USER_MANUAL.md#storage-backup-and-obsidian)
+explains which directory to open and what to back up.
 
-Markdown / plain text, text PDFs (PyMuPDF, with a vision fallback for scanned/math
-PDFs), Word `.docx`, PowerPoint `.pptx`, images (vision), and web URLs.
+## Command-line entry points
 
-## Configuration
-
-`.llmwiki/config.toml` (created on init):
-
-```toml
-[settings]
-provider = "openai"                 # "openai" (default) or "anthropic"
-# compile_model = "gpt-5.6-sol"     # ingest + answer model (optional; GPT-5.5+)
-# cheap_model = "gpt-5.6-sol"       # reserved for cheap ops (optional)
-default_section = ""                # default scope when none is given ("" = General root)
-search_top_k = 8                    # pages retrieved per question
-context_token_budget = 60000        # max context tokens for Ask/Lint
-hybrid_search = true                # fuse keyword + vector search (off = BM25 only)
-embed_model = "text-embedding-3-small"  # embedding model used for every section
-# embed_base_url = "http://localhost:11434/v1"  # OpenAI-compatible endpoint (e.g. Ollama)
-# embed_api_key_env = "OPENAI_API_KEY"          # env var the embeddings key is read from
-vector_top_n = 40                   # chunk candidates pulled before fusion
-rrf_k = 60                          # Reciprocal Rank Fusion constant
-rerank = false                      # opt-in: LLM reranks retrieved pages before answering
-rerank_candidates = 20              # candidates pulled before reranking down to search_top_k
-chunk_max_chars = 1500              # split a page section longer than this
-ingest_segment_max_tokens = 60000   # compile a larger source in segments
-pdf_vision_min_chars_per_page = 100 # below this, a PDF is transcribed via vision
-request_timeout = 300.0             # seconds before a provider call times out
-ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
-max_retries = 2                     # retries for transient provider failures
-# solver_section = "academic/example-course"  # enable the Problem Set Solver, scoped to this section
-solver_reasoning_effort = "xhigh"   # legacy sessions only; new sessions use fixed max effort
-solver_request_timeout = 600.0      # per-turn ceiling for solver calls (max effort runs long)
+```text
+llmwiki init       Create or complete a vault
+llmwiki ingest     Compile one file or URL
+llmwiki query      Ask from the terminal; optionally save the answer
+llmwiki search     Search concept pages
+llmwiki lint       Run structural or deep review
+llmwiki overview   Regenerate an overview
+llmwiki reindex    Rebuild semantic vectors
+llmwiki set-key    Store or inspect provider keys
+llmwiki             Launch the web app
 ```
 
-Semantic search needs the **`[search]`** extra (`pip install ".[web,search]"`,
-which adds LanceDB) and an embeddings key. Embeddings are **decoupled from the chat
-provider** — they always go through an OpenAI-compatible `/v1/embeddings` endpoint,
-so semantic search works even on the Anthropic chat backend, or against a local
-endpoint via `embed_base_url`. After changing `embed_model`, run `llmwiki reindex`
-to rebuild the vector index.
+See the [CLI reference](USER_MANUAL.md#command-line-reference) for options and
+examples.
 
-Both OpenAI and Anthropic support every operation. Leave the models unset to use
-the defaults — OpenAI `gpt-5.6-sol` (a reasoning model run at `high` reasoning effort);
-Anthropic `claude-opus-4-8` / `claude-haiku-4-5`. If you override the OpenAI model,
-keep it GPT-5.5+ (`high` effort is only valid there). **API keys are read from the
-environment — never put them here.**
+## Development
 
-The Solver model picker is independent of `provider`: new sessions use either
-OpenAI `gpt-5.6-sol` with `reasoning.effort = "max"` and summary mode `auto`, or
-Anthropic `claude-fable-5` with adaptive summarized thinking and
-`output_config.effort = "max"`. The choice is fixed for that session; Ask,
-Ingest, Lint, and overview generation still use the global provider above. A
-provider may legitimately return no summary, in which case the worked solution
-is still shown without a summary panel.
-
-Fable's `max_tokens` is **64,000 tokens shared by thinking and the visible
-answer**. GPT keeps the existing 16,000-token answer budget plus its reasoning
-reserve. OpenAI reasoning summaries may require [organization
-verification](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries).
-Claude Fable 5 has a [30-day retention requirement and is not eligible for Zero
-Data Retention](https://platform.claude.com/docs/en/about-claude/models/overview),
-so confirm that policy fits the material you upload. See the official
-[GPT-5.6 guidance](https://developers.openai.com/api/docs/guides/latest-model),
-[Anthropic effort API](https://platform.claude.com/docs/en/build-with-claude/effort),
-and [adaptive-thinking summary controls](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking#controlling-thinking-display)
-for account and API details.
-
-## Developing the web UI
-
-The frontend is a Vite + TypeScript app in `llmwiki/web/frontend/`; its build output
-is committed to `llmwiki/web/static/` (which FastAPI hosts). Node is needed only for
-development, not for running.
+Install test dependencies and run the Python suite:
 
 ```bash
-pip install ".[dev]"   # adds pytest; run: pytest  (the LLM is mocked, no key needed)
-make web-install       # one-time: npm install (Node 18+)
-make dev               # FastAPI :8000 + Vite :5173 (HMR) — open http://127.0.0.1:5173
-make web-build         # rebuild llmwiki/web/static before committing UI changes
+python -m pip install ".[dev]"
+make test
+make eval
 ```
 
-## Troubleshooting
+For frontend development:
 
-- **App says the API key isn't set** — store it with `llmwiki set-key openai sk-...`
-  (or `anthropic`), then relaunch. Check with `llmwiki set-key --show`.
-- **`model_not_found` / no access to `gpt-5.6-sol`** — point `compile_model` (and
-  `cheap_model`) in `.llmwiki/config.toml` at a GPT-5.5+ reasoning model you do have
-  (e.g. `gpt-5.5`). Keep it 5.5+ — the `high` reasoning effort needs it.
-- **`command not found: llmwiki`** — your virtualenv isn't active; run
-  `source .venv/bin/activate`.
-- **`ModuleNotFoundError: No module named 'llmwiki'`** — you installed editable
-  (`-e`); reinstall as a regular package: `pip install --force-reinstall --no-deps .`
-  (or run with `PYTHONPATH="$PWD" python -m llmwiki.cli`).
-- **`pip` downloads fail ("not enough bytes received")** — add
-  `--retries 20 --resume-retries 20 --timeout 60`.
+```bash
+make web-install
+make dev
+```
+
+`make dev` runs FastAPI on port 8000 and Vite on port 5173. After changing
+frontend source, run `make web-build` to rebuild the committed production assets
+under `llmwiki/web/static/`.
+
+## Origin and license
+
+The project implements and extends
+[Andrej Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f):
+immutable source material, an LLM-maintained Markdown wiki, an instruction/schema
+layer, and ingest/query/review workflows. This implementation adds hierarchical
+scopes, branch-specific instructions, hybrid retrieval, the browser experience,
+provider support, persistent Solver sessions, and automated grounding checks.
+
+Released under the [MIT License](LICENSE).
