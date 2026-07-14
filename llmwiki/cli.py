@@ -29,7 +29,7 @@ def _err(message: str) -> None:
 def cmd_init(args: argparse.Namespace) -> int:
     root = Path(args.path).expanduser().resolve()
     config = scaffold_vault(root)
-    print(f"Initialized Second Brain by YFW vault at {config.root}")
+    print(f"Initialized My Second Brain by YFW vault at {config.root}")
     print("  - put sources in raw/sources/ (or pass any path/URL to `llmwiki ingest`)")
     env = keystore.PROVIDER_ENV.get(config.provider, "OPENAI_API_KEY")
     print(
@@ -125,7 +125,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     app = create_app(config)
     url = f"http://{args.host}:{args.port}"
-    print(f"Second Brain by YFW (web UI) at {url}  (vault: {config.root})")
+    print(f"My Second Brain by YFW (web UI) at {url}  (vault: {config.root})")
     print("press Ctrl+C to stop")
     if not args.no_open:
         import threading
@@ -209,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="llmwiki",
         description=(
-            "Second Brain by YFW — a local-first knowledge base. "
+            "My Second Brain by YFW — a local-first knowledge base. "
             "Run with no command to open the web UI."
         ),
     )

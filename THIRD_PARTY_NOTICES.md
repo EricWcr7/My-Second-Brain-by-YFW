@@ -1,6 +1,6 @@
 # Third-party notices
 
-Second Brain by YFW is distributed under the MIT License in `LICENSE`.
+My Second Brain by YFW is distributed under the MIT License in `LICENSE`.
 Third-party components and assets retain their own licenses.
 
 ## Original artwork
