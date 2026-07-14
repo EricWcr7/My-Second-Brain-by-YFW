@@ -5,8 +5,8 @@ from __future__ import annotations
 from .base import LoaderError, LoadResult
 
 _UA = (
-    "Mozilla/5.0 (compatible; second-brain-by-yfw/1.0.0; "
-    "+https://github.com/EricWcr7/second-brain-by-yfw)"
+    "Mozilla/5.0 (compatible; my-second-brain-by-yfw/1.0.0; "
+    "+https://github.com/EricWcr7/My-Second-Brain-by-YFW)"
 )
 
 

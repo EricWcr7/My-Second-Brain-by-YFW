@@ -1,8 +1,8 @@
-# Second Brain by YFW
+# My Second Brain by YFW
 
 **English** · [简体中文 →](README.zh-CN.md)
 
-Second Brain by YFW is a local-first knowledge app that turns documents, images,
+My Second Brain by YFW is a local-first knowledge app that turns documents, images,
 and web pages into a connected, searchable, Obsidian-compatible Markdown wiki.
 It keeps source provenance, linked concepts, scoped overviews, and an operation
 log on disk so the knowledge remains readable outside the app.
@@ -47,8 +47,8 @@ Clone the repository, create an environment, install from the checkout, initiali
 an ignored vault, configure a provider key, and launch:
 
 ```bash
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install ".[web]"
@@ -60,8 +60,8 @@ llmwiki
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install ".[web]"

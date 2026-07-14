@@ -1,4 +1,4 @@
-Third-party licenses shipped with Second Brain by YFW
+Third-party licenses shipped with My Second Brain by YFW
 =====================================================
 
 Original artwork

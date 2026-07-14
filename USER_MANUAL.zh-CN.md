@@ -1,9 +1,9 @@
-# Second Brain by YFW — 用户手册
+# My Second Brain by YFW — 用户手册
 
 [English →](USER_MANUAL.md) · **简体中文**
 
 本手册介绍安装、浏览器与 CLI 工作流、配置、存储、隐私和故障排除。Python 发行包名为
-`second-brain-by-yfw`；导入命名空间、命令和配置目录继续使用 `llmwiki`。
+`my-second-brain-by-yfw`；导入命名空间、命令和配置目录继续使用 `llmwiki`。
 
 ## 目录
 
@@ -28,11 +28,19 @@
 请使用 Python 3.11 或更高版本。公开版本支持的流程是从克隆的仓库安装，不假定通过包索引
 安装。
 
+如果当前环境已经安装了旧发行包 `second-brain-by-yfw`，请先卸载它，再安装更名后的发行包：
+
+```bash
+python -m pip uninstall second-brain-by-yfw
+```
+
+必须先执行卸载，因为新旧发行包提供相同的 `llmwiki` 包和命令。
+
 macOS 或 Linux：
 
 ```bash
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install ".[web]"
@@ -44,8 +52,8 @@ llmwiki
 Windows PowerShell：
 
 ```powershell
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install ".[web]"

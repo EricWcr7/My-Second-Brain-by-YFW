@@ -1,8 +1,8 @@
-# Second Brain by YFW
+# My Second Brain by YFW
 
 [English →](README.md) · **简体中文**
 
-Second Brain by YFW 是一款本地优先的知识应用。它把文档、图像和网页转换成相互
+My Second Brain by YFW 是一款本地优先的知识应用。它把文档、图像和网页转换成相互
 连接、可搜索并兼容 Obsidian 的 Markdown Wiki。来源追踪、链接概念、按范围生成的
 概览和操作日志都保存在磁盘上，因此离开应用后仍能阅读和使用这些知识。
 
@@ -42,8 +42,8 @@ Second Brain by YFW 是一款本地优先的知识应用。它把文档、图像
 启动应用：
 
 ```bash
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install ".[web]"
@@ -55,8 +55,8 @@ llmwiki
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install ".[web]"

@@ -119,7 +119,7 @@ def create_app(
     provider_factory: ProviderFactory = get_provider,
 ) -> FastAPI:
     config = config or load_config()
-    app = FastAPI(title="Second Brain by YFW", docs_url=None, redoc_url=None)
+    app = FastAPI(title="My Second Brain by YFW", docs_url=None, redoc_url=None)
 
     @app.get("/api/meta")
     def meta() -> dict:

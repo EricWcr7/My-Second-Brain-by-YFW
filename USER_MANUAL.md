@@ -1,10 +1,10 @@
-# Second Brain by YFW — User Manual
+# My Second Brain by YFW — User Manual
 
 **English** · [简体中文 →](USER_MANUAL.zh-CN.md)
 
 This manual covers installation, browser and CLI workflows, configuration,
 storage, privacy, and troubleshooting. The Python distribution is
-`second-brain-by-yfw`; its import namespace, command, and configuration directory
+`my-second-brain-by-yfw`; its import namespace, command, and configuration directory
 remain `llmwiki`.
 
 ## Contents
@@ -30,11 +30,21 @@ remain `llmwiki`.
 Use Python 3.11 or newer. The supported public workflow installs from a cloned
 repository; no package-index installation is assumed.
 
+If this environment already has the previous `second-brain-by-yfw` distribution
+installed, remove it before installing the renamed distribution:
+
+```bash
+python -m pip uninstall second-brain-by-yfw
+```
+
+Run the uninstall first because both distributions provide the same `llmwiki`
+package and command.
+
 On macOS or Linux:
 
 ```bash
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install ".[web]"
@@ -46,8 +56,8 @@ llmwiki
 On Windows PowerShell:
 
 ```powershell
-git clone https://github.com/EricWcr7/second-brain-by-yfw.git
-cd second-brain-by-yfw
+git clone https://github.com/EricWcr7/My-Second-Brain-by-YFW.git
+cd My-Second-Brain-by-YFW
 py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install ".[web]"

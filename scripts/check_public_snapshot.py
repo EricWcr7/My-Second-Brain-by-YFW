@@ -21,7 +21,6 @@ FORBIDDEN_PATH_PARTS = {
 FORBIDDEN_CONTENT = {
     "private course identifier": "mat" + "237",
     "removed feature name": "sol" + "ver",
-    "old product name": "my second " + "brain",
     "old repository name": "my-second-brain-" + "yfw",
     "private account path": "yifan" + "wang",
     "university domain": "uto" + "ronto",
