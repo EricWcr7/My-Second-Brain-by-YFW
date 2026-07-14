@@ -237,6 +237,8 @@ api_keys.txt
 # committed to llmwiki/web/static so `pip install` ships ready-to-run assets.
 llmwiki/web/frontend/node_modules/
 llmwiki/web/frontend/.vite/
+llmwiki/web/frontend/playwright-report/
+llmwiki/web/frontend/test-results/
 .dev-api.pid
 
 # Obsidian vault config (auto-generated app/UI state; settings sync via Obsidian Sync)

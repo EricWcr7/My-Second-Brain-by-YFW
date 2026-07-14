@@ -14,8 +14,11 @@ import { renderMarkdown, mount, animateIn, decorateWikilinks } from "./render";
 import { renderSolver } from "./solver";
 import { highlightSidebar, loadPages, renderPageList } from "./sidebar";
 import { setBreadcrumb, setScopedBreadcrumb } from "./topbar";
-import { renderLandingStats, renderBranches } from "./landing";
+import { renderLandingStats } from "./landing";
 import { toast } from "./toast";
+import { confirmDialog } from "./confirm-dialog";
+import { setActiveScope } from "./scope-state";
+import { setActiveNavigation } from "./workspace";
 import {
   childSections,
   scopeNodes,
@@ -29,8 +32,8 @@ import {
 const PROTECTED_SECTIONS = new Set(["academic"]);
 
 export function setView(name: string): void {
-  document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
-    b.classList.toggle("active", b.dataset.view === name));
+  setActiveNavigation(name === "home" ? "workspace" : name);
+  content.className = `content-view content-${name}`;
   highlightSidebar(null);
   if (name === "home") renderHome();
   else if (name === "ask") renderAsk();
@@ -80,14 +83,14 @@ async function renderHome(): Promise<void> {
 }
 
 export async function loadPage(slug: string): Promise<void> {
-  document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
-    b.classList.remove("active"));
+  setActiveNavigation("workspace");
+  content.className = "content-view reader-view";
   highlightSidebar(slug);
   mount('<p class="muted">Loading…</p>');
   try {
     const p = await getJSON<PageRef & { content: string }>("/api/page/" + encodeURIComponent(slug));
     if (p.section !== state.scope) {
-      state.scope = p.section; // scope follows the page you're reading
+      setActiveScope(p.section); // scope follows the page you're reading
       filterEl.value = ""; // mirrors renderSection: a fresh scope starts unfiltered
       renderPageList(); // sidebar scope tree + page list reflect the new scope
       highlightSidebar(slug); // renderPageList rebuilt the anchors — re-highlight
@@ -96,7 +99,7 @@ export async function loadPage(slug: string): Promise<void> {
     const head =
       `<div class="page-head-row"><p class="eyebrow">${escapeHtml(p.type)}</p>` +
       `<button id="page-del" class="page-del" title="Delete this page" ` +
-      `aria-label="Delete ${escapeHtml(p.title)}">🗑</button></div>` +
+      `aria-label="Delete ${escapeHtml(p.title)}"><i class="ph ph-trash" aria-hidden="true"></i></button></div>` +
       `<h1>${escapeHtml(p.title)}</h1>`;
     mount(head + renderMarkdown(p.content));
     wirePageDelete(p);
@@ -117,9 +120,9 @@ function sectionDescription(scope: string): string {
 // A section's own page: breadcrumb, scoped operations, child sections, and a form
 // to scaffold a new child (a course under Academic, a sub-section elsewhere).
 export function renderSection(scope: string): void {
-  document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) =>
-    b.classList.remove("active"));
-  state.scope = scope;
+  setActiveNavigation("workspace");
+  content.className = "content-view scope-view";
+  setActiveScope(scope);
   filterEl.value = ""; // a fresh scope starts with an unfiltered page list
   highlightSidebar(null);
   renderPageList(); // reflect the new scope in the sidebar tree + page list
@@ -150,7 +153,7 @@ export function renderSection(scope: string): void {
           const del = PROTECTED_SECTIONS.has(c)
             ? ""
             : `<button class="hub-card-del" data-section="${escapeHtml(c)}" ` +
-              `aria-label="Delete ${escapeHtml(label)}" title="Delete">🗑</button>`;
+              `aria-label="Delete ${escapeHtml(label)}" title="Delete"><i class="ph ph-trash" aria-hidden="true"></i></button>`;
           return (
             `<div class="hub-card">` +
             `<a class="hub-card-link" href="#/section/${c}">` +
@@ -239,8 +242,14 @@ function wireDeleteButtons(scope: string): void {
       e.preventDefault();
       const section = btn.dataset.section!;
       const label = sectionLabel(section);
-      if (!confirm(`Delete "${label}" and all its concept and source files? This cannot be undone.`))
-        return;
+      const confirmed = await confirmDialog({
+        eyebrow: "Delete scope",
+        title: `Delete ${label}?`,
+        message: "Every concept, source, cache entry, override, and descendant in this scope will be permanently removed.",
+        typedValue: label,
+        confirmLabel: "Delete scope",
+      });
+      if (!confirmed) return;
       btn.disabled = true;
       try {
         await delJSON("/api/sections/" + section.split("/").map(encodeURIComponent).join("/"));
@@ -273,7 +282,13 @@ function wirePageDelete(p: PageRef): void {
           `any concept left with no sources. This cannot be undone.`
         : `Delete concept "${p.title}"? The page and its search-index entries are ` +
           `removed. This cannot be undone.`;
-    if (!confirm(msg)) return;
+    const confirmed = await confirmDialog({
+      eyebrow: `Delete ${p.type}`,
+      title: `Delete ${p.title}?`,
+      message: msg,
+      confirmLabel: `Delete ${p.type}`,
+    });
+    if (!confirmed) return;
     btn.disabled = true;
     try {
       const res = await delJSON<{ scrubbed: string[]; removed_concepts: string[] }>(
@@ -287,7 +302,6 @@ function wirePageDelete(p: PageRef): void {
       }
       await loadPages(); // state.pages + state.slugSet + sidebar
       renderLandingStats();
-      renderBranches();
       const n = res.removed_concepts.length;
       toast(
         `Deleted ${p.type} "${p.title}"` +
@@ -357,7 +371,7 @@ function renderAsk(): void {
     <p class="eyebrow eyebrow-ai">Ask · grounded in your wiki</p>
     <h1>Ask</h1>
     ${state.meta.has_api_key ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ask questions.</p>`}
-    <p class="page-meta">Answers are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
+    <p class="page-meta">Answers are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — change scope from the header.</p>
     <form id="ask-form">
       <textarea id="ask-q" placeholder="Ask a question answered from your wiki…" ${dis}></textarea>
       <div class="row ask-row">
@@ -387,7 +401,7 @@ export function answerExtrasHtml(pages_used?: string[], ungrounded?: string[]): 
     // Grounding check: the answer cited pages that don't exist in the wiki, so
     // those claims aren't backed by provenance. Surface it rather than hide it.
     const names = ungrounded.map((s) => `<code>${escapeHtml(s)}</code>`).join(", ");
-    html += `<p class="notice">⚠ This answer cited ${ungrounded.length} page(s) not in your wiki: ${names}. Treat those claims with caution — they aren't grounded in a source.</p>`;
+    html += `<p class="notice"><i class="ph ph-warning-circle" aria-hidden="true"></i> This answer cited ${ungrounded.length} page(s) not in your wiki: ${names}. Treat those claims with caution — they aren't grounded in a source.</p>`;
   }
   if (pages_used && pages_used.length) {
     // Numbered footnote-style references back to the pages the answer drew on.
@@ -434,7 +448,29 @@ async function onAsk(e: Event): Promise<void> {
 // follows the section hub or page you're in) and changeable before submitting —
 // so new pages always land exactly where the form says they will.
 function renderIngest(): void {
-  setScopedBreadcrumb(state.scope, "Ingest");
+  setScopedBreadcrumb(state.scope, "Add source");
+  paintIngest(content, false);
+  animateIn();
+}
+
+export function renderIngestSheet(): void {
+  const dialog = document.getElementById("source-sheet") as HTMLDialogElement;
+  const body = document.getElementById("source-sheet-body")!;
+  paintIngest(body, true);
+  if (dialog.dataset.wired !== "true") {
+    dialog.dataset.wired = "true";
+    dialog.querySelector("[data-close-sheet]")?.addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener("close", () => {
+      if (location.hash.replace(/^#/, "") === "/ingest") location.hash = "#/";
+    });
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
+function paintIngest(target: HTMLElement, sheet: boolean): void {
   const ok = state.meta.has_api_key;
   const dis = ok ? "" : "disabled";
   // Every selectable node: the General root, the seeded academic branch (even on
@@ -452,30 +488,99 @@ function renderIngest(): void {
         `${escapeHtml(sectionPathLabel(n))}</option>`,
     )
     .join("");
-  content.innerHTML = `
-    <p class="eyebrow eyebrow-ai">Ingest · compile into your wiki</p>
-    <h1>Ingest</h1>
-    ${ok ? "" : `<p class="notice">No API key found. Run <code>llmwiki set-key openai &lt;key&gt;</code> (or set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code>) and restart the server to ingest sources.</p>`}
-    <form id="ingest-form">
-      <label class="file-field">
-        <span class="file-field-label">Destination — new pages are filed here</span>
-        <select id="ingest-section" ${dis}>${options}</select>
-      </label>
-      <label class="file-field">
-        <span class="file-field-label">Choose files</span>
-        <input id="ingest-files" type="file" multiple accept="${escapeHtml(acceptAttr())}" ${dis}>
-      </label>
-      <div class="ingest-or">or paste a URL</div>
-      <input id="ingest-url" type="url" placeholder="https://…" autocomplete="off" ${dis}>
-      <div class="ingest-or">optional — guide how it's compiled</div>
-      <textarea id="ingest-prompt" placeholder="e.g. 'focus on the proofs', 'only chapter 3', 'keep it beginner-friendly'" ${dis}></textarea>
-      <div class="row">
-        <button type="submit" class="btn btn-primary" ${dis}>Ingest</button>
-      </div>
-    </form>
-    <div id="ingest-results"></div>`;
+  target.innerHTML = `
+    <div class="source-sheet-layout${sheet ? " is-sheet" : ""}">
+      <header class="source-sheet-intro">
+        <div class="source-icon"><i class="ph ph-upload-simple" aria-hidden="true"></i></div>
+        <div><p class="eyebrow eyebrow-ai">Knowledge compilation</p><h1>Add source</h1>
+        <p>Compile files or links into connected concepts inside this scope.</p></div>
+      </header>
+      ${ok ? "" : `<p class="notice source-key-notice">No API key found. Set <code>${escapeHtml(state.meta.api_key_env || "OPENAI_API_KEY")}</code> and restart the server to compile sources.</p>`}
+      <form id="ingest-form" class="source-form">
+        <section class="source-input-panel">
+          <div class="source-tabs" role="tablist" aria-label="Source type">
+            <button class="source-tab active" type="button" role="tab" aria-selected="true" data-source-mode="file">File</button>
+            <button class="source-tab" type="button" role="tab" aria-selected="false" data-source-mode="url">URL</button>
+          </div>
+          <div class="source-mode-panel" data-source-panel="file">
+            <label class="source-dropzone" for="ingest-files">
+              <i class="ph ph-file-arrow-up" aria-hidden="true"></i>
+              <strong>Drag &amp; drop files here</strong>
+              <span>or <u>choose files</u></span>
+              <input id="ingest-files" type="file" multiple accept="${escapeHtml(acceptAttr())}" ${dis}>
+            </label>
+            <div id="ingest-file-summary" class="selected-files muted">No files selected</div>
+          </div>
+          <div class="source-mode-panel" data-source-panel="url" hidden>
+            <label>Source URL<input id="ingest-url" type="url" placeholder="https://…" autocomplete="off" ${dis}></label>
+          </div>
+          <label class="guidance-field">Compilation guidance <span>(optional)</span>
+            <textarea id="ingest-prompt" placeholder="Focus on definitions and theorems; include examples and key proofs." ${dis}></textarea>
+          </label>
+        </section>
+        <aside class="source-destination-panel">
+          <label>Scope<select id="ingest-section" ${dis}>${options}</select></label>
+          <p class="eyebrow">Destination</p>
+          <strong>Compile into <span id="ingest-destination-label">${escapeHtml(sectionPathLabel(state.scope))}</span></strong>
+          <p class="muted">New concept and source pages stay local to this knowledge base.</p>
+          <button type="submit" class="button button-primary source-submit" ${dis}><i class="ph ph-sparkle" aria-hidden="true"></i><span>Compile into ${escapeHtml(sectionLabel(state.scope))}</span><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+        </aside>
+      </form>
+      <div id="ingest-results" class="ingest-results"></div>
+    </div>`;
   document.getElementById("ingest-form")!.addEventListener("submit", onIngest);
-  animateIn();
+  wireIngestSurface();
+}
+
+function wireIngestSurface(): void {
+  const files = document.getElementById("ingest-files") as HTMLInputElement;
+  const summary = document.getElementById("ingest-file-summary")!;
+  const destination = document.getElementById("ingest-section") as HTMLSelectElement;
+  const destinationLabel = document.getElementById("ingest-destination-label")!;
+  const submitText = document.querySelector<HTMLElement>(".source-submit span")!;
+  const updateFiles = () => {
+    const selected = files.files ? Array.from(files.files) : [];
+    summary.innerHTML = selected.length
+      ? selected.map((file) => `<span><i class="ph ph-file" aria-hidden="true"></i>${escapeHtml(file.name)}<small>${formatBytes(file.size)}</small></span>`).join("")
+      : "No files selected";
+  };
+  files.addEventListener("change", updateFiles);
+  const dropzone = document.querySelector<HTMLElement>(".source-dropzone");
+  dropzone?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    dropzone.classList.add("dragging");
+  });
+  dropzone?.addEventListener("dragleave", () => dropzone.classList.remove("dragging"));
+  dropzone?.addEventListener("drop", (event) => {
+    event.preventDefault();
+    dropzone.classList.remove("dragging");
+    if (event.dataTransfer?.files.length) {
+      files.files = event.dataTransfer.files;
+      updateFiles();
+    }
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-source-mode]").forEach((tab) =>
+    tab.addEventListener("click", () => {
+      const mode = tab.dataset.sourceMode;
+      document.querySelectorAll<HTMLButtonElement>("[data-source-mode]").forEach((candidate) => {
+        const active = candidate === tab;
+        candidate.classList.toggle("active", active);
+        candidate.setAttribute("aria-selected", String(active));
+      });
+      document.querySelectorAll<HTMLElement>("[data-source-panel]").forEach((panel) =>
+        panel.toggleAttribute("hidden", panel.dataset.sourcePanel !== mode));
+    }));
+  destination.addEventListener("change", () => {
+    const label = sectionPathLabel(destination.value);
+    destinationLabel.textContent = label;
+    submitText.textContent = `Compile into ${sectionLabel(destination.value)}`;
+  });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 async function onIngest(e: Event): Promise<void> {
@@ -522,7 +627,7 @@ async function onIngest(e: Event): Promise<void> {
       .map(
         (it, i) =>
           `<div class="ingest-item" id="ingest-item-${i}">` +
-          `<span class="ingest-item-status">⏳</span> ${escapeHtml(it.label)}</div>`,
+          `<span class="ingest-item-status"><i class="ph ph-spinner-gap" aria-hidden="true"></i></span> ${escapeHtml(it.label)}</div>`,
       )
       .join("") +
     `</div>`;
@@ -533,16 +638,24 @@ async function onIngest(e: Event): Promise<void> {
       const res = await postForm<IngestResult>("/api/ingest", items[i].fd);
       anyOk = true;
       const n = res.concept_slugs.length;
+      const warnings = res.warnings || [];
+      const skipped = res.status === "skipped";
       const detail =
-        res.status === "skipped"
+        skipped
           ? `skipped (${res.reason || "unchanged"})`
           : `${n} concept${n === 1 ? "" : "s"}`;
+      const statusClass = warnings.length ? "warn" : skipped ? "skip" : "ok";
+      const statusIcon = warnings.length ? "ph-warning-circle" : skipped ? "ph-info" : "ph-check-circle";
+      const warningDetail = warnings.length
+        ? ` · ${warnings.length} warning${warnings.length === 1 ? "" : "s"}: ${warnings.join(" ")}`
+        : "";
       row.innerHTML =
-        `<span class="ingest-item-status ok">✓</span> ` +
-        `${escapeHtml(res.title || items[i].label)} — ${escapeHtml(detail)}`;
+        `<span class="ingest-item-status ${statusClass}"><i class="ph ${statusIcon}" aria-hidden="true"></i></span>` +
+        `<span>${escapeHtml(res.title || items[i].label)} — ${escapeHtml(detail + warningDetail)}</span>` +
+        (res.concept_slugs[0] ? ` <a href="#/page/${encodeURIComponent(res.concept_slugs[0])}">Open result <i class="ph ph-arrow-right" aria-hidden="true"></i></a>` : "");
     } catch (err) {
       row.innerHTML =
-        `<span class="ingest-item-status err">✗</span> ` +
+        `<span class="ingest-item-status err"><i class="ph ph-x-circle" aria-hidden="true"></i></span> ` +
         `${escapeHtml(items[i].label)} — ${escapeHtml((err as Error).message)}`;
     }
   }
@@ -556,7 +669,6 @@ async function onIngest(e: Event): Promise<void> {
     }
     await loadPages();
     renderLandingStats(); // keep the landing counts live after an ingest
-    renderBranches(); // and the branch cards (counts + any new branch)
     filesEl.value = "";
     urlEl.value = "";
     if (promptEl) promptEl.value = "";
@@ -564,12 +676,12 @@ async function onIngest(e: Event): Promise<void> {
 }
 
 function renderLint(): void {
-  setScopedBreadcrumb(state.scope, "Lint");
+  setScopedBreadcrumb(state.scope, "Review");
   const deepDis = state.meta.has_api_key ? "" : "disabled";
   content.innerHTML = `
     <p class="eyebrow">Editorial review</p>
-    <h1>Lint</h1>
-    <p class="page-meta">Checks are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — switch sections in the sidebar.</p>
+    <h1>Review</h1>
+    <p class="page-meta">Checks are scoped to <strong>${escapeHtml(scopeLabel())}</strong> — change scope from the header.</p>
     <div class="row">
       <button id="lint-run" class="btn btn-primary">Run checks</button>
       <label><input type="checkbox" id="lint-deep" ${deepDis}> deep review (uses API)</label>
@@ -587,7 +699,7 @@ async function runLint(): Promise<void> {
   try {
     const issues = await getJSON<LintIssue[]>("/api/lint?deep=" + (deep ? "true" : "false") + scopeParam);
     if (!issues.length) {
-      out.innerHTML = '<p class="lint-clean">✓ Clean — no errata in this scope.</p>';
+      out.innerHTML = '<p class="lint-clean"><i class="ph ph-check-circle" aria-hidden="true"></i> Clean — no errata in this scope.</p>';
       return;
     }
     out.innerHTML = issues
@@ -619,11 +731,12 @@ const CUST_COMPONENTS: { key: string; label: string; help: string }[] = [
 ];
 
 export async function renderCustomize(section: string): Promise<void> {
-  state.scope = section;
-  document.querySelectorAll<HTMLButtonElement>("#nav button").forEach((b) => b.classList.remove("active"));
+  setActiveScope(section);
+  setActiveNavigation("workspace");
+  content.className = "content-view settings-view";
   highlightSidebar(null);
   renderPageList();
-  setScopedBreadcrumb(section, "Customize");
+  setScopedBreadcrumb(section, "Scope settings");
   content.innerHTML = '<p class="muted">Loading…</p>';
   try {
     const list = await getJSON<OverridesList>("/api/overrides");
@@ -703,7 +816,7 @@ function paintCustomize(section: string, detail: SectionOverrides, list: Overrid
     customizeCard(c, detail.components[c.key], isGeneral),
   ).join("");
   content.innerHTML = `
-    <p class="eyebrow eyebrow-ai">Customize · LLM instructions</p>
+    <p class="eyebrow eyebrow-ai">Scope settings · LLM instructions</p>
     <h1>${escapeHtml(label)}</h1>
     <p class="page-meta">${
       isGeneral

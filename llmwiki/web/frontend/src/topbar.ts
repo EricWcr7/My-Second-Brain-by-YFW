@@ -1,63 +1,65 @@
-// The persistent app top bar: a single source of wayfinding. It renders the
-// breadcrumb for the current view, the working scope (with a clear control),
-// and the API-key status. All of its links are plain `#/…` hash anchors, so
-// they navigate the same way as the sidebar and in-content links.
 import { escapeHtml } from "./api";
+import { sectionLabel, sectionPathLabel } from "./sections";
 import { state } from "./state";
-import { sectionAncestors, sectionLabel } from "./sections";
 
-// Render the breadcrumb. `chain` is the section-node prefix (each crumb links to
-// its hub at `#/section/<node>`); with `leafLabel` it's appended as the current
-// (non-link) item — otherwise the last chain node is the current one. Mirrors
-// the old in-content `crumbs()` semantics, now hoisted into the top bar.
 export function setBreadcrumb(chain: string[], leafLabel?: string): void {
   const el = document.getElementById("crumbs");
   if (!el) return;
-  const parts = chain.map((node, i) => {
-    const last = i === chain.length - 1;
+  const visible = chain.filter((node, index) => !(node === "" && chain.length > 1 && index === 0));
+  const parts = visible.map((node, index) => {
+    const last = index === visible.length - 1;
     const label = escapeHtml(sectionLabel(node));
     if (last && !leafLabel) return `<span class="crumb crumb-current">${label}</span>`;
-    return `<a class="crumb" href="#/section/${node}">${label}</a>`; // node "" -> General hub
+    return `<a class="crumb" href="#/section/${encodeURI(node)}">${label}</a>`;
   });
   if (leafLabel) parts.push(`<span class="crumb crumb-current">${escapeHtml(leafLabel)}</span>`);
   el.innerHTML = parts.join('<span class="crumb-sep">›</span>');
   updateScopeChip();
 }
 
-// Convenience: breadcrumb for a scope + a view label (Ask/Lint/Ingest/Overview).
 export function setScopedBreadcrumb(scope: string, viewLabel: string): void {
-  setBreadcrumb(sectionAncestors(scope), viewLabel);
+  const chain = scope ? scope.split("/").map((_, index, segments) => segments.slice(0, index + 1).join("/")) : [""];
+  setBreadcrumb(chain, viewLabel);
 }
 
-// The working-scope chip. Shows the current scope and a clear control; "" is
-// General (the whole base), the implicit default, shown without a clear button.
 export function updateScopeChip(): void {
   const chip = document.getElementById("scope-chip");
-  if (!chip) return;
-  if (!state.scope) {
-    chip.className = "scope-chip";
-    chip.innerHTML =
-      `<span class="scope-chip-tag">Scope</span>` +
-      `<a class="scope-chip-label" href="#/section/">General · all notes</a>`;
-    return;
+  if (chip) chip.textContent = sectionPathLabel(state.scope);
+  const settings = document.getElementById("scope-settings-link") as HTMLAnchorElement | null;
+  if (settings) settings.href = "#/customize/" + encodeURI(state.scope);
+  const refresh = document.getElementById("scope-refresh") as HTMLButtonElement | null;
+  if (refresh) {
+    refresh.disabled = !state.meta.has_api_key;
+    refresh.title = state.meta.has_api_key
+      ? `Regenerate the ${sectionLabel(state.scope)} overview`
+      : `${state.meta.api_key_env || "OPENAI_API_KEY"} is required`;
   }
-  const label = escapeHtml(sectionLabel(state.scope));
-  chip.className = "scope-chip scoped";
-  chip.innerHTML =
-    `<span class="scope-chip-tag">Scope</span>` +
-    `<a class="scope-chip-label" href="#/section/${state.scope}" title="Open ${label}">${label}</a>` +
-    `<a class="scope-chip-clear" href="#/section/" aria-label="Clear scope — back to General" title="Clear scope">✕</a>`;
 }
 
-// API-key status dot: a quiet readiness signal for Ask/Ingest (which need a key).
 export function updateKeyStatus(): void {
-  const el = document.getElementById("key-status");
-  if (!el) return;
-  const ok = state.meta.has_api_key;
-  el.className = "key-status " + (ok ? "ok" : "off");
-  const tip = ok
-    ? "API key detected — Ask and Ingest are ready."
-    : `No API key (${state.meta.api_key_env || "OPENAI_API_KEY"}). Browse, Search, and structural Lint still work.`;
-  el.title = tip;
-  el.setAttribute("aria-label", tip);
+  const button = document.getElementById("key-status") as HTMLButtonElement | null;
+  const popover = document.getElementById("readiness-popover");
+  if (!button || !popover) return;
+  const apiReady = state.meta.has_api_key;
+  const solverReady = Boolean(state.meta.solver_enabled && state.meta.solver_models?.some((model) => model.available));
+  button.dataset.state = apiReady ? "ready" : "limited";
+  const label = button.querySelector(".readiness-label");
+  if (label) label.textContent = apiReady ? "AI ready" : "Local only";
+  const summary = apiReady
+    ? "Browse, search, compile, ask, and deep review are ready."
+    : `Browse, local search, and structural review are ready. Set ${state.meta.api_key_env || "OPENAI_API_KEY"} to enable AI actions.`;
+  button.setAttribute("aria-label", summary);
+  popover.innerHTML = `
+    <p class="eyebrow">System status</p>
+    <h3>${apiReady ? "AI operations ready" : "Local workspace ready"}</h3>
+    <p>${escapeHtml(summary)}</p>
+    <div class="readiness-list">
+      ${statusRow("Local vault", true, "Compiled and indexed on this machine")}
+      ${statusRow("Ask & compile", apiReady, apiReady ? "Provider key detected" : `Requires ${state.meta.api_key_env || "OPENAI_API_KEY"}`)}
+      ${statusRow("Problem solver", solverReady, state.meta.solver_enabled ? (solverReady ? "Configured model available" : "Configured models unavailable") : "No solver scope configured")}
+    </div>`;
+}
+
+function statusRow(label: string, ready: boolean, detail: string): string {
+  return `<div class="readiness-row"><i class="ph ${ready ? "ph-check-circle" : "ph-info"}" aria-hidden="true"></i><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></span></div>`;
 }

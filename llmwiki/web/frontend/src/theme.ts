@@ -8,7 +8,12 @@ export function effectiveTheme(): "light" | "dark" {
 }
 
 export function initThemeToggle(): void {
-  // There can be several toggles (landing top bar + sidebar); wire them all.
+  const updateIcons = () => {
+    const dark = effectiveTheme() === "dark";
+    document.querySelectorAll<HTMLElement>("[data-theme-toggle] i").forEach((icon) => {
+      icon.className = `ph ${dark ? "ph-moon" : "ph-sun"}`;
+    });
+  };
   document.querySelectorAll<HTMLElement>("[data-theme-toggle]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const next = effectiveTheme() === "dark" ? "light" : "dark";
@@ -18,6 +23,9 @@ export function initThemeToggle(): void {
       } catch (e) {
         /* private mode */
       }
+      updateIcons();
     }),
   );
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", updateIcons);
+  updateIcons();
 }
