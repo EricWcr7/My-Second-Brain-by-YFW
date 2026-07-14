@@ -2589,17 +2589,31 @@ dialog::backdrop { background: rgba(3, 8, 12, .62); backdrop-filter: blur(2px); 
 .brain-art,
 #brain-canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(1.035); transform-origin: center; }
 .brain-art {
+  z-index: 0;
   display: block;
   mix-blend-mode: screen;
   object-fit: contain;
   transition: filter .6s ease;
   user-select: none;
 }
-#brain-canvas { pointer-events: none; }
-#brain-field[data-brain-state="awake"] .brain-art { filter: brightness(1.1) saturate(1.08); }
+#brain-field::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: radial-gradient(ellipse 43% 46% at 72% 49%, rgba(8, 16, 23, .72) 0, rgba(8, 16, 23, .6) 38%, rgba(8, 16, 23, .28) 72%, rgba(8, 16, 23, 0) 100%);
+  content: "";
+  pointer-events: none;
+  transform: scaleX(1.035);
+  transform-origin: center;
+}
+#brain-field[data-brain-state="awake"]::after {
+  -webkit-mask-image: radial-gradient(circle var(--brain-wake-radius, 0) at var(--brain-pointer-x, -180px) var(--brain-pointer-y, -180px), transparent 0, rgba(0, 0, 0, .18) 58%, #000 100%);
+  mask-image: radial-gradient(circle var(--brain-wake-radius, 0) at var(--brain-pointer-x, -180px) var(--brain-pointer-y, -180px), transparent 0, rgba(0, 0, 0, .18) 58%, #000 100%);
+}
+#brain-canvas { z-index: 2; pointer-events: none; }
 html[data-theme="light"] .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.96) contrast(.92); mix-blend-mode: multiply; }
-html[data-theme="light"] #brain-field[data-brain-state="awake"] .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(1.02) saturate(1.08); }
-.brain-hint { position: absolute; left: 38%; bottom: 18.5%; display: flex; align-items: center; gap: 10px; color: color-mix(in srgb, var(--accent) 72%, var(--muted)); font: 10px var(--font-ui); }
+html[data-theme="light"] #brain-field::after { background: radial-gradient(ellipse 43% 46% at 72% 49%, rgba(243, 242, 237, .76) 0, rgba(243, 242, 237, .62) 38%, rgba(243, 242, 237, .3) 72%, rgba(243, 242, 237, 0) 100%); }
+.brain-hint { position: absolute; z-index: 3; left: 38%; bottom: 18.5%; display: flex; align-items: center; gap: 10px; color: color-mix(in srgb, var(--accent) 72%, var(--muted)); font: 10px var(--font-ui); }
 .brain-hint span { width: 58px; height: 1px; background: var(--accent); opacity: .5; }
 .welcome-stats {
   display: flex;
@@ -2737,7 +2751,7 @@ html[data-theme="light"] #brain-field[data-brain-state="awake"] .brain-art { fil
 
 @media (prefers-color-scheme: light) {
   html:not([data-theme]) .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.96) contrast(.92); mix-blend-mode: multiply; }
-  html:not([data-theme]) #brain-field[data-brain-state="awake"] .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(1.02) saturate(1.08); }
+  html:not([data-theme]) #brain-field::after { background: radial-gradient(ellipse 43% 46% at 72% 49%, rgba(243, 242, 237, .76) 0, rgba(243, 242, 237, .62) 38%, rgba(243, 242, 237, .3) 72%, rgba(243, 242, 237, 0) 100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
