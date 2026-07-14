@@ -14,6 +14,8 @@ export interface Meta {
   solver_section?: string;
   solver_enabled?: boolean;
   solver_exts?: string[];
+  solver_models?: SolverModel[];
+  solver_default_model?: string;
 }
 
 export interface PageRef {
@@ -61,6 +63,17 @@ export interface SolverTurn {
   attachments: SolverAttachment[];
   pages_used: string[]; // assistant turns
   ungrounded: string[];
+  reasoning_summary?: string | null;
+}
+
+export interface SolverModel {
+  id: string;
+  label: string;
+  provider: string;
+  api_key_env: string;
+  effort: string;
+  max_tokens: number;
+  available: boolean;
 }
 
 export interface SolverSession {
@@ -69,6 +82,7 @@ export interface SolverSession {
   section: string;
   created: string;
   updated: string;
+  model?: string | null;
   turns: SolverTurn[];
 }
 
@@ -78,6 +92,7 @@ export interface SolverSessionRow {
   created: string;
   updated: string;
   turn_count: number;
+  model?: string | null;
 }
 
 // --- per-section LLM customization (GET/POST /api/overrides) ----------------

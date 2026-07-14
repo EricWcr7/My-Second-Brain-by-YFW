@@ -1052,6 +1052,76 @@ select, .btn {
   letter-spacing: .18em;
   color: var(--faint);
 }
+.solver-new-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+.solver-new-controls label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.solver-new-controls select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.solver-new-controls select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.solver-new-controls .btn { width: 100%; }
+.solver-new-hint {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+.solver-session-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin: -18px 0 24px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elev);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.solver-session-status-label {
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.solver-session-status strong { color: var(--fg); }
+.solver-model-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--ai) 40%, var(--border));
+  border-radius: var(--radius-pill);
+  background: var(--ai-soft);
+  color: var(--ai);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+.solver-session-lock { color: var(--muted); }
 .solver-rail-empty { margin: 10px 0 0; font-size: .9rem; color: var(--muted); }
 .solver-session-list { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
 .solver-session {
@@ -1062,7 +1132,7 @@ select, .btn {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 10px 26px 10px 8px;
+  padding: 10px 52px 10px 8px;
   text-decoration: none;
   color: var(--fg);
   border-left: 2px solid transparent;
@@ -1082,10 +1152,14 @@ select, .btn {
 .solver-session-meta { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
 .solver-session-del {
   position: absolute;
-  top: 8px; right: 2px;
+  top: 9px; right: 4px;
   border: 0;
   background: transparent;
-  font-size: 13px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
   line-height: 1;
   padding: 4px;
   border-radius: 5px;
@@ -1134,6 +1208,38 @@ select, .btn {
   color: var(--muted);
 }
 .solver-turn-tick { color: var(--ai); margin-right: .4em; }
+.solver-reasoning {
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elev);
+}
+.solver-reasoning summary {
+  display: list-item;
+  list-style-position: inside;
+  padding: 9px 12px;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.solver-reasoning summary::marker { color: var(--ai); }
+.solver-reasoning-source {
+  float: right;
+  margin-left: 12px;
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: .03em;
+  text-transform: none;
+}
+.solver-reasoning[open] summary { border-bottom: 1px solid var(--border); color: var(--ai); }
+.solver-reasoning-body { padding: 10px 14px 12px; }
+.solver-reasoning-body > :first-child { margin-top: 0; }
+.solver-reasoning-body > :last-child { margin-bottom: 0; }
 .solver-solution > :first-child { margin-top: 0; }
 .solver-turn-ai.revealing .solver-solution > * { animation: fade-rise .5s cubic-bezier(.22,.61,.36,1) both; }
 .solver-turn-ai.revealing .solver-solution > *:nth-child(1) { animation-delay: .04s; }
@@ -1148,6 +1254,15 @@ select, .btn {
   margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
+}
+.solver-composer-label {
+  margin-bottom: -8px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 .solver-composer textarea {
   width: 100%;
@@ -1175,8 +1290,22 @@ select, .btn {
 @media (max-width: 900px) {
   .solver-shell { grid-template-columns: 1fr; gap: 18px; }
   .solver-rail { position: static; }
+  .solver-new-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+  .solver-new-controls label { grid-column: 1 / -1; }
+  .solver-new-hint { grid-column: 1 / -1; }
+  .solver-new-controls .btn { width: auto; }
   .solver-session-del { opacity: .55; } /* no hover on touch — keep it visible */
   .solver-turn-user { max-width: 100%; }
+}
+
+@media (max-width: 520px) {
+  .solver-new-controls { display: flex; align-items: stretch; }
+  .solver-new-controls .btn { width: 100%; }
+  .solver-session-status { margin-top: -16px; }
 }
 
 /* Lint — an "errata report" ------------------------------------------------- */

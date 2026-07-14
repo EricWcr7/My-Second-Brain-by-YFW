@@ -38,12 +38,14 @@ I designed these extensions and directed the implementation with Claude Code.
 ## Run the app
 
 You need **Python 3.11+** and an **API key** for your provider (`OPENAI_API_KEY`
-by default, or `ANTHROPIC_API_KEY`). From the repo root:
+by default, or `ANTHROPIC_API_KEY`). Set both keys if you want both models in the
+Solver chooser. From the repo root:
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install ".[web]"                # installs the app (FastAPI + the runtime)
 llmwiki set-key openai sk-...        # store your key once (~/.config/llmwiki/.env, mode 600)
+# llmwiki set-key anthropic sk-ant-...  # optional: enable Claude Fable 5 in Solver
 llmwiki init                         # create a vault here (raw/, wiki/, .llmwiki/)
 llmwiki                              # launch → opens http://127.0.0.1:8000
 ```
@@ -119,9 +121,13 @@ a **☰ menu** in the top bar.
   your wiki, the app flags it so you can distrust that claim (provenance you can see).
 - **Solver** — a **Problem Set Solver**: a ChatGPT-style multi-turn chat scoped to
   one configured course section (`solver_section`, e.g. `academic/example-course`).
+  Each new session locks in either **GPT-5.6 Sol** or **Claude Fable 5**; GPT is
+  preselected when its key is available, otherwise the first available model is.
   Each question runs fresh retrieval over that course's pages and answers with
   **full worked solutions** (rendered math, `[[slug]]` citations, the same
-  ungrounded-citation flags as Ask) at **maximum reasoning effort**. Attach
+  ungrounded-citation flags as Ask) at **maximum reasoning effort**. Provider-made
+  reasoning summaries arrive with the completed solution in a collapsed panel;
+  raw chain-of-thought and live reasoning are never shown. Attach
   problem-set **PDFs/images per message** — they're sent natively to the model
   and **never ingested** into the wiki. Sessions persist on disk, are listed in
   a sidebar (resume/delete), and every turn sees the whole conversation. The
@@ -217,7 +223,7 @@ page and ultimately to the local raw file. Unlike classic RAG, the knowledge is
 
 The current automated suite is reproducible without an API key because provider
 responses are faked. On July 13, 2026, the repository test suite completed with
-**172 passed and 4 skipped**. Run `pytest` for the full suite and `make eval` for
+**189 passed**. Run `pytest` for the full suite and `make eval` for
 the focused grounding checks.
 
 - The answer grounding eval has 6 golden cases and scored **6/6**. It checks that
@@ -291,7 +297,7 @@ request_timeout = 300.0             # seconds before a provider call times out
 ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
 # solver_section = "academic/example-course"  # enable the Problem Set Solver, scoped to this section
-solver_reasoning_effort = "xhigh"   # solver-turn reasoning effort (OpenAI; Anthropic ignores)
+solver_reasoning_effort = "xhigh"   # legacy sessions only; new sessions use fixed max effort
 solver_request_timeout = 600.0      # per-turn ceiling for solver calls (max effort runs long)
 ```
 
@@ -307,6 +313,26 @@ the defaults — OpenAI `gpt-5.6-sol` (a reasoning model run at `high` reasoning
 Anthropic `claude-opus-4-8` / `claude-haiku-4-5`. If you override the OpenAI model,
 keep it GPT-5.5+ (`high` effort is only valid there). **API keys are read from the
 environment — never put them here.**
+
+The Solver model picker is independent of `provider`: new sessions use either
+OpenAI `gpt-5.6-sol` with `reasoning.effort = "max"` and summary mode `auto`, or
+Anthropic `claude-fable-5` with adaptive summarized thinking and
+`output_config.effort = "max"`. The choice is fixed for that session; Ask,
+Ingest, Lint, and overview generation still use the global provider above. A
+provider may legitimately return no summary, in which case the worked solution
+is still shown without a summary panel.
+
+Fable's `max_tokens` is **64,000 tokens shared by thinking and the visible
+answer**. GPT keeps the existing 16,000-token answer budget plus its reasoning
+reserve. OpenAI reasoning summaries may require [organization
+verification](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries).
+Claude Fable 5 has a [30-day retention requirement and is not eligible for Zero
+Data Retention](https://platform.claude.com/docs/en/about-claude/models/overview),
+so confirm that policy fits the material you upload. See the official
+[GPT-5.6 guidance](https://developers.openai.com/api/docs/guides/latest-model),
+[Anthropic effort API](https://platform.claude.com/docs/en/build-with-claude/effort),
+and [adaptive-thinking summary controls](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking#controlling-thinking-display)
+for account and API details.
 
 ## Developing the web UI
 

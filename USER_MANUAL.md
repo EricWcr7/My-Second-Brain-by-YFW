@@ -269,7 +269,7 @@ request_timeout = 300.0             # seconds before a provider call times out
 ingest_request_timeout = 3600.0     # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2                     # retries for transient provider failures
 # solver_section = "academic/example-course"  # enable the Problem Set Solver, scoped to this section (W14)
-solver_reasoning_effort = "xhigh"   # solver-turn reasoning effort (OpenAI; Anthropic ignores)
+solver_reasoning_effort = "xhigh"   # legacy sessions only; new sessions use fixed max effort
 solver_request_timeout = 600.0      # per-turn ceiling for solver calls (max effort runs long)
 ```
 Set the matching env key (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Keys never go in
@@ -327,8 +327,12 @@ solver_section = "academic/example-course"
 A **Solver** entry then appears in the sidebar nav (it stays hidden while
 `solver_section` is unset). Inside:
 
-- **Sessions** — the left rail lists your sessions; **+ New** starts one, clicking
-  one resumes it, and **🗑** deletes it (transcript and attached files). Sessions
+- **Sessions and model choice** — choose **GPT-5.6 Sol** or **Claude Fable 5**
+  above **New session**. GPT is preselected when available; otherwise the first model
+  with a configured key is selected. Unavailable models show the environment
+  variable they need. The choice is locked for the new session; start another
+  session to switch. Clicking a session resumes it, and **Delete** removes it
+  (transcript and attached files). Sessions
   persist on disk under `.llmwiki/solver/` — they survive restarts, and every
   question in a session sees the whole conversation, so follow-ups can build on
   earlier answers ("now do part (c) using the same setup").
@@ -344,14 +348,32 @@ A **Solver** entry then appears in the sidebar nav (it stays hidden while
   turn retrieves fresh pages from the course wiki and cites them `[[slug]]`-style
   with the same **References** list and **ungrounded-citation warning** as Ask —
   if a cited page isn't in your wiki, you'll see the caution note.
+- **Reasoning summaries** — both selectable models think at their highest effort.
+  After a turn completes, any provider-generated summary appears collapsed above
+  the worked solution. Expand it when useful. The app never streams or displays
+  raw chain-of-thought, and a missing provider summary does not invalidate the
+  solution.
 - **Speed & cost** — solver turns run at **maximum reasoning effort**
-  (`solver_reasoning_effort`, default `xhigh` on OpenAI), so an answer can take a
-  few minutes; the turn is bounded by `solver_request_timeout`. Attachments are
+  (`max` for both selectable models), so an answer can take a few minutes; the
+  turn is bounded by `solver_request_timeout`. Fable has a **64,000-token combined
+  thinking-and-answer cap**; GPT keeps the existing answer budget and reasoning
+  reserve. Attachments are
   re-sent each turn, so very long sessions with big PDFs cost more — start a new
   session per problem set.
 - **Customize it** — the solver's system prompt is the **solver** card in
   **Customize** (W12): override it for the course (e.g. "always verify with an
   alternative method") or edit the general default.
+
+Set `OPENAI_API_KEY` for GPT and `ANTHROPIC_API_KEY` for Fable (set both to make
+both choices available). OpenAI may require [organization
+verification](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries)
+before it returns reasoning summaries. Claude Fable 5 requires [30-day data
+retention and does not support Zero Data
+Retention](https://platform.claude.com/docs/en/about-claude/models/overview); check
+that policy before sending sensitive problem sets. A Fable refusal is reported as
+an error and leaves the attempted turn and its new attachments unsaved; the app
+never silently changes providers. These per-session choices do not change the
+global provider used by Ask, Ingest, Lint, or overviews.
 
 ---
 

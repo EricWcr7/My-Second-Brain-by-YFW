@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,7 @@ import llmwiki.providers.anthropic_provider as ap
 import llmwiki.providers.openai_provider as op
 from llmwiki.config import Config, load_config
 from llmwiki.providers import ProviderError, get_provider
+from llmwiki.providers.base import ChatMessage
 
 
 def test_config_defaults_to_openai_with_provider_default_models():
@@ -78,6 +80,57 @@ def test_openai_requests_use_high_reasoning(monkeypatch):
     assert captured["model"] == "gpt-5.6-sol"
     assert captured["reasoning"] == {"effort": "high"}
     assert op.REASONING_EFFORT == "high"
+
+
+def test_openai_chat_requests_max_reasoning_and_collects_summaries(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    pytest.importorskip("openai")
+    provider = op.OpenAIProvider(Config(root=Path("/tmp")))
+    captured: dict = {}
+
+    class _Responses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                output_text=" Final answer. ",
+                output=[
+                    {
+                        "type": "reasoning",
+                        "summary": [
+                            {"type": "summary_text", "text": "First summary."},
+                            {"type": "summary_text", "text": "Second summary."},
+                        ],
+                    },
+                    {"type": "message", "content": []},
+                    {
+                        "type": "reasoning",
+                        "summary": [{"type": "summary_text", "text": "Third summary."}],
+                    },
+                ],
+            )
+
+    provider.client = type("_Client", (), {"responses": _Responses()})()
+    result = provider.chat("system", [ChatMessage(role="user", text="question")], effort="max")
+
+    assert captured["model"] == "gpt-5.6-sol"
+    assert captured["reasoning"] == {"effort": "max", "summary": "auto"}
+    assert captured["max_output_tokens"] == 16_000 + op.REASONING_TOKEN_RESERVE
+    assert result.text == "Final answer."
+    assert result.reasoning_summary == "First summary.\n\nSecond summary.\n\nThird summary."
+
+
+def test_openai_chat_missing_summary_is_none(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+    pytest.importorskip("openai")
+    provider = op.OpenAIProvider(Config(root=Path("/tmp")))
+
+    class _Responses:
+        def create(self, **kwargs):
+            return SimpleNamespace(output_text="answer", output=[])
+
+    provider.client = type("_Client", (), {"responses": _Responses()})()
+    result = provider.chat("system", [ChatMessage(role="user", text="question")], effort="max")
+    assert result.reasoning_summary is None
 
 
 def test_openai_client_uses_config_timeout_and_retries(monkeypatch):
@@ -174,3 +227,123 @@ def test_anthropic_normalizes_count_tokens_errors(monkeypatch):
     provider.client = type("_Client", (), {"messages": _Messages()})()
     with pytest.raises(ProviderError, match="Anthropic count_tokens failed"):
         provider.count_tokens("system", "user")
+
+
+class _AnthropicStream:
+    def __init__(self, message):
+        self.message = message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def get_final_message(self):
+        return self.message
+
+
+def test_anthropic_chat_requests_adaptive_max_and_separates_summary(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp")))
+    captured: dict = {}
+    message = SimpleNamespace(
+        content=[
+            SimpleNamespace(type="thinking", thinking="First summary."),
+            SimpleNamespace(type="text", text="Final "),
+            SimpleNamespace(type="thinking", thinking="Second summary."),
+            SimpleNamespace(type="text", text="answer."),
+        ],
+        stop_reason="end_turn",
+    )
+
+    class _Messages:
+        def stream(self, **kwargs):
+            captured.update(kwargs)
+            return _AnthropicStream(message)
+
+    provider.client = type("_Client", (), {"messages": _Messages()})()
+    result = provider.chat(
+        "system",
+        [ChatMessage(role="user", text="question")],
+        model="claude-fable-5",
+        max_tokens=64_000,
+        effort="max",
+    )
+
+    assert captured["model"] == "claude-fable-5"
+    assert captured["max_tokens"] == 64_000
+    assert captured["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert captured["output_config"] == {"effort": "max"}
+    assert result.text == "Final answer."
+    assert result.reasoning_summary == "First summary.\n\nSecond summary."
+
+
+def test_anthropic_chat_missing_summary_is_none(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp")))
+    message = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text="answer")],
+        stop_reason="end_turn",
+    )
+
+    class _Messages:
+        def stream(self, **kwargs):
+            return _AnthropicStream(message)
+
+    provider.client = type("_Client", (), {"messages": _Messages()})()
+    result = provider.chat(
+        "system",
+        [ChatMessage(role="user", text="question")],
+        model="claude-fable-5",
+        effort="max",
+    )
+    assert result.reasoning_summary is None
+
+
+def test_anthropic_non_fable_raw_thinking_is_not_exposed(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp")))
+    message = SimpleNamespace(
+        content=[
+            SimpleNamespace(type="thinking", thinking="raw hidden reasoning"),
+            SimpleNamespace(type="text", text="answer"),
+        ],
+        stop_reason="end_turn",
+    )
+    captured: dict = {}
+
+    class _Messages:
+        def stream(self, **kwargs):
+            captured.update(kwargs)
+            return _AnthropicStream(message)
+
+    provider.client = type("_Client", (), {"messages": _Messages()})()
+    result = provider.chat("system", [ChatMessage(role="user", text="question")], effort="xhigh")
+
+    assert captured["thinking"] == {"type": "adaptive"}
+    assert "output_config" not in captured
+    assert result.reasoning_summary is None
+
+
+def test_anthropic_refusal_becomes_clean_provider_error(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy")
+    pytest.importorskip("anthropic")
+    provider = ap.AnthropicProvider(Config(root=Path("/tmp")))
+    message = SimpleNamespace(
+        content=[],
+        stop_reason="refusal",
+        # anthropic 0.79 preserves this newly added response field as a dict.
+        stop_details={"category": "medical_advice"},
+    )
+
+    class _Messages:
+        def stream(self, **kwargs):
+            return _AnthropicStream(message)
+
+    provider.client = type("_Client", (), {"messages": _Messages()})()
+    with pytest.raises(ProviderError, match="refused.*medical_advice"):
+        provider.chat("system", [ChatMessage(role="user", text="question")], effort="max")

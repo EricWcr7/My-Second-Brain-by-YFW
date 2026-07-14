@@ -13,7 +13,7 @@ from llmwiki.ingest import (
     SourcePageDraft,
 )
 from llmwiki.lint import LintFindings
-from llmwiki.providers.base import LLMProvider
+from llmwiki.providers.base import ChatResult, LLMProvider
 from llmwiki.rerank import RerankResult
 
 
@@ -24,12 +24,14 @@ class FakeProvider(LLMProvider):
         analysis: SourceAnalysis | None = None,
         generation: GenerationResult | None = None,
         answer_text: str = "Fake answer [[concept]].",
+        reasoning_summary: str | None = None,
         findings: LintFindings | None = None,
         rerank_order: list[str] | None = None,
     ):
         self._analysis = analysis
         self._generation = generation
         self._answer = answer_text
+        self._reasoning_summary = reasoning_summary
         self._findings = findings
         self._rerank_order = rerank_order
         self.calls: list[str] = []
@@ -38,6 +40,7 @@ class FakeProvider(LLMProvider):
         self.last_chat_system: str | None = None
         self.last_chat_messages: list | None = None
         self.last_chat_effort: str | None = None
+        self.last_chat_max_tokens: int | None = None
 
     def with_timeout(self, timeout: float) -> "FakeProvider":
         # Record the requested timeout so a test can assert ingest scopes its own;
@@ -49,12 +52,13 @@ class FakeProvider(LLMProvider):
         self.calls.append("complete")
         return self._answer
 
-    def chat(self, system, messages, *, model=None, max_tokens=16000, effort=None) -> str:
+    def chat(self, system, messages, *, model=None, max_tokens=16000, effort=None) -> ChatResult:
         self.calls.append(f"chat:{len(messages)}")
         self.last_chat_system = system
         self.last_chat_messages = messages
         self.last_chat_effort = effort
-        return self._answer
+        self.last_chat_max_tokens = max_tokens
+        return ChatResult(self._answer, self._reasoning_summary)
 
     def parse(self, system, user, schema, *, model=None, max_tokens=16000):
         self.calls.append(f"parse:{schema.__name__}")

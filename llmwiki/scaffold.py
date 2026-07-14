@@ -35,6 +35,11 @@ pdf_vision_min_chars_per_page = 100
 request_timeout = 300.0
 ingest_request_timeout = 3600.0      # longer ceiling for ingest only (big/multi-pass sources)
 max_retries = 2
+# Problem Set Solver: uncomment one course section to enable the web view.
+# New sessions choose GPT-5.6 Sol or Claude Fable 5 and lock that model at max effort.
+# solver_section = "academic/example-course"
+# solver_reasoning_effort = "xhigh"  # legacy solver sessions only
+# solver_request_timeout = 600.0
 """
 
 PURPOSE_MD = """\

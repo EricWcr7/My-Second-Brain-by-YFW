@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from ..config import Config
-from .base import ChatMessage, LLMProvider, ProviderError, T, Usage
+from .base import ChatMessage, ChatResult, LLMProvider, ProviderError, T, Usage
 
 logger = logging.getLogger("llmwiki.providers")
 
@@ -35,6 +35,28 @@ TRANSCRIBE_INSTRUCTION = (
     "proofs, and examples intact and in order. Describe figures/diagrams briefly "
     "in text. Do not summarize or omit content. Output only the Markdown."
 )
+
+
+def _field(value, name: str, default=None):
+    """Read one SDK response field from either a model object or test dict."""
+    if isinstance(value, dict):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _reasoning_summary(response) -> str | None:
+    """Collect opted-in Responses API reasoning summary blocks in order."""
+    parts: list[str] = []
+    for item in _field(response, "output", []) or []:
+        if _field(item, "type") != "reasoning":
+            continue
+        for block in _field(item, "summary", []) or []:
+            if _field(block, "type") != "summary_text":
+                continue
+            text = str(_field(block, "text", "")).strip()
+            if text:
+                parts.append(text)
+    return "\n\n".join(parts) or None
 
 
 class OpenAIProvider(LLMProvider):
@@ -123,7 +145,7 @@ class OpenAIProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 16000,
         effort: str | None = None,
-    ) -> str:
+    ) -> ChatResult:
         model = model or self.compile_model
         input_items = [
             {"role": m.role, "content": self._chat_content(m)} for m in messages
@@ -134,12 +156,18 @@ class OpenAIProvider(LLMProvider):
             lambda: self.client.responses.create(
                 model=model,
                 max_output_tokens=max_tokens + REASONING_TOKEN_RESERVE,
-                reasoning={"effort": effort or REASONING_EFFORT},
+                reasoning={
+                    "effort": effort or REASONING_EFFORT,
+                    "summary": "auto",
+                },
                 instructions=system,
                 input=input_items,
             ),
         )
-        return response.output_text.strip()
+        return ChatResult(
+            text=response.output_text.strip(),
+            reasoning_summary=_reasoning_summary(response),
+        )
 
     def _chat_content(self, message: ChatMessage):
         # Assistant history replays as a plain string (EasyInputMessage); user
