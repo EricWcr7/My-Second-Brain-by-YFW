@@ -52,6 +52,7 @@ export function applyRoute(): void {
 }
 
 export function initRouter(): void {
+  if (!location.hash) history.replaceState(null, "", "#/welcome");
   window.addEventListener("hashchange", applyRoute);
   applyRoute();
 }

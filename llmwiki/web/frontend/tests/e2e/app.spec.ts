@@ -94,17 +94,35 @@ async function mockApp(page: Page, metaOverrides: Record<string, unknown> = {}):
   });
 }
 
+test("bare app opens Welcome before entering Workspace", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/");
+  await expect(page).toHaveURL(/#\/welcome$/);
+  await expect(page.locator("#welcome")).toBeVisible();
+  await page.locator(".welcome-enter").click();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.locator("#workspace-query")).toBeVisible();
+});
+
 test("workspace restores scope and welcome preserves it", async ({ page }) => {
   await mockApp(page);
   await page.addInitScript(() => localStorage.setItem("llmwiki.scope", "academic/example-course"));
   await page.goto("/#/");
   await expect(page.locator("#scope-chip")).toHaveText("Academic › example-course");
-  await page.locator("#brand-menu-toggle").click();
-  await page.getByRole("menuitem", { name: "Welcome" }).click();
+  await page.locator("#brand-home-link").click();
+  await expect(page).toHaveURL(/#\/welcome$/);
   await expect(page.locator("#welcome")).toBeVisible();
   await page.locator(".welcome-enter").click();
   await expect(page.locator("#scope-chip")).toHaveText("Academic › example-course");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("llmwiki.scope"))).toBe("academic/example-course");
+});
+
+test("workspace brand opens Welcome directly", async ({ page }) => {
+  await mockApp(page);
+  await page.goto("/#/");
+  await page.locator("#brand-home-link").click();
+  await expect(page).toHaveURL(/#\/welcome$/);
+  await expect(page.locator("#welcome")).toBeVisible();
 });
 
 test("legacy scope routes set the workspace scope", async ({ page }) => {
@@ -224,6 +242,7 @@ test("welcome brain wakes, relaxes, and never navigates", async ({ page }) => {
   await mockApp(page);
   await page.goto("/#/welcome");
   const field = page.locator("#brain-field");
+  await expect(page.locator(".brain-art")).toHaveAttribute("src", "/brain-network.png");
   await expect(field).toHaveAttribute("data-brain-state", "idle");
   const box = await field.boundingBox();
   expect(box).not.toBeNull();
@@ -329,4 +348,13 @@ test("@mobile welcome brain accepts touch without navigation", async ({ page }, 
   await page.touchscreen.tap(box!.x + box!.width * .6, box!.y + box!.height * .5);
   await expect(field).toHaveAttribute("data-brain-state", "awake");
   await expect(page).toHaveURL(/#\/welcome$/);
+});
+
+test("@mobile workspace brand opens Welcome directly", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile"), "mobile-only assertion");
+  await mockApp(page);
+  await page.goto("/#/");
+  await page.locator("#mobile-brand").click();
+  await expect(page).toHaveURL(/#\/welcome$/);
+  await expect(page.locator("#welcome")).toBeVisible();
 });

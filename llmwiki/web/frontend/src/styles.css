@@ -2580,25 +2580,27 @@ dialog::backdrop { background: rgba(3, 8, 12, .62); backdrop-filter: blur(2px); 
 .brain-stage { display: grid; min-width: 0; min-height: 0; place-items: center; }
 #brain-field {
   position: relative;
-  width: min(66vw, 790px);
+  width: min(72vw, 900px);
   aspect-ratio: 1;
   transform: translate(var(--brain-shift-x, 0), var(--brain-shift-y, 0));
   transition: transform .12s linear;
   touch-action: manipulation;
 }
-.brain-anatomy,
-#brain-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.brain-anatomy { overflow: visible; transform: translate(var(--brain-shift-x, 0), var(--brain-shift-y, 0)); transition: transform .12s linear; }
+.brain-art,
+#brain-canvas { position: absolute; inset: 0; width: 100%; height: 100%; transform: scaleX(1.035); transform-origin: center; }
+.brain-art {
+  display: block;
+  mix-blend-mode: screen;
+  object-fit: contain;
+  transition: filter .6s ease;
+  user-select: none;
+}
 #brain-canvas { pointer-events: none; }
-.brain-ring { fill: none; stroke: var(--blue); stroke-width: .5; opacity: .3; stroke-dasharray: 2 7; transform-box: fill-box; transform-origin: center; animation: cognitive-ring 42s linear infinite; }
-.brain-ring-inner { opacity: .18; stroke-dasharray: 1 9; animation-direction: reverse; animation-duration: 34s; }
-.brain-outline { fill: color-mix(in srgb, var(--surface-1) 64%, transparent); stroke: var(--blue); stroke-width: 1.15; opacity: .92; }
-.brain-fissure,
-.brain-gyrus { fill: none; stroke: var(--blue); stroke-width: .8; opacity: .42; }
-#brain-field[data-brain-state="awake"] .brain-outline { stroke: var(--accent); }
-.brain-hint { position: absolute; right: 16%; bottom: 12%; display: flex; align-items: center; gap: 10px; color: color-mix(in srgb, var(--accent) 72%, var(--muted)); font: 10px var(--font-ui); }
+#brain-field[data-brain-state="awake"] .brain-art { filter: brightness(1.1) saturate(1.08); }
+html[data-theme="light"] .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.96) contrast(.92); mix-blend-mode: multiply; }
+html[data-theme="light"] #brain-field[data-brain-state="awake"] .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(1.02) saturate(1.08); }
+.brain-hint { position: absolute; left: 38%; bottom: 18.5%; display: flex; align-items: center; gap: 10px; color: color-mix(in srgb, var(--accent) 72%, var(--muted)); font: 10px var(--font-ui); }
 .brain-hint span { width: 58px; height: 1px; background: var(--accent); opacity: .5; }
-@keyframes cognitive-ring { to { transform: rotate(360deg); } }
 .welcome-stats {
   display: flex;
   min-height: 74px;
@@ -2616,6 +2618,10 @@ dialog::backdrop { background: rgba(3, 8, 12, .62); backdrop-filter: blur(2px); 
 
 #mobile-nav { display: none; }
 #scrim { display: none; }
+
+@media (min-width: 1101px) {
+  .brain-stage { transform: translateX(-38px); }
+}
 
 @media (max-width: 1100px) {
   #app { grid-template-columns: 210px minmax(0, 1fr); }
@@ -2724,9 +2730,14 @@ dialog::backdrop { background: rgba(3, 8, 12, .62); backdrop-filter: blur(2px); 
   .welcome-route { display: none; }
   .brain-stage { min-height: 330px; flex: 1; }
   #brain-field { width: min(104vw, 500px); }
-  .brain-hint { right: 14%; bottom: 10%; font-size: 8px; }
+  .brain-hint { right: 14%; bottom: 10%; left: auto; font-size: 8px; }
   .welcome-stats { min-height: 58px; gap: 10px; font-size: 9px; }
   .welcome-stats > span:last-child { display: none; }
+}
+
+@media (prefers-color-scheme: light) {
+  html:not([data-theme]) .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.96) contrast(.92); mix-blend-mode: multiply; }
+  html:not([data-theme]) #brain-field[data-brain-state="awake"] .brain-art { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(1.02) saturate(1.08); }
 }
 
 @media (prefers-reduced-motion: reduce) {

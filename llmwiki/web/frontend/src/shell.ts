@@ -3,7 +3,6 @@ import { state } from "./state";
 import { toast } from "./toast";
 
 export function initShell(): void {
-  wireMenu("brand-menu-toggle", "brand-menu");
   wireMenu("scope-menu-toggle", "scope-menu");
   wireMenu("key-status", "readiness-popover");
 
@@ -56,10 +55,10 @@ function wireMenu(toggleId: string, menuId: string): void {
 }
 
 function closeMenus(): void {
-  ["brand-menu", "scope-menu", "readiness-popover"].forEach((id) => {
+  ["scope-menu", "readiness-popover"].forEach((id) => {
     const menu = document.getElementById(id);
     if (menu) menu.hidden = true;
   });
-  ["brand-menu-toggle", "scope-menu-toggle", "key-status"].forEach((id) =>
+  ["scope-menu-toggle", "key-status"].forEach((id) =>
     document.getElementById(id)?.setAttribute("aria-expanded", "false"));
 }
