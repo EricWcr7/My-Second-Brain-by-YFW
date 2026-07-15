@@ -520,16 +520,18 @@ def ingest(
     append_log(config, "ingest", loaded.title, detail=detail)
     rebuild_index(config)
 
-    # Vector indexing is a best-effort post-step: embed the touched concept pages
-    # so semantic search sees them. It never blocks ingest — a missing search
-    # extra or embeddings key just leaves the wiki keyword-searchable.
+    # Vector indexing is a best-effort post-step: embed only the concept pages this
+    # ingest touched. It never blocks ingest — a missing search extra or embeddings
+    # key just leaves the wiki keyword-searchable. Other filesystem changes heal
+    # within their requested scope before the next semantic query.
     embedder = make_embedder(config)
     if embedder is not None and touched:
         try:
+            touched_slugs = set(touched)
             refs = [
-                r
-                for r in iter_pages(config, "concept")
-                if r.slug in set(touched) and r.section == section
+                ref
+                for ref in iter_pages(config, "concept")
+                if ref.section == section and ref.slug in touched_slugs
             ]
             index_pages(config, embedder, refs)
         except Exception as e:  # pragma: no cover - resilience path

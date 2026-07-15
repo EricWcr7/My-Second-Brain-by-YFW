@@ -11,7 +11,7 @@ from llmwiki.ingest import (
     ingest,
 )
 from llmwiki.providers import ProviderError
-from llmwiki.store import read_page
+from llmwiki.store import read_page, write_page
 from llmwiki.wiki import concept_path, source_path
 
 from tests.fakes import FakeProvider
@@ -66,6 +66,75 @@ def test_ingest_creates_pages_and_provenance(vault):
     log_text = vault.log_file.read_text("utf-8")
     assert any(line.startswith("## [") and "ingest |" in line for line in log_text.splitlines())
     assert "Ingested retrieval practice notes." in log_text  # gen.log_entry becomes the detail line
+
+
+def test_ingest_indexes_only_touched_concepts(vault, monkeypatch):
+    pytest.importorskip("lancedb")
+    import llmwiki.ingest as ingest_module
+
+    from llmwiki.vectorindex import open_index
+    from tests.fakes import FakeEmbedder
+
+    write_page(
+        concept_path(vault, "archive", "Unrelated"),
+        {
+            "title": "Unrelated",
+            "type": "concept",
+            "section": "archive",
+            "sources": ["s1"],
+        },
+        "never-embed-out-of-scope",
+    )
+
+    class TouchedOnlyEmbedder(FakeEmbedder):
+        def embed(self, texts, *, model):
+            if any("never-embed-out-of-scope" in text for text in texts):
+                raise AssertionError("untouched concept was sent for embedding")
+            return super().embed(texts, model=model)
+
+    embedder = TouchedOnlyEmbedder()
+    monkeypatch.setattr(ingest_module, "make_embedder", lambda config: embedder)
+    src = vault.root / "note.md"
+    src.write_text(
+        "# Retrieval Practice\n\nRetrieval practice strengthens long-term recall.",
+        "utf-8",
+    )
+
+    result = ingest(vault, _provider(), str(src), section="projects/learning")
+
+    assert result.warnings == []
+    assert open_index(vault).stored_pages(vault.embed_model) == {
+        ("projects/learning", "retrieval-practice")
+    }
+
+
+def test_ingest_reports_vector_failure_without_rolling_back_wiki(vault, monkeypatch):
+    pytest.importorskip("lancedb")
+    import llmwiki.ingest as ingest_module
+
+    class FailingEmbedder:
+        available = True
+
+        def embed(self, texts, *, model):
+            raise ProviderError("simulated embedding outage")
+
+    monkeypatch.setattr(
+        ingest_module, "make_embedder", lambda config: FailingEmbedder()
+    )
+    src = vault.root / "note.md"
+    src.write_text(
+        "# Retrieval Practice\n\nRetrieval practice strengthens long-term recall.",
+        "utf-8",
+    )
+
+    result = ingest(vault, _provider(), str(src), section="projects/learning")
+
+    assert (
+        read_page(concept_path(vault, "projects/learning", "Retrieval Practice"))
+        is not None
+    )
+    assert result.status == "ingested"
+    assert result.warnings == ["vector indexing skipped: simulated embedding outage"]
 
 
 def test_ingest_normalizes_the_section_argument(vault):

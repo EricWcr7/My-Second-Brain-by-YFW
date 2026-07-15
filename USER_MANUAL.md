@@ -243,18 +243,33 @@ of these are true:
 1. `hybrid_search = true`.
 2. The `[search]` extra is installed.
 3. An embeddings key or compatible endpoint is configured.
-4. A vector index exists for the selected `embed_model`.
+4. The embeddings endpoint can build the selected model's vector index.
 
-Install and build it from the checkout and vault:
+Install the extra from the checkout:
 
 ```bash
 python -m pip install ".[web,search]"
-llmwiki reindex
 ```
 
-If any vector component is unavailable, Search returns BM25 results. Source
-pages may still appear through local title/slug matching. If expected results are
-missing, widen the active scope first.
+After ingest, the app indexes only the concept pages that ingest touched. Before
+semantic Search or Ask, it reconciles LanceDB with concept Markdown in the
+requested scope and descendants. Missing or changed chunks are embedded and
+deleted pages are removed, including changes arriving through Git or another
+worktree. An unchanged query still embeds the query itself but does not re-embed
+page content.
+
+The first semantic query after filesystem changes can take longer and sends
+changed concept chunks in that scope to the configured embeddings endpoint. Set
+`hybrid_search = false` to disable synchronization. If synchronization fails,
+retrieval logs one warning and returns BM25 results. Source pages may still appear
+through local title/slug matching. If expected results are missing, widen the
+active scope first.
+
+Run `llmwiki reindex` to build the entire vault before the first query or repair
+it explicitly. Use one vector-writing llmwiki process per vault at a time.
+Coordination is process-local, so simultaneous web and CLI writers can repeat
+embedding work or briefly leave stale derived rows; the next semantic query
+reconciles them.
 
 ## Read pages, Ask, and use overviews
 
@@ -386,9 +401,11 @@ Edit `[settings]` in `.llmwiki/config.toml` and restart the server.
 | `ingest_request_timeout` | `3600.0` | Per-request timeout during ingest |
 | `max_retries` | `2` | SDK retries for transient provider failures |
 
-Run `llmwiki reindex` after changing the embedding model or installing the
-search extra. Enabling reranking adds latency and one model call per Ask; failure
-falls back to the retrieval order.
+After changing the embedding model or installing the search extra, the next
+semantic operation builds the matching index automatically. Run `llmwiki reindex`
+to do so in advance, or `llmwiki reindex --force` to re-embed unchanged pages.
+Enabling reranking adds latency and one model call per Ask; failure falls back to
+the retrieval order.
 
 ## Command-line reference
 
