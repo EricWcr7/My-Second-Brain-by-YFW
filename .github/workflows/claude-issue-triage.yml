@@ -65,7 +65,7 @@ jobs:
           # Pin a model with `--model <id>` (e.g. claude-sonnet-5) if you want.
           claude_args: |
             --max-turns 15
-            --allowedTools "Read,Grep,Glob,mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__create_issue_comment"
+            --allowedTools "Read,Grep,Glob,mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__add_issue_comment"
           prompt: |
             You are triaging a newly opened GitHub issue for "My Second Brain by YFW",
             a local-first Python (3.11+) app that compiles documents into a connected,
@@ -84,7 +84,7 @@ jobs:
             2. Read README.md and USER_MANUAL.md for project context, then investigate
                the repository with Read/Grep/Glob to understand the relevant code. You may
                use mcp__github__search_issues to spot likely duplicates.
-            3. Post exactly ONE comment via mcp__github__create_issue_comment on issue
+            3. Post exactly ONE comment via mcp__github__add_issue_comment on issue
                #${{ github.event.issue.number }} that contains:
                - A one-line note that this is an automated first pass from Claude that a
                  maintainer will review.
