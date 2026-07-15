@@ -38,7 +38,9 @@ jobs:
     # Skip issues opened by bots to avoid automation loops / spam.
     if: github.event.issue.user.type != 'Bot'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Generous enough for a cold runner: CLI install + github-mcp-server image
+    # pull + up to --max-turns turns, so the comment isn't cut off mid-run.
+    timeout-minutes: 20
     steps:
       - name: Preflight (require API key secret)
         id: preflight
