@@ -175,6 +175,12 @@ llmwiki            Launch the web app
 See the [CLI reference](USER_MANUAL.md#command-line-reference) for options and
 examples.
 
+## Project status
+
+This project is still under active development, so features and interfaces may
+change as it evolves. Contributions, bug reports, and suggestions are welcome—
+please open an issue or pull request.
+
 ## Development
 
 Install development dependencies and run the Python tests and grounding
