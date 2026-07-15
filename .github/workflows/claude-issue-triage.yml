@@ -1,0 +1,99 @@
+name: Claude Issue Triage
+
+# Runs an AI first pass on every newly opened issue: Claude reads the report,
+# investigates the codebase (read-only), and posts ONE comment with a diagnosis
+# and a suggested fix. It cannot modify files, open PRs, or change labels — the
+# permissions and the allow-listed tools below make this a comment-only workflow,
+# so a maintainer still turns any suggestion into a real change.
+#
+# Setup: add a repository secret named ANTHROPIC_API_KEY
+# (Settings -> Secrets and variables -> Actions). To use a Claude subscription
+# instead of a metered API key, replace `anthropic_api_key` below with
+# `claude_code_oauth_token` and store a CLAUDE_CODE_OAUTH_TOKEN secret. Until the
+# secret exists the job no-ops (the preflight step skips the Claude step).
+#
+# Security: `allowed_non_write_users: "*"` lets issues from users without repo
+# write access trigger the run, so untrusted issue text reaches the model. That is
+# acceptable here only because the job is strictly read-only + comment-only
+# (contents: read, no Edit/Write/Bash/PR tools). Do not add write permissions or
+# code-editing tools without revisiting this trade-off. See
+# https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
+#
+# Hardening note: actions are pinned to major tags for readability. For stricter
+# supply-chain safety, pin `actions/checkout` and `anthropics/claude-code-action`
+# to full commit SHAs and let Dependabot bump them.
+
+on:
+  issues:
+    types: [opened]
+
+# Least privilege: read the repo, write only issue comments. No contents:write,
+# pull-requests, or id-token.
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    # Skip issues opened by bots to avoid automation loops / spam.
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Preflight (require API key secret)
+        id: preflight
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: echo "has_key=$HAS_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Check out repository
+        if: steps.preflight.outputs.has_key == 'true'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Claude triage
+        if: steps.preflight.outputs.has_key == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Required so issues from users without repo write access still trigger triage.
+          allowed_non_write_users: "*"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Read-only + comment-only. No Edit/Write/Bash and no PR tools, so code
+          # changes are impossible regardless of what the issue text asks for.
+          # Pin a model with `--model <id>` (e.g. claude-sonnet-5) if you want.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "Read,Grep,Glob,mcp__github__get_issue,mcp__github__get_issue_comments,mcp__github__search_issues,mcp__github__create_issue_comment"
+          prompt: |
+            You are triaging a newly opened GitHub issue for "My Second Brain by YFW",
+            a local-first Python (3.11+) app that compiles documents into a connected,
+            searchable Markdown wiki (package `llmwiki`, optional FastAPI web UI,
+            OpenAI/Anthropic providers).
+
+            Issue: #${{ github.event.issue.number }}
+            Repository: ${{ github.repository }}
+
+            You are READ-ONLY: you may not modify files, open pull requests, or change
+            labels. Your only write action is posting a single issue comment.
+
+            Steps:
+            1. Use mcp__github__get_issue to read issue #${{ github.event.issue.number }}
+               (its title and body).
+            2. Read README.md and USER_MANUAL.md for project context, then investigate
+               the repository with Read/Grep/Glob to understand the relevant code. You may
+               use mcp__github__search_issues to spot likely duplicates.
+            3. Post exactly ONE comment via mcp__github__create_issue_comment on issue
+               #${{ github.event.issue.number }} that contains:
+               - A one-line note that this is an automated first pass from Claude that a
+                 maintainer will review.
+               - A classification: bug, feature request, question, or needs-more-info.
+               - Your diagnosis: the most likely affected file(s) and line(s), and the
+                 root cause if you can identify it.
+               - A concrete suggested fix. If it is small, include a minimal patch in a
+                 ```diff fenced block. If the report is ambiguous, ask specific
+                 clarifying questions instead of guessing.
+               - Suggested labels as plain text (do NOT apply them).
+            4. Be concise, friendly, and honest about uncertainty. Do not close the issue.
+               If the issue is clearly spam or invalid, post a brief neutral note and stop.

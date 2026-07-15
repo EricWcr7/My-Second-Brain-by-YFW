@@ -1,0 +1,117 @@
+name: 🐛 Bug report
+description: Report something that is broken or behaving unexpectedly.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in the
+        sections below so we can reproduce and fix the problem quickly.
+
+        Before filing, check the
+        [User Manual](https://github.com/EricWcr7/My-Second-Brain-by-YFW/blob/main/USER_MANUAL.md)
+        and search existing issues.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I am running the latest version from the `main` branch.
+          required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: Describe the problem, including any error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, ordered steps that reliably trigger the bug.
+      placeholder: |
+        1. Run `llmwiki init .`
+        2. Add a source with `...`
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `llmwiki --version`, or the commit SHA you are on.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other (note in description)
+    validations:
+      required: true
+  - type: dropdown
+    id: python-version
+    attributes:
+      label: Python version
+      options:
+        - "3.11"
+        - "3.12"
+        - "3.13"
+        - "3.14"
+        - Other (note in description)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of the app is involved?
+      options:
+        - Ingest / compile
+        - Search (BM25 or semantic)
+        - Ask / query
+        - Review / lint
+        - Overviews
+        - Web UI
+        - CLI (`llmwiki`)
+        - Setup / install
+        - Other / not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI provider (if relevant)
+      description: Which provider was configured when the bug occurred?
+      options:
+        - OpenAI
+        - Anthropic
+        - None (offline / BM25 only)
+        - Not applicable
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or output
+      description: Paste terminal output, tracebacks, or console errors. This is automatically formatted as code.
+      render: shell
+    validations:
+      required: false

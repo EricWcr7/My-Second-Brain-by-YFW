@@ -1,0 +1,9 @@
+# Require contributors to pick a structured template instead of a blank issue.
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 User Manual & troubleshooting
+    url: https://github.com/EricWcr7/My-Second-Brain-by-YFW/blob/main/USER_MANUAL.md
+    about: Configuration, storage, privacy, and troubleshooting are covered here — please check before filing.
+  - name: 💬 Questions & discussion
+    url: https://github.com/EricWcr7/My-Second-Brain-by-YFW/discussions
+    about: For usage questions and general discussion (not bugs), please use Discussions.

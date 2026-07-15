@@ -1,0 +1,12 @@
+# Code owners for My Second Brain by YFW.
+#
+# Making the repository owner the code owner for every path means the owner's
+# review is REQUIRED on a pull request before it can be merged — but only once
+# branch protection (or a ruleset) on `main` turns on "Require review from Code
+# Owners". See the repository's branch-protection settings.
+#
+# Note: GitHub cannot stop other users from clicking "Approve". What this file +
+# branch protection guarantees is that a PR cannot be MERGED until @EricWcr7 (the
+# owner) approves it; approvals from anyone else do not satisfy the requirement.
+
+* @EricWcr7
