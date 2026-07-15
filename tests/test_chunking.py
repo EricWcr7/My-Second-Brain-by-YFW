@@ -27,9 +27,9 @@ def test_splits_on_headings_with_lede():
     chunks = chunk_page(_ref(), content, max_chars=1500)
     assert [c.heading for c in chunks] == ["", "Practice", "Benefits"]
     assert [c.id for c in chunks] == [
-        "retrieval-practice#0",
-        "retrieval-practice#1",
-        "retrieval-practice#2",
+        "projects/learning/retrieval-practice#0",
+        "projects/learning/retrieval-practice#1",
+        "projects/learning/retrieval-practice#2",
     ]
     # Every chunk carries page identity for citation aggregation.
     assert all(

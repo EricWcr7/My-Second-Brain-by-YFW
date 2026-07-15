@@ -108,16 +108,25 @@ therefore receive document text or original image/PDF bytes.
 
 ## Optional semantic search
 
-Install the search extra from the repository checkout, configure an embeddings
-key or OpenAI-compatible endpoint, then build vectors from the vault:
+Install the search extra from the repository checkout and configure an embeddings
+key or OpenAI-compatible endpoint:
 
 ```bash
 python -m pip install ".[web,search]"
-llmwiki reindex
 ```
 
-Without the extra, an embeddings key, or a vector index, Search falls back to
-local BM25 ranking.
+After ingest, the app indexes only the concept pages that ingest touched. Before
+semantic Search or Ask, it reconciles the requested scope and descendants:
+missing or changed chunks are embedded and deleted pages are removed. Markdown
+changes arriving through Git or another worktree therefore repair themselves
+without sending unrelated scopes. To build the whole vault in advance, run
+`llmwiki reindex`.
+
+The first semantic query after filesystem changes can take longer and sends
+changed concept chunks in that scope to the configured embeddings endpoint. Set
+`hybrid_search = false` to disable this behavior. Without the extra or an
+embeddings endpoint, Search falls back to local BM25 ranking. Use one
+vector-writing llmwiki process per vault at a time; coordination is process-local.
 
 ## Scope model
 

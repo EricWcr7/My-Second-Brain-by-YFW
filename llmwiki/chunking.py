@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 
 from .store import sha256_bytes
-from .wiki import PageRef
+from .wiki import PageRef, page_key
 
 _HEADING_RE = re.compile(r"^(#{2,3})\s+(.*)$")
 _PARA_SPLIT_RE = re.compile(r"\n\s*\n")
@@ -29,7 +29,7 @@ _PAGE_MARKER_RE = re.compile(r"(?=^<!-- page \d+ -->$)", re.MULTILINE)
 
 @dataclass
 class Chunk:
-    id: str  # f"{page_slug}#{i}"
+    id: str  # f"{section-qualified page key}#{i}"
     page_slug: str
     section: str
     page_title: str
@@ -100,7 +100,7 @@ def chunk_page(ref: PageRef, content: str, *, max_chars: int) -> list[Chunk]:
             if not piece:
                 continue
             chunk = Chunk(
-                id=f"{ref.slug}#{len(chunks)}",
+                id=f"{page_key(ref.section, ref.slug)}#{len(chunks)}",
                 page_slug=ref.slug,
                 section=ref.section,
                 page_title=ref.title,

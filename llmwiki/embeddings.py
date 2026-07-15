@@ -17,6 +17,7 @@ configured strength.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 
@@ -24,6 +25,32 @@ from .config import Config
 from .providers.base import ProviderError
 
 logger = logging.getLogger("llmwiki.providers")
+
+
+def validate_embedding_vectors(
+    vectors: list[list[float]], expected_count: int, *, unit: str = "texts"
+) -> list[list[float]]:
+    """Reject malformed provider output before it can reach the vector store."""
+    if len(vectors) != expected_count:
+        raise ProviderError(
+            f"Embeddings returned {len(vectors)} vectors for {expected_count} {unit}."
+        )
+    if not vectors:
+        return vectors
+    try:
+        dimensions = {len(vector) for vector in vectors}
+    except TypeError as e:
+        raise ProviderError("Embeddings returned invalid vector values.") from e
+    if len(dimensions) != 1:
+        raise ProviderError("Embeddings returned vectors with inconsistent dimensions.")
+    if dimensions == {0}:
+        raise ProviderError("Embeddings returned empty vectors.")
+    try:
+        if any(not math.isfinite(float(value)) for vector in vectors for value in vector):
+            raise ProviderError("Embeddings returned vectors with non-finite values.")
+    except (TypeError, ValueError) as e:
+        raise ProviderError("Embeddings returned non-numeric vector values.") from e
+    return vectors
 
 
 class Embedder:
@@ -75,7 +102,10 @@ class Embedder:
             time.perf_counter() - start,
         )
         items = sorted(resp.data, key=lambda d: d.index)
-        return [list(d.embedding) for d in items]
+        if [item.index for item in items] != list(range(len(texts))):
+            raise ProviderError("Embeddings returned invalid item indexes.")
+        vectors = [list(item.embedding) for item in items]
+        return validate_embedding_vectors(vectors, len(texts))
 
 
 def make_embedder(config: Config) -> Embedder | None:

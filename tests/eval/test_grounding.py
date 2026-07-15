@@ -12,8 +12,11 @@ because the check is deterministic, so any regression fails loudly here.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
+from llmwiki.providers import ProviderError
 from llmwiki.query import answer
 from llmwiki.store import write_page
 from llmwiki.wiki import concept_path
@@ -59,6 +62,13 @@ GOLDEN: list[dict] = [
         "answer": "See [[phantom-a]] and [[phantom-b]].",
         "expect_ungrounded": ["phantom-a", "phantom-b"],
     },
+    {
+        "name": "vector-sync-failure-keeps-grounding",
+        "pages": ["Retrieval Practice"],
+        "answer": "Fallback evidence [[retrieval-practice]] but not [[phantom-vector-page]].",
+        "expect_ungrounded": ["phantom-vector-page"],
+        "vector_sync_fails": True,
+    },
 ]
 
 
@@ -72,7 +82,17 @@ def _run_case(vault, case: dict, *, rerank: bool = False) -> list[str]:
             f"Body of {title}.",
         )
     provider = FakeProvider(answer_text=case["answer"])
-    result = answer(vault, provider, "eval question", section="projects/learning")
+    if case.get("vector_sync_fails"):
+        with (
+            patch("llmwiki.query.make_embedder", return_value=object()),
+            patch(
+                "llmwiki.search.reindex_scope",
+                side_effect=ProviderError("simulated vector sync failure"),
+            ),
+        ):
+            result = answer(vault, provider, "eval question", section="projects/learning")
+    else:
+        result = answer(vault, provider, "eval question", section="projects/learning")
     return result.ungrounded
 
 
