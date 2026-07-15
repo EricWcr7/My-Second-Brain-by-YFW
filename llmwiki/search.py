@@ -2,10 +2,10 @@
 
 The keyword index is BM25-lite, built in memory on each call (the corpus is small —
 hundreds of pages at most), with titles weighted above body text. When an
-:class:`~llmwiki.embeddings.Embedder` is supplied *and* a vector index exists, the
-keyword ranking is fused with a semantic ranking via **Reciprocal Rank Fusion**.
-Without an embedder — or if the vector index is unavailable — search degrades
-transparently to pure BM25, so key-less and faked runs behave exactly as before.
+:class:`~llmwiki.embeddings.Embedder` is supplied, the derived vector index is
+incrementally reconciled with Markdown before its ranking is fused with BM25 via
+**Reciprocal Rank Fusion**. Without an embedder — or if reconciliation fails —
+search warns once and degrades to pure BM25.
 """
 
 from __future__ import annotations
@@ -13,17 +13,21 @@ from __future__ import annotations
 import logging
 import math
 import re
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .config import Config
+from .indexing import reindex_scope
 from .store import read_page
-from .wiki import PageRef, iter_pages, section_contains
+from .wiki import PageRef, iter_pages, page_key, section_contains
 
 if TYPE_CHECKING:
     from .embeddings import Embedder
 
 logger = logging.getLogger("llmwiki.search")
+_warning_lock = threading.Lock()
+_last_vector_warning: str | None = None
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = {
@@ -116,6 +120,10 @@ def _vector_page_list(
     """
     from .vectorindex import open_index
 
+    # The Markdown wiki is authoritative. Reconcile its derived vector index here
+    # so Git/worktree edits self-heal before Search or Ask uses vectors. Hashes make
+    # the healthy path local-only: unchanged pages are not re-embedded.
+    reindex_scope(config, embedder, scope)
     index = open_index(config)
     qvec = embedder.embed([query], model=config.embed_model)[0]
     order: list[str] = []
@@ -123,11 +131,27 @@ def _vector_page_list(
     for row in index.search(config.embed_model, qvec, config.vector_top_n):
         if not section_contains(scope, row["section"]):
             continue
-        slug = row["page_slug"]
-        if slug not in seen:
-            seen.add(slug)
-            order.append(slug)
+        key = page_key(row["section"], row["page_slug"])
+        if key not in seen:
+            seen.add(key)
+            order.append(key)
     return order
+
+
+def _clear_vector_warning() -> None:
+    global _last_vector_warning
+    with _warning_lock:
+        _last_vector_warning = None
+
+
+def _warn_vector_fallback(error: Exception) -> None:
+    global _last_vector_warning
+    message = f"{type(error).__name__}: {error}"
+    with _warning_lock:
+        if message == _last_vector_warning:
+            return
+        _last_vector_warning = message
+    logger.warning("semantic index unavailable; using BM25 only (%s)", message)
 
 
 def _hybrid_hits(
@@ -139,14 +163,18 @@ def _hybrid_hits(
 ) -> list[SearchHit]:
     scope = section or ""
     vector_list = _vector_page_list(config, query, scope, embedder)
+    _clear_vector_warning()
     if not vector_list:
         return bm25_hits  # nothing indexed yet → keyword only
 
-    scores = _rrf([[h.ref.slug for h in bm25_hits], vector_list], config.rrf_k)
-    # Resolve fused slugs back to concept pages in scope; drop any whose file is
+    scores = _rrf(
+        [[page_key(h.ref.section, h.ref.slug) for h in bm25_hits], vector_list],
+        config.rrf_k,
+    )
+    # Resolve fused keys back to concept pages in scope; drop any whose file is
     # gone (self-healing against stale chunks left by a deleted page).
     refs = {
-        r.slug: r
+        page_key(r.section, r.slug): r
         for r in iter_pages(config, "concept")
         if section_contains(scope, r.section)
     }
@@ -176,7 +204,8 @@ def search(
     if embedder is not None and page_type == "concept":
         try:
             hits = _hybrid_hits(config, query, section, bm25_hits, embedder)
-        except Exception:  # vector path is best-effort; never break search
-            logger.debug("vector search unavailable; using BM25 only", exc_info=True)
+        except Exception as error:  # vector path is best-effort; never break search
+            _warn_vector_fallback(error)
+            logger.debug("vector search failure", exc_info=True)
             hits = bm25_hits
     return hits[:top_k] if top_k is not None else hits

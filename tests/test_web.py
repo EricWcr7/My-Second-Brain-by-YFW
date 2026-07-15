@@ -211,8 +211,7 @@ def test_delete_section_purges_vector_index(client, vault):
     reindex_all(vault, FakeEmbedder())
 
     def stored_slugs():
-        ids = open_index(vault).existing_hashes(vault.embed_model)
-        return {cid.split("#", 1)[0] for cid in ids}
+        return {slug for _, slug in open_index(vault).stored_pages(vault.embed_model)}
 
     assert "review-schedule" in stored_slugs()  # indexed before delete
 
@@ -265,8 +264,7 @@ def test_delete_concept_purges_vector_index(client, vault):
     reindex_all(vault, FakeEmbedder())
 
     def stored_slugs():
-        ids = open_index(vault).existing_hashes(vault.embed_model)
-        return {cid.split("#", 1)[0] for cid in ids}
+        return {slug for _, slug in open_index(vault).stored_pages(vault.embed_model)}
 
     assert "retrieval-practice" in stored_slugs()
 
@@ -276,6 +274,41 @@ def test_delete_concept_purges_vector_index(client, vault):
     assert r.status_code == 200
 
     assert "retrieval-practice" not in stored_slugs()
+
+
+def test_delete_concept_preserves_same_slug_vectors_in_sibling_section(client, vault):
+    pytest.importorskip("lancedb")
+    from llmwiki.indexing import reindex_all
+    from llmwiki.vectorindex import open_index
+
+    from tests.fakes import FakeEmbedder
+
+    write_page(
+        concept_path(vault, "academic/other", "Retrieval Practice"),
+        {
+            "title": "Retrieval Practice",
+            "type": "concept",
+            "section": "academic/other",
+            "sources": ["other-source"],
+        },
+        "A sibling section's retrieval practice page.\n",
+    )
+    reindex_all(vault, FakeEmbedder())
+    index = open_index(vault)
+    assert index.stored_pages(vault.embed_model) == {
+        ("academic/learning", "retrieval-practice"),
+        ("academic/other", "retrieval-practice"),
+    }
+
+    response = client.delete(
+        "/api/page/retrieval-practice",
+        params={"type": "concept", "section": "academic/learning"},
+    )
+
+    assert response.status_code == 200
+    assert index.stored_pages(vault.embed_model) == {
+        ("academic/other", "retrieval-practice")
+    }
 
 
 def test_delete_source_page_full_teardown(client, vault):
@@ -367,8 +400,7 @@ def test_delete_source_cascade_purges_vectors(client, vault):
     reindex_all(vault, FakeEmbedder())
 
     def stored_slugs():
-        ids = open_index(vault).existing_hashes(vault.embed_model)
-        return {cid.split("#", 1)[0] for cid in ids}
+        return {slug for _, slug in open_index(vault).stored_pages(vault.embed_model)}
 
     assert "retrieval-practice" in stored_slugs()
 

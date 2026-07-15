@@ -65,6 +65,12 @@ def normalize_section(section: str) -> str:
     return "/".join(section_slug(seg) for seg in section_segments(section))
 
 
+def page_key(section: str, slug: str) -> str:
+    """Section-qualified page identity used by retrieval's internal indexes."""
+    section = normalize_section(section)
+    return f"{section}/{slug}" if section else slug
+
+
 def section_ancestry(section: str) -> list[str]:
     """The General root down to ``section``: ``["", …parents…, section]``.
 
@@ -291,10 +297,10 @@ def purge_section(config: Config, section: str) -> list[str]:
     ``index.md``; callers append their own ``log.md`` entry.
     """
     rel = section_to_relpath(section)
-    # Capture the concept slugs before the pages are gone, so their vectors can be
-    # dropped from the index afterwards.
-    doomed_slugs = {
-        ref.slug
+    # Capture section-qualified concept identities before the pages are gone, so
+    # same-slug concepts in sibling sections are left untouched.
+    doomed_pages = {
+        (ref.section, ref.slug)
         for ref in iter_pages(config, "concept")
         if _section_owns(section, ref.section)
     }
@@ -332,10 +338,10 @@ def purge_section(config: Config, section: str) -> list[str]:
 
     rebuild_index(config)  # drop the deleted pages from index.md
 
-    if doomed_slugs:
+    if doomed_pages:
         # Best-effort: a missing search extra / index just means nothing to drop.
         try:
-            open_index(config).delete_page_slugs(doomed_slugs)
+            open_index(config).delete_pages(doomed_pages)
         except VectorIndexUnavailable:
             pass
         except Exception:  # pragma: no cover - resilience path; never block a delete
@@ -368,19 +374,18 @@ def purge_page(config: Config, page_type: str, section: str, slug: str) -> PageP
     concept whose provenance becomes empty (concept pages must carry a
     non-empty ``sources:`` list).
 
-    Vector deletion is by slug across every section (a :meth:`delete_page_slugs`
-    property shared with :func:`purge_section`); ``reindex`` restores any
-    same-slug concept elsewhere. Refreshes ``index.md``; callers append their
-    own ``log.md`` entry and must verify the page exists first.
+    Vector deletion uses section plus slug, so a same-slug concept in another
+    section remains indexed. Refreshes ``index.md``; callers append their own
+    ``log.md`` entry and must verify the page exists first.
     """
     section = normalize_section(section)
     scrubbed: list[str] = []
     removed_concepts: list[str] = []
-    doomed_slugs: set[str] = set()
+    doomed_pages: set[tuple[str, str]] = set()
 
     if page_type == "concept":
         concept_path(config, section, slug).unlink()
-        doomed_slugs.add(slug)
+        doomed_pages.add((section, slug))
     else:
         source_path(config, section, slug).unlink()
 
@@ -423,14 +428,14 @@ def purge_page(config: Config, page_type: str, section: str, slug: str) -> PageP
             else:
                 ref.path.unlink(missing_ok=True)
                 removed_concepts.append(ref.slug)
-                doomed_slugs.add(ref.slug)
+                doomed_pages.add((ref.section, ref.slug))
 
     rebuild_index(config)  # drop the deleted page(s) from index.md
 
-    if doomed_slugs:
+    if doomed_pages:
         # Best-effort: a missing search extra / index just means nothing to drop.
         try:
-            open_index(config).delete_page_slugs(doomed_slugs)
+            open_index(config).delete_pages(doomed_pages)
         except VectorIndexUnavailable:
             pass
         except Exception:  # pragma: no cover - resilience path; never block a delete
