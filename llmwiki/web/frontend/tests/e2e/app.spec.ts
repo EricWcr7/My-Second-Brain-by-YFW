@@ -131,6 +131,7 @@ test("legacy scope routes set the workspace scope", async ({ page }) => {
 test("command search, slash focus, and global palette work", async ({ page }) => {
   await mockApp(page);
   await page.goto("/#/");
+  await expect(page.locator("#workspace-query")).toBeVisible();
   await page.keyboard.press("/");
   await expect(page.locator("#workspace-query")).toBeFocused();
   await page.locator("#workspace-query").fill("spaced");
